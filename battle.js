@@ -69,7 +69,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 场景 1：战前布阵（重构版）
+// 场景 1：战前布阵（加入人数限制）
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
@@ -79,10 +79,9 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE;
     const gridW = cell * CONFIG.GRID_SIZE;
     
-    // 布局参数：上方上阵区，下方待命区
     const gridLeft = (CONFIG.WIDTH - gridW) / 2;
     const gridTop = 180;
-    const standbyTop = 680; // 待命区整体靠下
+    const standbyTop = 680; 
 
     // 强刷按钮
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { 
@@ -97,7 +96,6 @@ class FormationScene extends Phaser.Scene {
     this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 120, '从下方待命区拖入上方网格 (最多5人)\n拖回下方即可下阵', { fontSize: '20px', color: '#aaaaaa', align: 'center' }).setOrigin(0.5);
 
-    // 1. 画上阵网格
     const g = this.add.graphics();
     g.lineStyle(2, 0x3498DB, 0.5);
     for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
@@ -105,26 +103,24 @@ class FormationScene extends Phaser.Scene {
       g.lineBetween(gridLeft + i * cell, gridTop, gridLeft + i * cell, gridTop + gridW);
     }
 
-    // 2. 画待命区背景（加高了高度，防止超出）
     const standbyBg = this.add.graphics();
     standbyBg.fillStyle(0x16213e, 0.8);
-    standbyBg.fillRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10); // 高度改为 300
+    standbyBg.fillRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10);
     standbyBg.lineStyle(2, 0x3498DB, 0.5);
     standbyBg.strokeRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10);
 
-    // 3. 画开始按钮
     const startBtn = this.add.text(CONFIG.WIDTH / 2, 1180, '⚔️ 开始战斗', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
+    
     startBtn.on('pointerdown', () => { 
       const players = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1);
       if (players.length === 0) { alert("至少需要上阵1名角色！"); return; }
+      if (players.length > 5) { alert("上阵人数不能超过5人！"); return; } // 双重保险
       this.scene.start('BattleScene'); 
     });
 
-    // 4. 初始化
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
     const playerChars = CHARACTERS.filter(c => c.side === 'player');
     
-    // ★ 修复2：强制所有角色初始在待命区（防止旧数据导致默认在场上）
     playerChars.forEach(data => {
       data.gridX = -1; 
       data.gridY = -1; 
@@ -132,9 +128,7 @@ class FormationScene extends Phaser.Scene {
 
     this.unitContainers = [];
     
-    // 5. 生成角色 UI
     playerChars.forEach(data => {
-      // 初始位置都在待命区
       const container = this.add.container(0, 0);
       
       const circle = this.add.circle(0, 0, 42, ELEMENTS[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
@@ -150,9 +144,7 @@ class FormationScene extends Phaser.Scene {
       container.isOnGrid = false;
       this.unitContainers.push(container);
 
-      // --- 拖拽事件 ---
       container.on('dragstart', () => {
-        // 如果它原来在网格上，腾出位置
         if (container.isOnGrid) {
           this.gridState[data.gridX][data.gridY] = null;
         }
@@ -168,15 +160,24 @@ class FormationScene extends Phaser.Scene {
         let col = Math.floor((container.x - gridLeft) / cell);
         let row = Math.floor((container.y - gridTop) / cell);
 
-        // 判断松手在哪
         if (col >= 0 && col < CONFIG.GRID_SIZE && row >= 0 && row < CONFIG.GRID_SIZE) {
-          // ★ 落在网格内
+          
+          // ★ 核心新增：如果是待命区拖上来的，检查人数是否已满
+          if (!container.isOnGrid) {
+            const currentOnGridCount = this.unitContainers.filter(c => c.isOnGrid).length;
+            if (currentOnGridCount >= 5) {
+              alert("最多只能上阵5名角色！");
+              data.gridX = -1; data.gridY = -1;
+              container.isOnGrid = false;
+              this.layoutStandby(standbyTop);
+              return;
+            }
+          }
+
           const targetUnitData = this.gridState[col][row];
           
           if (targetUnitData && targetUnitData !== data) {
-            // 情况 A：目标格已经有人
             if (container.isOnGrid) {
-              // 原本就在网格，两者互换位置
               const oldCol = data.gridX;
               const oldRow = data.gridY;
               
@@ -188,7 +189,6 @@ class FormationScene extends Phaser.Scene {
               targetContainer.x = gridLeft + oldCol * cell + cell / 2;
               targetContainer.y = gridTop + oldRow * cell + cell / 2;
             } else {
-              // ★ 修复3：从待命区拖上来，把人挤回待命区
               targetUnitData.gridX = -1;
               targetUnitData.gridY = -1;
               const targetContainer = this.unitContainers.find(c => c.unitData === targetUnitData);
@@ -196,7 +196,6 @@ class FormationScene extends Phaser.Scene {
             }
           }
 
-          // 自己正式落入网格
           data.gridX = col; data.gridY = row;
           this.gridState[col][row] = data;
           container.x = gridLeft + col * cell + cell / 2;
@@ -204,26 +203,22 @@ class FormationScene extends Phaser.Scene {
           container.isOnGrid = true;
 
         } else {
-          // ★ 落在网格外（回待命区）
           data.gridX = -1; data.gridY = -1;
           container.isOnGrid = false;
         }
 
-        // 无论怎么拖，最后都重新整理一次下方待命区的排列
         this.layoutStandby(standbyTop);
       });
     });
 
-    // 首次布局
     this.layoutStandby(standbyTop);
   }
 
-  // 核心：重新整理待命区，按顺序排列，绝对不重叠，且完全在框内
   layoutStandby(standbyTop) {
     const standbyContainers = this.unitContainers.filter(c => !c.isOnGrid);
-    const cols = 4; // 每行4个
-    const cellW = 140; // 横向间距
-    const cellH = 120; // 纵向间距
+    const cols = 4; 
+    const cellW = 140; 
+    const cellH = 120; 
     const startX = (CONFIG.WIDTH - (cols - 1) * cellW) / 2;
     
     standbyContainers.forEach((container, index) => {
@@ -231,7 +226,6 @@ class FormationScene extends Phaser.Scene {
       const cRow = Math.floor(index / cols);
       
       const targetX = startX + cCol * cellW;
-      // ★ 修复1：调整纵向起始位置，让角色框完全在待命区背景内
       const targetY = standbyTop + 50 + cRow * cellH; 
       
       this.tweens.add({
@@ -246,7 +240,7 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景 2：战斗表现 (保持不变)
+// 场景 2：战斗表现
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
