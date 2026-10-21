@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>游戏人物配置编辑器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 100px; }
+    h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
+    
+    /* 角色卡片 */
+    .char-card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    .char-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+    .char-header h3 { color: #3498db; }
+    .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
+    
+    /* 表单布局 */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-item { display: flex; flex-direction: column; }
+    .form-item label { font-size: 12px; color: #aaa; margin-bottom: 4px; }
+    .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 14px; }
+    
+    /* 底部按钮区 */
+    .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; }
+    .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; }
+    .btn-add { background: #2ecc71; }
+    .btn-gen { background: #e67e22; }
+    
+    /* 代码输出框 */
+    #output-area { width: 100%; height: 200px; margin-top: 20px; background: #000; color: #2ecc71; padding: 10px; border: 1px solid #444; border-radius: 4px; display: none; font-family: monospace; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <h1>👾 人物配置编辑器</h1>
+  <div id="char-list"></div>
+
+  <!-- 底部操作栏 -->
+  <div class="bottom-bar">
+    <button class="btn btn-add" onclick="addChar()">➕ 新增角色</button>
+    <button class="btn btn-gen" onclick="generateCode()">📦 生成数据代码</button>
+  </div>
+
+  <textarea id="output-area" readonly></textarea>
+
+  <script>
+    // 初始数据（默认读入你游戏里的6个角色）
+    let gameData = [
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, gridX: 1, gridY: 0, skills: ['skill_slash', 'skill_fireball'] },
+      { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, gridX: 0, gridY: 2, skills: ['skill_slash', 'skill_frost_arrow'] },
+      { id: 'p_archer', name: '射手', side: 'player', emoji: '🏹', element: 'wind', maxHp: 200, atk: 36, def: 10, speed: 12, critRate: 0.25, critDmg: 1.6, maxMp: 50, mpPerAttack: 12, gridX: 2, gridY: 2, skills: ['skill_arrow', 'skill_frost_arrow'] },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, gridX: 0, gridY: 0, skills: ['skill_dark_claw', 'skill_bone_throw'] },
+      { id: 'e_slime', name: '史莱姆', side: 'enemy', emoji: '🟢', element: 'water', maxHp: 320, atk: 22, def: 14, speed: 5, critRate: 0.05, critDmg: 1.3, maxMp: 40, mpPerAttack: 10, gridX: 1, gridY: 0, skills: ['skill_slime_tackle', 'skill_bone_throw'] },
+      { id: 'e_goblin', name: '哥布林', side: 'enemy', emoji: '👺', element: 'wind', maxHp: 180, atk: 34, def: 10, speed: 11, critRate: 0.2, critDmg: 1.5, maxMp: 50, mpPerAttack: 12, gridX: 2, gridY: 1, skills: ['skill_arrow', 'skill_bone_throw'] }
+    ];
+
+    const elements = ['fire', 'water', 'wind', 'light', 'dark'];
+    const sides = [{ val: 'player', label: '我方' }, { val: 'enemy', label: '敌方' }];
+
+    // 渲染界面
+    function render() {
+      const list = document.getElementById('char-list');
+      list.innerHTML = '';
+      
+      gameData.forEach((char, index) => {
+        const div = document.createElement('div');
+        div.className = 'char-card';
+        div.innerHTML = `
+          <div class="char-header">
+            <h3>${char.emoji} ${char.name}</h3>
+            <button class="btn-del" onclick="deleteChar(${index})">删除</button>
+          </div>
+          <div class="form-grid">
+            <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateField(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>图标(Emoji)</label><input type="text" value="${char.emoji}" onchange="updateField(${index}, 'emoji', this.value)"></div>
+            <div class="form-item">
+              <label>阵营</label>
+              <select onchange="updateField(${index}, 'side', this.value)">
+                ${sides.map(s => `<option value="${s.val}" ${char.side === s.val ? 'selected' : ''}>${s.label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-item">
+              <label>属性</label>
+              <select onchange="updateField(${index}, 'element', this.value)">
+                ${elements.map(e => `<option value="${e}" ${char.element === e ? 'selected' : ''}>${e}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-item"><label>生命(HP)</label><input type="number" value="${char.maxHp}" onchange="updateField(${index}, 'maxHp', parseInt(this.value))"></div>
+            <div class="form-item"><label>攻击(ATK)</label><input type="number" value="${char.atk}" onchange="updateField(${index}, 'atk', parseInt(this.value))"></div>
+            <div class="form-item"><label>防御(DEF)</label><input type="number" value="${char.def}" onchange="updateField(${index}, 'def', parseInt(this.value))"></div>
+            <div class="form-item"><label>速度(SPD)</label><input type="number" value="${char.speed}" onchange="updateField(${index}, 'speed', parseInt(this.value))"></div>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    // 修改字段
+    function updateField(index, key, value) {
+      gameData[index][key] = value;
+    }
+
+    // 新增角色
+    function addChar() {
+      const newId = 'new_char_' + Date.now();
+      gameData.push({
+        id: newId, name: '新角色', side: 'player', emoji: '🙂', element: 'fire',
+        maxHp: 100, atk: 10, def: 10, speed: 10, critRate: 0.1, critDmg: 1.5, 
+        maxMp: 50, mpPerAttack: 10, gridX: 0, gridY: 0, skills: ['skill_slash']
+      });
+      render();
+      window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    // 删除角色
+    function deleteChar(index) {
+      if (confirm('确定要删除这个角色吗？')) {
+        gameData.splice(index, 1);
+        render();
+      }
+    }
+
+    // 生成最终代码
+    function generateCode() {
+      const output = document.getElementById('output-area');
+      const jsonStr = JSON.stringify(gameData, null, 2);
+      output.value = "const CHARACTERS = " + jsonStr + ";";
+      output.style.display = 'block';
+      output.scrollIntoView();
+      
+      // 自动复制到剪贴板
+      output.select();
+      document.execCommand('copy');
+      alert('代码已生成并复制！\n请去 data.js 替换掉原来的 const CHARACTERS 部分。');
+    }
+
+    // 初始化
+    render();
+  </script>
+</body>
+</html>
