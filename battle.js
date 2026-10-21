@@ -1,3 +1,18 @@
+// ★ 新增：检查手机里有没有编辑器同步过来的新数据
+if (localStorage.getItem('my_game_characters')) {
+  try {
+    const localData = JSON.parse(localStorage.getItem('my_game_characters'));
+    if (Array.isArray(localData) && localData.length > 0) {
+      // 用本地数据覆盖掉 data.js 里的默认数据
+      CHARACTERS.length = 0; 
+      CHARACTERS.push(...localData);
+    }
+  } catch(e) { console.error('读取本地数据失败', e); }
+}
+
+// 下面是原本的纯逻辑层：战斗单位与伤害计算
+class Unit {
+  // ... 后面的代码保持不变 ...
 // ==========================================
 // 纯逻辑层：战斗单位与伤害计算
 // ==========================================
