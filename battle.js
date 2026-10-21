@@ -69,7 +69,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 场景 1：战前布阵
+// 场景 1：战前布阵（加入待命区）
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
@@ -78,11 +78,22 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE;
     const gridW = cell * CONFIG.GRID_SIZE;
     const gridLeft = (CONFIG.WIDTH - gridW) / 2;
-    const playerTop = 580; 
+    
+    // 坐标区域划分
+    const standbyTop = 180; // 待命区起始位置
+    const playerTop = 650;  // 网格区起始位置
 
-    this.add.text(CONFIG.WIDTH / 2, 100, '战前布阵', { fontSize: '48px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(CONFIG.WIDTH / 2, 160, '按住拖动角色，可交换位置\n(前排=上方, 后排=下方)', { fontSize: '24px', color: '#aaaaaa', align: 'center' }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, 110, '拖动角色进入下方网格上阵 (最多5人)\n拖回上方即可下阵', { fontSize: '20px', color: '#aaaaaa', align: 'center' }).setOrigin(0.5);
 
+    // 画待命区背景框
+    const standbyBg = this.add.graphics();
+    standbyBg.fillStyle(0x16213e, 0.8);
+    standbyBg.fillRoundedRect(40, standbyTop - 20, CONFIG.WIDTH - 80, 160, 10);
+    standbyBg.lineStyle(2, 0x3498DB, 0.5);
+    standbyBg.strokeRoundedRect(40, standbyTop - 20, CONFIG.WIDTH - 80, 160, 10);
+
+    // 画我方网格
     const g = this.add.graphics();
     g.lineStyle(2, 0x3498DB, 0.5);
     for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
@@ -90,17 +101,55 @@ class FormationScene extends Phaser.Scene {
       g.lineBetween(gridLeft + i * cell, playerTop, gridLeft + i * cell, playerTop + gridW);
     }
 
-    const startBtn = this.add.text(CONFIG.WIDTH / 2, 1120, '⚔️ 开始战斗', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
-    startBtn.on('pointerdown', () => { this.scene.start('BattleScene'); });
+    const startBtn = this.add.text(CONFIG.WIDTH / 2, 1200, '⚔️ 开始战斗', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
+    startBtn.on('pointerdown', () => { 
+      // 检查上阵人数
+      const players = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1);
+      if (players.length === 0) {
+        alert("至少需要上阵1名角色！");
+        return;
+      }
+      this.scene.start('BattleScene'); 
+    });
 
+    // 初始化网格状态
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
 
+    // 计算待命区位置
+    let standbyCount = 0;
+    const getStandbyPos = () => {
+      const pos = {
+        x: 100 + (standbyCount % 5) * 130, // 一行放5个
+        y: standbyTop + Math.floor(standbyCount / 5) * 70 + 40
+      };
+      standbyCount++;
+      return pos;
+    };
+
+    // 生成所有我方角色
     CHARACTERS.filter(c => c.side === 'player').forEach(data => {
-      this.gridState[data.gridX][data.gridY] = data;
-      let x = gridLeft + data.gridX * cell + cell / 2;
-      let y = playerTop + data.gridY * cell + cell / 2;
-      const container = this.add.container(x, y);
+      // 处理历史数据：如果有坐标但重叠了，只保留一个在网格，其他去待命区
+      if (data.gridX !== -1 && data.gridX !== undefined) {
+        if (this.gridState[data.gridX][data.gridY]) {
+          data.gridX = -1; data.gridY = -1; // 重叠了，退回待命区
+        } else {
+          this.gridState[data.gridX][data.gridY] = data;
+        }
+      }
+
+      let pos;
+      if (data.gridX === -1 || data.gridX === undefined) {
+        pos = getStandbyPos();
+      } else {
+        pos = {
+          x: gridLeft + data.gridX * cell + cell / 2,
+          y: playerTop + data.gridY * cell + cell / 2
+        };
+      }
+
+      const container = this.add.container(pos.x, pos.y);
       
+      // 战斗小人 UI
       const circle = this.add.circle(0, 0, 42, ELEMENTS[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
       const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
       const nameText = this.add.text(0, 50, data.name, { fontSize: '18px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
@@ -111,11 +160,15 @@ class FormationScene extends Phaser.Scene {
       this.input.setDraggable(container);
       
       container.unitData = data; 
+      container.isOnGrid = data.gridX !== -1;
       container.startCol = data.gridX;
       container.startRow = data.gridY;
+      container.standbyPos = pos; // 记录待命区位置
 
       container.on('dragstart', () => {
-        this.gridState[container.startCol][container.startRow] = null;
+        if (container.isOnGrid) {
+          this.gridState[container.startCol][container.startRow] = null;
+        }
         container.setDepth(100); 
       });
 
@@ -127,35 +180,54 @@ class FormationScene extends Phaser.Scene {
         container.setDepth(0); 
         let col = Math.floor((container.x - gridLeft) / cell);
         let row = Math.floor((container.y - playerTop) / cell);
-        if (col < 0 || col >= CONFIG.GRID_SIZE || row < 0 || row >= CONFIG.GRID_SIZE) {
-          container.x = gridLeft + container.startCol * cell + cell / 2;
-          container.y = playerTop + container.startRow * cell + cell / 2;
-          this.gridState[container.startCol][container.startRow] = data; 
-          return;
-        }
-        const targetUnit = this.gridState[col][row];
-        if (targetUnit) {
-          targetUnit.gridX = container.startCol; targetUnit.gridY = container.startRow;
-          this.gridState[container.startCol][container.startRow] = targetUnit;
-          const targetContainer = this.children.list.find(child => child.unitData === targetUnit);
-          if (targetContainer) {
-            targetContainer.x = gridLeft + targetUnit.gridX * cell + cell / 2;
-            targetContainer.y = playerTop + targetUnit.gridY * cell + cell / 2;
-            targetContainer.startCol = targetUnit.gridX;
-            targetContainer.startRow = targetUnit.gridY;
+
+        // 判断松手位置
+        if (col >= 0 && col < CONFIG.GRID_SIZE && row >= 0 && row < CONFIG.GRID_SIZE) {
+          // === 松手在网格内 ===
+          const targetUnit = this.gridState[col][row];
+          
+          if (targetUnit) {
+            // 目标格有人：如果原来是从待命区拖来，把人挤回待命区；如果是从网格拖来，互换位置
+            if (container.isOnGrid) {
+               targetUnit.gridX = container.startCol; targetUnit.gridY = container.startRow;
+               this.gridState[container.startCol][container.startRow] = targetUnit;
+               this.updateUnitPos(targetUnit, gridLeft + targetUnit.gridX * cell + cell / 2, playerTop + targetUnit.gridY * cell + cell / 2);
+            } else {
+               // 从待命区拖到有人的格子，拦截，退回待命区
+               container.x = container.standbyPos.x;
+               container.y = container.standbyPos.y;
+               return;
+            }
           }
+
+          // 记录新位置
           data.gridX = col; data.gridY = row;
           this.gridState[col][row] = data;
+          container.x = gridLeft + col * cell + cell / 2;
+          container.y = playerTop + row * cell + cell / 2;
+          container.isOnGrid = true;
+          container.startCol = col;
+          container.startRow = row;
+
         } else {
-          data.gridX = col; data.gridY = row;
-          this.gridState[col][row] = data;
+          // === 松手在网格外（回待命区） ===
+          data.gridX = -1; data.gridY = -1;
+          container.isOnGrid = false;
+          container.x = container.standbyPos.x;
+          container.y = container.standbyPos.y;
         }
-        container.x = gridLeft + data.gridX * cell + cell / 2;
-        container.y = playerTop + data.gridY * cell + cell / 2;
-        container.startCol = data.gridX;
-        container.startRow = data.gridY;
       });
     });
+  }
+
+  updateUnitPos(unitData, x, y) {
+    const targetContainer = this.children.list.find(child => child.unitData === unitData);
+    if (targetContainer) {
+      targetContainer.x = x; targetContainer.y = y;
+      targetContainer.startCol = unitData.gridX;
+      targetContainer.startRow = unitData.gridY;
+      targetContainer.isOnGrid = true;
+    }
   }
 }
 
@@ -168,7 +240,11 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = [];
     this.unitViews = new Map();
     this.drawBattlefield();
-    CHARACTERS.forEach(data => {
+    
+    // 核心修改：只加载在网格上的人进入战斗
+    const activeFighters = CHARACTERS.filter(c => c.gridX !== -1);
+    
+    activeFighters.forEach(data => {
       const unit = new Unit(data); 
       this.allUnits.push(unit);
       this.createUnitView(unit);
