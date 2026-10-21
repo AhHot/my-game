@@ -17,7 +17,6 @@
     .form-item label { font-size: 12px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 14px; }
     
-    /* 底部操作栏 */
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; flex-wrap: wrap; gap: 10px; }
     .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; min-width: 45%; }
     .btn-add { background: #2ecc71; }
@@ -60,13 +59,13 @@
       list.innerHTML = '';
       
       gameData.forEach((char, index) => {
-        // 补全缺失字段，防止旧数据报错
         if (char.critRate === undefined) char.critRate = 0.1;
         if (char.critDmg === undefined) char.critDmg = 1.5;
         if (char.maxMp === undefined) char.maxMp = 50;
         if (char.mpPerAttack === undefined) char.mpPerAttack = 10;
-        if (char.gridX === undefined) char.gridX = index % 4;
-        if (char.gridY === undefined) char.gridY = Math.floor(index / 4);
+        // 新增角色默认 -1，表示不在场上
+        if (char.gridX === undefined) char.gridX = -1;
+        if (char.gridY === undefined) char.gridY = -1;
         if (char.skills === undefined) char.skills = ['skill_slash'];
 
         const div = document.createElement('div');
@@ -115,7 +114,9 @@
       gameData.push({
         id: newId, name: '新角色', side: 'player', emoji: '🙂', element: 'fire',
         maxHp: 100, atk: 10, def: 10, speed: 10, critRate: 0.1, critDmg: 1.5, 
-        maxMp: 50, mpPerAttack: 10, gridX: 0, gridY: 0, skills: ['skill_slash']
+        maxMp: 50, mpPerAttack: 10, 
+        gridX: -1, gridY: -1,  // ★ 核心修改：新角色默认在待命区(-1)
+        skills: ['skill_slash']
       });
       saveData();
       render();
