@@ -69,7 +69,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 场景 1：战前布阵（加入人数限制）
+// 场景 1：战前布阵（版本号验证 + 严格限制5人）
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
@@ -83,10 +83,17 @@ class FormationScene extends Phaser.Scene {
     const gridTop = 180;
     const standbyTop = 680; 
 
+    // ★ 核心：版本水印，看到这个说明代码绝对是最新的
+    this.add.text(10, 10, '版本: v1.0.5 (限制5人)', { fontSize: '16px', color: '#00ff00' });
+    
+    // ★ 新增：实时显示上阵人数
+    this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+
     // 强刷按钮
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { 
       fontSize: '20px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } 
     }).setOrigin(1, 0).setInteractive();
+    
     refreshBtn.on('pointerdown', () => {
       const url = new URL(window.location.href);
       url.searchParams.set('t', Date.now().toString());
@@ -94,7 +101,6 @@ class FormationScene extends Phaser.Scene {
     });
 
     this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(CONFIG.WIDTH / 2, 120, '从下方待命区拖入上方网格 (最多5人)\n拖回下方即可下阵', { fontSize: '20px', color: '#aaaaaa', align: 'center' }).setOrigin(0.5);
 
     const g = this.add.graphics();
     g.lineStyle(2, 0x3498DB, 0.5);
@@ -112,15 +118,15 @@ class FormationScene extends Phaser.Scene {
     const startBtn = this.add.text(CONFIG.WIDTH / 2, 1180, '⚔️ 开始战斗', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
     
     startBtn.on('pointerdown', () => { 
-      const players = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1);
-      if (players.length === 0) { alert("至少需要上阵1名角色！"); return; }
-      if (players.length > 5) { alert("上阵人数不能超过5人！"); return; } // 双重保险
+      const playersCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+      if (playersCount === 0) { alert("至少需要上阵1名角色！"); return; }
       this.scene.start('BattleScene'); 
     });
 
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
     const playerChars = CHARACTERS.filter(c => c.side === 'player');
     
+    // 强制所有人初始在待命区
     playerChars.forEach(data => {
       data.gridX = -1; 
       data.gridY = -1; 
@@ -145,6 +151,17 @@ class FormationScene extends Phaser.Scene {
       this.unitContainers.push(container);
 
       container.on('dragstart', () => {
+        // 拖动开始时，如果是从待命区拖，且场上满了5人，直接强制取消
+        if (!container.isOnGrid) {
+          const currentCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+          if (currentCount >= 5) {
+            alert("上阵人数已满 (5/5)！请先撤回一名角色。");
+            container.disableInteractive(); // 禁用拖拽
+            setTimeout(() => container.setInteractive({ draggable: true }), 100); // 稍微延迟恢复
+            return;
+          }
+        }
+
         if (container.isOnGrid) {
           this.gridState[data.gridX][data.gridY] = null;
         }
@@ -162,11 +179,10 @@ class FormationScene extends Phaser.Scene {
 
         if (col >= 0 && col < CONFIG.GRID_SIZE && row >= 0 && row < CONFIG.GRID_SIZE) {
           
-          // ★ 核心新增：如果是待命区拖上来的，检查人数是否已满
+          // 双重保险：由于拖动中状态可能改变，再次检查
           if (!container.isOnGrid) {
-            const currentOnGridCount = this.unitContainers.filter(c => c.isOnGrid).length;
-            if (currentOnGridCount >= 5) {
-              alert("最多只能上阵5名角色！");
+            const currentCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+            if (currentCount >= 5) {
               data.gridX = -1; data.gridY = -1;
               container.isOnGrid = false;
               this.layoutStandby(standbyTop);
@@ -214,8 +230,20 @@ class FormationScene extends Phaser.Scene {
     this.layoutStandby(standbyTop);
   }
 
+  // 整理待命区并更新人数
   layoutStandby(standbyTop) {
     const standbyContainers = this.unitContainers.filter(c => !c.isOnGrid);
+    
+    // 计算当前场上人数
+    const currentCount = this.unitContainers.filter(c => c.isOnGrid).length;
+    this.countText.setText(`当前上阵: ${currentCount} / 5`);
+    this.countText.setColor(currentCount >= 5 ? '#e74c3c' : '#f1c40f'); // 满了变红
+
+    // 如果满了，待命区的角色变半透明，给玩家视觉提示
+    standbyContainers.forEach(c => {
+      c.setAlpha(currentCount >= 5 ? 0.5 : 1);
+    });
+
     const cols = 4; 
     const cellW = 140; 
     const cellH = 120; 
