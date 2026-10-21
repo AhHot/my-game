@@ -1,18 +1,16 @@
-// ★ 新增：检查手机里有没有编辑器同步过来的新数据
+// ==========================================
+// 读取同步数据
+// ==========================================
 if (localStorage.getItem('my_game_characters')) {
   try {
     const localData = JSON.parse(localStorage.getItem('my_game_characters'));
     if (Array.isArray(localData) && localData.length > 0) {
-      // 用本地数据覆盖掉 data.js 里的默认数据
       CHARACTERS.length = 0; 
       CHARACTERS.push(...localData);
     }
   } catch(e) { console.error('读取本地数据失败', e); }
 }
 
-// 下面是原本的纯逻辑层：战斗单位与伤害计算
-class Unit {
-  // ... 后面的代码保持不变 ...
 // ==========================================
 // 纯逻辑层：战斗单位与伤害计算
 // ==========================================
@@ -29,7 +27,6 @@ class Unit {
 }
 
 const BattleLogic = {
-  // 元素克制
   getElementMultiplier(atkElement, defElement) {
     const atk = ELEMENTS[atkElement];
     if (!atk) return 1.0;
@@ -37,7 +34,6 @@ const BattleLogic = {
     if (atk.weak === defElement) return CONFIG.DISADVANTAGE_MULT;
     return 1.0;
   },
-  // 选目标
   selectTargets(actor, skill, allUnits) {
     const enemies = allUnits.filter(u => u.side !== actor.side && u.isAlive());
     if (enemies.length === 0) return [];
@@ -52,7 +48,6 @@ const BattleLogic = {
     }
     return [enemies[0]];
   },
-  // 算伤害
   computeDamage(actor, target, skill) {
     let base = actor.atk * skill.multiplier;
     const elemMult = this.getElementMultiplier(skill.element, target.element);
@@ -62,14 +57,12 @@ const BattleLogic = {
     const finalDamage = Math.max(base - target.def * 0.5, base * 0.1);
     return { damage: Math.round(finalDamage), isCrit, elemMult };
   },
-  // 简单AI：选可用技能中倍率最高的
   chooseSkill(actor) {
     const usable = actor.skills.map(id => SKILLS[id]).filter(sk => sk && actor.mp >= (sk.cost?.mp || 0) && (actor.rage || 0) >= (sk.cost?.rage || 0));
     if (usable.length === 0) return SKILLS[actor.skills[0]];
     usable.sort((a, b) => b.multiplier - a.multiplier);
     return usable[0];
   },
-  // 按速度排行动顺序
   buildActionOrder(units) {
     return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed);
   }
