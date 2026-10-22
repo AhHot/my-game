@@ -1,162 +1,380 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>游戏人物配置编辑器</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
-    h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
-    .char-card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-    .char-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-    .char-header h3 { color: #3498db; }
-    .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .form-item { display: flex; flex-direction: column; }
-    .form-item label { font-size: 12px; color: #aaa; margin-bottom: 4px; }
-    .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 14px; }
+// ==========================================
+// 读取同步数据
+// ==========================================
+if (localStorage.getItem('my_game_characters')) {
+  try {
+    const localData = JSON.parse(localStorage.getItem('my_game_characters'));
+    if (Array.isArray(localData) && localData.length > 0) {
+      CHARACTERS.length = 0; 
+      CHARACTERS.push(...localData);
+    }
+  } catch(e) { console.error('读取角色失败', e); }
+}
+
+if (localStorage.getItem('my_game_skills_sync')) {
+  try {
+    const localSkills = JSON.parse(localStorage.getItem('my_game_skills_sync'));
+    if (Array.isArray(localSkills) && localSkills.length > 0) {
+      Object.keys(SKILLS).forEach(k => delete SKILLS[k]);
+      localSkills.forEach(sk => {
+        SKILLS[sk.id] = {
+          id: sk.id, name: sk.name, type: sk.type, element: sk.element, multiplier: sk.multiplier, 
+          cost: { mp: sk.mpCost, rage: 0 }, cooldown: sk.cooldown, targetRule: sk.targetRule
+        };
+      });
+    }
+  } catch(e) { console.error('读取技能失败', e); }
+}
+
+// ==========================================
+// 纯逻辑层：战斗单位与伤害计算
+// ==========================================
+class Unit {
+  constructor(data) {
+    Object.assign(this, data);
+    this.hp = this.maxHp;
+    this.mp = Math.floor(this.maxMp * CONFIG.START_MP_RATIO);
+    this.cooldowns = {}; // 记录冷却：{ skillId: 剩余回合 }
+  }
+  isAlive() { return this.hp > 0; }
+  gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
+  takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); }
+  
+  // 技能 CD 减少 1
+  reduceCooldowns() {
+    for (let key in this.cooldowns) {
+      if (this.cooldowns[key] > 0) this.cooldowns[key]--;
+    }
+  }
+}
+
+const BattleLogic = {
+  getElementMultiplier(atkElement, defElement) {
+    const atk = ELEMENTS[atkElement];
+    if (!atk) return 1.0;
+    if (atk.beats === defElement) return CONFIG.ADVANTAGE_MULT;
+    if (atk.weak === defElement) return CONFIG.DISADVANTAGE_MULT;
+    return 1.0;
+  },
+  selectTargets(actor, skill, allUnits) {
+    const enemies = allUnits.filter(u => u.side !== actor.side && u.isAlive());
+    if (enemies.length === 0) return [];
+    if (skill.targetRule === 'frontRow') {
+      const minY = Math.min(...enemies.map(u => u.gridY));
+      return enemies.filter(u => u.gridY === minY);
+    } else if (skill.targetRule === 'lowestHp') {
+      const minHp = Math.min(...enemies.map(u => u.hp));
+      return enemies.filter(u => u.hp === minHp);
+    } else if (skill.targetRule === 'random') {
+      return [enemies[Math.floor(Math.random() * enemies.length)]];
+    }
+    return [enemies[0]];
+  },
+  computeDamage(actor, target, skill) {
+    let base = actor.atk * skill.multiplier;
+    const elemMult = this.getElementMultiplier(skill.element, target.element);
+    base *= elemMult;
+    const isCrit = Math.random() < actor.critRate;
+    if (isCrit) base *= actor.critDmg;
+    const finalDamage = Math.max(base - target.def * 0.5, base * 0.1);
+    return { damage: Math.round(finalDamage), isCrit, elemMult };
+  },
+  
+  // ★ 核心修改：AI 选择技能逻辑（分类优先级 + CD + 蓝量）
+  chooseSkill(actor) {
+    // 获取角色身上装配的 4 个技能槽
+    const slots = actor.skillSlots || { normal: actor.skills?.[0], skill: actor.skills?.[1] };
+    const availableSkills = [slots.ultimate, slots.skill, slots.normal, slots.learned]
+      .filter(id => id && SKILLS[id]) // 有槽位且技能存在
+      .map(id => SKILLS[id])
+      .filter(sk => sk.type !== 'passive'); // 排除被动
+
+    // 1. 筛选出 蓝量足够 且 CD 转好的技能
+    const usable = availableSkills.filter(sk => {
+      const cd = actor.cooldowns[sk.id] || 0;
+      return actor.mp >= sk.cost.mp && cd <= 0;
+    });
+
+    // 2. 按优先级排序：绝技 > 招式 > 普攻
+    const typeWeight = { ultimate: 3, skill: 2, normal: 1, passive: 0 };
+    usable.sort((a, b) => typeWeight[b.type] - typeWeight[a.type]);
+
+    // 3. 返回优先级最高的可用技能，如果都被 CD 或蓝量卡住，则强行使用普攻
+    if (usable.length > 0) return usable[0];
+    return SKILLS[slots.normal] || Object.values(SKILLS).find(s => s.type === 'normal');
+  },
+
+  buildActionOrder(units) {
+    return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed);
+  }
+};
+
+// ==========================================
+// 场景 1：战前布阵（微调了初始数据兼容）
+// ==========================================
+class FormationScene extends Phaser.Scene {
+  constructor() { super('FormationScene'); }
+  create() {
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    const cell = CONFIG.CELL_SIZE;
+    const gridW = cell * CONFIG.GRID_SIZE;
+    const gridLeft = (CONFIG.WIDTH - gridW) / 2;
+    const gridTop = 180;
+    const standbyTop = 680; 
+
+    this.add.text(10, 10, '版本: v1.1.0 (技能系统)', { fontSize: '16px', color: '#00ff00' });
+    this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+
+    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { fontSize: '20px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
+
+    this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+
+    const g = this.add.graphics();
+    g.lineStyle(2, 0x3498DB, 0.5);
+    for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
+      g.lineBetween(gridLeft, gridTop + i * cell, gridLeft + gridW, gridTop + i * cell);
+      g.lineBetween(gridLeft + i * cell, gridTop, gridLeft + i * cell, gridTop + gridW);
+    }
+
+    const standbyBg = this.add.graphics();
+    standbyBg.fillStyle(0x16213e, 0.8);
+    standbyBg.fillRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10);
+    standbyBg.lineStyle(2, 0x3498DB, 0.5);
+    standbyBg.strokeRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10);
+
+    const startBtn = this.add.text(CONFIG.WIDTH / 2, 1180, '⚔️ 开始战斗', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
+    startBtn.on('pointerdown', () => { 
+      const playersCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+      if (playersCount === 0) { alert("至少需要上阵1名角色！"); return; }
+      this.scene.start('BattleScene'); 
+    });
+
+    this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
+    const playerChars = CHARACTERS.filter(c => c.side === 'player');
+    playerChars.forEach(data => { data.gridX = -1; data.gridY = -1; });
+
+    this.unitContainers = [];
     
-    .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; flex-wrap: wrap; gap: 10px; }
-    .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; min-width: 45%; }
-    .btn-add { background: #2ecc71; }
-    .btn-sync { background: #3498db; }
-    .btn-gen { background: #e67e22; }
-    .btn-reset { background: #c0392b; flex: 100%; font-size: 12px; padding: 8px; }
-    #output-area { width: 100%; height: 200px; margin-top: 20px; background: #000; color: #2ecc71; padding: 10px; border: 1px solid #444; border-radius: 4px; display: none; font-family: monospace; font-size: 12px; }
-  </style>
-</head>
-<body>
+    playerChars.forEach(data => {
+      const container = this.add.container(0, 0);
+      const circle = this.add.circle(0, 0, 42, ELEMENTS[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+      const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
+      const nameText = this.add.text(0, 50, data.name, { fontSize: '18px', color: '#ffffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+      container.add([circle, emoji, nameText]);
+      container.setSize(80, 80); 
+      container.setInteractive({ draggable: true });
+      this.input.setDraggable(container);
+      container.unitData = data; container.isOnGrid = false;
+      this.unitContainers.push(container);
 
-  <h1>👾 人物配置编辑器</h1>
-  <div id="char-list"></div>
-  <textarea id="output-area" readonly></textarea>
-
-  <div class="bottom-bar">
-    <button class="btn btn-add" onclick="addChar()">➕ 新增角色</button>
-    <button class="btn btn-sync" onclick="syncToGame()">🚀 一键同步测试</button>
-    <button class="btn btn-gen" onclick="generateCode()">📦 生成代码上线</button>
-    <button class="btn btn-reset" onclick="resetData()">⚠️ 恢复默认初始数据</button>
-  </div>
-
-  <script>
-    const DEFAULT_DATA = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, gridX: 1, gridY: 0, skills: ['skill_slash', 'skill_fireball'] },
-      { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, gridX: 0, gridY: 2, skills: ['skill_slash', 'skill_frost_arrow'] },
-      { id: 'p_archer', name: '射手', side: 'player', emoji: '🏹', element: 'wind', maxHp: 200, atk: 36, def: 10, speed: 12, critRate: 0.25, critDmg: 1.6, maxMp: 50, mpPerAttack: 12, gridX: 2, gridY: 2, skills: ['skill_arrow', 'skill_frost_arrow'] },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, gridX: 0, gridY: 0, skills: ['skill_dark_claw', 'skill_bone_throw'] },
-      { id: 'e_slime', name: '史莱姆', side: 'enemy', emoji: '🟢', element: 'water', maxHp: 320, atk: 22, def: 14, speed: 5, critRate: 0.05, critDmg: 1.3, maxMp: 40, mpPerAttack: 10, gridX: 1, gridY: 0, skills: ['skill_slime_tackle', 'skill_bone_throw'] },
-      { id: 'e_goblin', name: '哥布林', side: 'enemy', emoji: '👺', element: 'wind', maxHp: 180, atk: 34, def: 10, speed: 11, critRate: 0.2, critDmg: 1.5, maxMp: 50, mpPerAttack: 12, gridX: 2, gridY: 1, skills: ['skill_arrow', 'skill_bone_throw'] }
-    ];
-
-    let gameData = JSON.parse(localStorage.getItem('my_game_data')) || DEFAULT_DATA;
-
-    const elements = ['fire', 'water', 'wind', 'light', 'dark'];
-    const sides = [{ val: 'player', label: '我方' }, { val: 'enemy', label: '敌方' }];
-
-    function render() {
-      const list = document.getElementById('char-list');
-      list.innerHTML = '';
-      
-      gameData.forEach((char, index) => {
-        if (char.critRate === undefined) char.critRate = 0.1;
-        if (char.critDmg === undefined) char.critDmg = 1.5;
-        if (char.maxMp === undefined) char.maxMp = 50;
-        if (char.mpPerAttack === undefined) char.mpPerAttack = 10;
-        // 新增角色默认 -1，表示不在场上
-        if (char.gridX === undefined) char.gridX = -1;
-        if (char.gridY === undefined) char.gridY = -1;
-        if (char.skills === undefined) char.skills = ['skill_slash'];
-
-        const div = document.createElement('div');
-        div.className = 'char-card';
-        div.innerHTML = `
-          <div class="char-header">
-            <h3>${char.emoji} ${char.name}</h3>
-            <button class="btn-del" onclick="deleteChar(${index})">删除</button>
-          </div>
-          <div class="form-grid">
-            <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateField(${index}, 'name', this.value)"></div>
-            <div class="form-item"><label>图标(Emoji)</label><input type="text" value="${char.emoji}" onchange="updateField(${index}, 'emoji', this.value)"></div>
-            <div class="form-item">
-              <label>阵营</label>
-              <select onchange="updateField(${index}, 'side', this.value)">
-                ${sides.map(s => `<option value="${s.val}" ${char.side === s.val ? 'selected' : ''}>${s.label}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-item">
-              <label>属性</label>
-              <select onchange="updateField(${index}, 'element', this.value)">
-                ${elements.map(e => `<option value="${e}" ${char.element === e ? 'selected' : ''}>${e}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-item"><label>生命(HP)</label><input type="number" value="${char.maxHp}" onchange="updateField(${index}, 'maxHp', parseInt(this.value))"></div>
-            <div class="form-item"><label>攻击(ATK)</label><input type="number" value="${char.atk}" onchange="updateField(${index}, 'atk', parseInt(this.value))"></div>
-            <div class="form-item"><label>防御(DEF)</label><input type="number" value="${char.def}" onchange="updateField(${index}, 'def', parseInt(this.value))"></div>
-            <div class="form-item"><label>速度(SPD)</label><input type="number" value="${char.speed}" onchange="updateField(${index}, 'speed', parseInt(this.value))"></div>
-          </div>
-        `;
-        list.appendChild(div);
+      container.on('dragstart', () => {
+        if (container.isOnGrid) this.gridState[data.gridX][data.gridY] = null;
+        container.setDepth(100); 
       });
-    }
+      container.on('drag', (pointer, dragX, dragY) => { container.x = dragX; container.y = dragY; });
+      container.on('dragend', () => {
+        container.setDepth(0); 
+        let col = Math.floor((container.x - gridLeft) / cell);
+        let row = Math.floor((container.y - gridTop) / cell);
 
-    function saveData() {
-      localStorage.setItem('my_game_data', JSON.stringify(gameData));
-    }
-
-    function updateField(index, key, value) {
-      gameData[index][key] = value;
-      saveData();
-    }
-
-    function addChar() {
-      const newId = 'new_char_' + Date.now();
-      gameData.push({
-        id: newId, name: '新角色', side: 'player', emoji: '🙂', element: 'fire',
-        maxHp: 100, atk: 10, def: 10, speed: 10, critRate: 0.1, critDmg: 1.5, 
-        maxMp: 50, mpPerAttack: 10, 
-        gridX: -1, gridY: -1,  // ★ 核心修改：新角色默认在待命区(-1)
-        skills: ['skill_slash']
+        if (col >= 0 && col < CONFIG.GRID_SIZE && row >= 0 && row < CONFIG.GRID_SIZE) {
+          const targetUnitData = this.gridState[col][row];
+          if (!container.isOnGrid) {
+            if (targetUnitData) {
+              targetUnitData.gridX = -1; targetUnitData.gridY = -1;
+              const tC = this.unitContainers.find(c => c.unitData === targetUnitData);
+              tC.isOnGrid = false;
+              data.gridX = col; data.gridY = row; this.gridState[col][row] = data; container.isOnGrid = true;
+            } else {
+              const currentCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+              if (currentCount >= 5) { data.gridX = -1; data.gridY = -1; container.isOnGrid = false; } 
+              else { data.gridX = col; data.gridY = row; this.gridState[col][row] = data; container.isOnGrid = true; }
+            }
+          } else {
+            if (targetUnitData && targetUnitData !== data) {
+              const oldCol = data.gridX; const oldRow = data.gridY;
+              targetUnitData.gridX = oldCol; targetUnitData.gridY = oldRow; this.gridState[oldCol][oldRow] = targetUnitData;
+              const tC = this.unitContainers.find(c => c.unitData === targetUnitData);
+              tC.x = gridLeft + oldCol * cell + cell / 2; tC.y = gridTop + oldRow * cell + cell / 2;
+            }
+            data.gridX = col; data.gridY = row; this.gridState[col][row] = data;
+          }
+          if (container.isOnGrid) { container.x = gridLeft + data.gridX * cell + cell / 2; container.y = gridTop + data.gridY * cell + cell / 2; }
+        } else { data.gridX = -1; data.gridY = -1; container.isOnGrid = false; }
+        this.layoutStandby(standbyTop);
       });
-      saveData();
-      render();
-      window.scrollTo(0, document.body.scrollHeight);
-    }
+    });
+    this.layoutStandby(standbyTop);
+  }
 
-    function deleteChar(index) {
-      if (confirm('确定要删除这个角色吗？')) {
-        gameData.splice(index, 1);
-        saveData();
-        render();
-      }
-    }
+  layoutStandby(standbyTop) {
+    const standbyContainers = this.unitContainers.filter(c => !c.isOnGrid);
+    const currentCount = this.unitContainers.filter(c => c.isOnGrid).length;
+    this.countText.setText(`当前上阵: ${currentCount} / 5`);
+    this.countText.setColor(currentCount >= 5 ? '#e74c3c' : '#f1c40f');
+    const cols = 4, cellW = 140, cellH = 120;
+    const startX = (CONFIG.WIDTH - (cols - 1) * cellW) / 2;
+    standbyContainers.forEach((container, index) => {
+      const targetX = startX + (index % cols) * cellW;
+      const targetY = standbyTop + 50 + Math.floor(index / cols) * cellH; 
+      this.tweens.add({ targets: container, x: targetX, y: targetY, duration: 200, ease: 'Cubic.easeOut' });
+    });
+  }
+}
 
-    function resetData() {
-      if (confirm('确定要清空所有修改，恢复默认角色吗？')) {
-        gameData = JSON.parse(JSON.stringify(DEFAULT_DATA));
-        saveData();
-        render();
-      }
+// ==========================================
+// 场景 2：战斗表现（加入技能释放冷却与日志显示）
+// ==========================================
+class BattleScene extends Phaser.Scene {
+  constructor() { super('BattleScene'); }
+  create() {
+    this.allUnits = [];
+    this.unitViews = new Map();
+    this.drawBattlefield();
+    const activeFighters = CHARACTERS.filter(c => c.gridX !== -1);
+    activeFighters.forEach(data => {
+      const unit = new Unit(data); 
+      this.allUnits.push(unit);
+      this.createUnitView(unit);
+    });
+    this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.logText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '', { fontSize: '22px', color: '#ffffff', align: 'center', wordWrap: { width: CONFIG.WIDTH - 100 } }).setOrigin(0.5);
+    this.time.delayedCall(800, () => this.startBattle());
+  }
+  drawBattlefield() {
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
+    const gridLeft = (CONFIG.WIDTH - gridW) / 2;
+    this.drawGrid(gridLeft, 70, cell, 0xE74C3C, 0.2);
+    this.drawGrid(gridLeft, 700, cell, 0x3498DB, 0.2);
+    this.add.rectangle(CONFIG.WIDTH / 2, 620, CONFIG.WIDTH - 100, 2, 0xffffff, 0.15);
+    this.add.text(gridLeft + gridW + 10, 74, '敌方', { fontSize: '20px', color: '#E74C3C' });
+    this.add.text(gridLeft + gridW + 10, 704, '我方', { fontSize: '20px', color: '#3498DB' });
+  }
+  drawGrid(x, y, cell, color, alpha) {
+    const g = this.add.graphics(); g.lineStyle(2, color, alpha);
+    for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
+      g.lineBetween(x, y + i * cell, x + CONFIG.GRID_SIZE * cell, y + i * cell);
+      g.lineBetween(x + i * cell, y, x + i * cell, y + CONFIG.GRID_SIZE * cell);
     }
-
-    function syncToGame() {
-      localStorage.setItem('my_game_characters', JSON.stringify(gameData));
-      alert('✅ 同步成功！\n现在去刷新你的游戏页面（index.html），就能看到最新阵容了！');
+  }
+  createUnitView(unit) {
+    const pos = this.getUnitScreenPosition(unit);
+    const container = this.add.container(pos.x, pos.y);
+    const circle = this.add.circle(0, 0, 42, ELEMENTS[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: '48px' }).setOrigin(0.5);
+    const nameText = this.add.text(0, 50, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    const hpBg = this.add.rectangle(0, 72, 90, 10, 0x000000, 0.8).setStrokeStyle(1, 0xffffff, 0.4);
+    const hpBar = this.add.rectangle(-45, 72, 90, 8, 0x2ECC71).setOrigin(0, 0.5);
+    const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
+    const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
+    container.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar]);
+    this.unitViews.set(unit, { container, circle, emoji, hpBar, mpBar });
+    this.updateUnitView(unit);
+  }
+  getUnitScreenPosition(unit) {
+    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
+    const gridLeft = (CONFIG.WIDTH - gridW) / 2;
+    let x = gridLeft + unit.gridX * cell + cell / 2;
+    let y = unit.side === 'enemy' ? 70 + (CONFIG.GRID_SIZE - 1 - unit.gridY) * cell + cell / 2 : 700 + unit.gridY * cell + cell / 2;
+    return { x, y };
+  }
+  startBattle() {
+    this.round = 1;
+    this.actionOrder = BattleLogic.buildActionOrder(this.allUnits);
+    this.actionIndex = 0;
+    this.nextAction();
+  }
+  nextAction() {
+    const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
+    const enemies = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
+    if (players.length === 0) return this.showResult('defeat');
+    if (enemies.length === 0) return this.showResult('victory');
+    if (this.round > CONFIG.MAX_ROUNDS) return this.showResult('timeout');
+    if (this.actionIndex >= this.actionOrder.length) {
+      this.round++;
+      this.roundText.setText(`第 ${this.round} 回合`);
+      this.actionOrder = BattleLogic.buildActionOrder(this.allUnits);
+      this.actionIndex = 0;
+      this.time.delayedCall(600, () => this.nextAction());
+      return;
     }
+    const actor = this.actionOrder[this.actionIndex++];
+    if (!actor.isAlive()) return this.time.delayedCall(80, () => this.nextAction());
+    this.executeAction(actor);
+  }
+  
+  executeAction(actor) {
+    const skill = BattleLogic.chooseSkill(actor);
+    const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
+    
+    if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
+    
+    const view = this.unitViews.get(actor);
+    if (view) this.tweens.add({ targets: view.container, scaleX: 1.2, scaleY: 1.2, duration: 150, yoyo: true });
+    
+    // 显示使用技能名称（如果是绝技，标红显示）
+    const isUlt = skill.type === 'ultimate';
+    this.logText.setText(`${actor.name} 使用了【${skill.name}】`);
+    this.logText.setColor(isUlt ? '#e74c3c' : '#ffffff');
 
-    function generateCode() {
-      const output = document.getElementById('output-area');
-      const jsonStr = JSON.stringify(gameData, null, 2);
-      output.value = "const CHARACTERS = " + jsonStr + ";";
-      output.style.display = 'block';
-      output.scrollIntoView();
+    this.time.delayedCall(450, () => {
+      // 扣除蓝量
+      actor.mp = Math.max(0, actor.mp - skill.cost.mp);
       
-      output.select();
-      document.execCommand('copy');
-      alert('代码已生成并自动复制！\n请去 GitHub 的 data.js 文件中，替换掉最后面的 const CHARACTERS = [...] 部分，然后提交保存。');
-    }
+      // ★ 设置冷却
+      if (skill.cooldown > 0) {
+        actor.cooldowns[skill.id] = skill.cooldown;
+      }
 
-    render();
-  </script>
-</body>
-</html>
+      targets.forEach(t => {
+        const result = BattleLogic.computeDamage(actor, t, skill);
+        t.takeDamage(result.damage);
+        const tView = this.unitViews.get(t);
+        if (tView) {
+          const color = result.isCrit ? '#ffcc00' : '#ff5555';
+          const size = result.isCrit ? '38px' : '26px';
+          const label = result.isCrit ? `-${result.damage} 暴击!` : `-${result.damage}`;
+          const txt = this.add.text(tView.container.x, tView.container.y - 70, label, { fontSize: size, color: color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5);
+          this.tweens.add({ targets: txt, y: txt.y - 90, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => txt.destroy() });
+        }
+        this.updateUnitView(t);
+      });
+      
+      actor.gainMp();
+      actor.reduceCooldowns(); // ★ 行动结束，所有技能 CD 减 1
+      this.updateUnitView(actor);
+      
+      this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
+    });
+  }
+  
+  updateUnitView(unit) {
+    const view = this.unitViews.get(unit);
+    if (!view) return;
+    this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 });
+    this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 });
+    if (!unit.isAlive()) { view.emoji.setAlpha(0.25); view.circle.setAlpha(0.25); }
+  }
+  
+  showResult(type) {
+    const texts = { victory: '胜 利 !', defeat: '失 败...', timeout: '超时失败' };
+    const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
+    this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.75);
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, texts[type], { fontSize: '90px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    const detail = type === 'timeout' ? `已超过 ${CONFIG.MAX_ROUNDS} 回合上限` : `共进行 ${this.round} 回合`;
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, detail, { fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
+    const btn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 150, '🔄 重新布阵', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 22 } }).setOrigin(0.5).setInteractive();
+    btn.on('pointerdown', () => { this.scene.start('FormationScene'); });
+  }
+}
+
+// ==========================================
+// 启动游戏
+// ==========================================
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
+  scene: [FormationScene, BattleScene],
+});
