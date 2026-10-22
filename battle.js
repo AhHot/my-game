@@ -22,6 +22,12 @@ class Unit {
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     if (!this.equipment) this.equipment = { weapon: '', armor: '' };
 
+    // 默认值兜底
+    this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0;
+    this.critResist = this.critResist || 0; this.dmgIncrease = this.dmgIncrease || 0;
+    this.dmgReduction = this.dmgReduction || 0; this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
+    this.trueDmg = this.trueDmg || 0; this.critDmg = this.critDmg || 1.5;
+
     // 应用装备加成
     Object.values(this.equipment).forEach(uid => {
       if (!uid) return;
@@ -32,6 +38,8 @@ class Unit {
           this.maxHp += (item.hp || 0);
           this.atk += (item.atk || 0);
           this.def += (item.def || 0);
+          this.critRate += (item.critRate || 0);
+          this.critResist += (item.critResist || 0);
         }
       }
     });
@@ -101,13 +109,44 @@ const BattleLogic = {
     else if (skill.targetRule === 'random') { return [enemies[Math.floor(Math.random() * enemies.length)]]; }
     return [enemies[0]];
   },
+  
+  // ★ 全新 6 步伤害公式
   computeDamage(actor, target, skill) {
+    // 1. 命中判定
+    let hitRate = 1.0 + (actor.hitRate || 0) - (target.dodgeRate || 0);
+    hitRate = Math.max(0.2, Math.min(1.0, hitRate)); // 上限 100%，下限 20%
+    if (Math.random() > hitRate) {
+      return { damage: 0, isCrit: false, isMiss: true, elemMult: 1 };
+    }
+
+    // 2. 基础伤害
     let base = actor.atk * skill.multiplier;
-    const elemMult = this.getElementMultiplier(skill.element, target.element); base *= elemMult;
-    const isCrit = Math.random() < actor.critRate; if (isCrit) base *= actor.critDmg;
-    const finalDamage = Math.max(base - target.def * 0.5, base * 0.1);
-    return { damage: Math.round(finalDamage), isCrit, elemMult };
+    const baseForMin = base; // 用于保底计算
+
+    // 3. 防御减伤 (C = 1000)
+    const defReduceRate = target.def / (target.def + 1000);
+    let dmgAfterDef = base * (1 - defReduceRate);
+    dmgAfterDef = Math.max(dmgAfterDef, baseForMin * 0.1); // 保底 10%
+
+    // 4. 暴击判定
+    let critRate = (actor.critRate || 0) - (target.critResist || 0);
+    critRate = Math.max(0, Math.min(1, critRate));
+    const isCrit = Math.random() < critRate;
+    if (isCrit) dmgAfterDef *= actor.critDmg;
+
+    // 5. 乘区修正
+    const dmgIncMod = Math.max(0.1, 1 + (actor.dmgIncrease || 0) - (actor.dmgReduction || 0));
+    const dmgTakenMod = Math.max(0.1, 1 + (target.dmgTakenIncrease || 0) - (target.dmgReduction || 0));
+    let finalDmg = dmgAfterDef * dmgIncMod * dmgTakenMod;
+
+    // 6. 属性与真伤
+    const elemMult = this.getElementMultiplier(skill.element, target.element);
+    finalDmg *= elemMult;
+    finalDmg += (actor.trueDmg || 0);
+
+    return { damage: Math.round(finalDmg), isCrit, isMiss: false, elemMult };
   },
+
   chooseSkill(actor) {
     const slots = actor.skillSlots || {};
     const availableSkills = Object.values(slots).filter(id => id && SKILLS[id] && SKILLS[id].type !== 'passive' && SKILLS[id].type !== 'followup').map(id => SKILLS[id]);
@@ -135,7 +174,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v4.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v5.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -217,7 +256,7 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景 2：战斗表现（纯自动，无道具使用）
+// 场景 2：战斗表现（加入倍速与跳过）
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
@@ -225,7 +264,24 @@ class BattleScene extends Phaser.Scene {
 
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
-    
+    this.speedMultiplier = 1; // 默认 1 倍速
+    this.isSkipping = false;
+
+    // ★ 顶栏按钮：倍速与跳过
+    const speedBtn = this.add.text(CONFIG.WIDTH - 120, 10, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    speedBtn.on('pointerdown', () => {
+      this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
+      speedBtn.setText(`⏩ ${this.speedMultiplier}x 速度`);
+      speedBtn.setBackgroundColor(this.speedMultiplier === 2 ? '#e67e22' : '#2980b9');
+    });
+
+    const skipBtn = this.add.text(CONFIG.WIDTH - 10, 10, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    skipBtn.on('pointerdown', () => {
+      if (this.isSkipping) return;
+      this.isSkipping = true;
+      this.fastForwardBattle();
+    });
+
     const levelData = LEVELS[this.currentLevelIndex] || { enemyIds: [] };
     const activeFighters = [];
     CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push(c));
@@ -243,7 +299,7 @@ class BattleScene extends Phaser.Scene {
       }
     });
 
-    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 500, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
 
     activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); this.createUnitView(unit); });
     
@@ -286,7 +342,9 @@ class BattleScene extends Phaser.Scene {
     let y = unit.side === 'enemy' ? 70 + (CONFIG.GRID_SIZE - 1 - unit.gridY) * cell + cell / 2 : 700 + unit.gridY * cell + cell / 2;
     return { x, y };
   }
+  
   startBattle() { 
+    if (this.isSkipping) return;
     this.round = 1; 
     this.allUnits.forEach(u => u.resetFollowups()); 
     this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); 
@@ -295,6 +353,7 @@ class BattleScene extends Phaser.Scene {
   }
   
   nextAction() {
+    if (this.isSkipping) return;
     const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
     const enemies = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
     if (players.length === 0) return this.showResult('defeat');
@@ -309,56 +368,65 @@ class BattleScene extends Phaser.Scene {
         u.resetFollowups();
         const oldHp = u.hp;
         u.tickStatuses(); 
-        if (u.hp < oldHp) this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); 
+        if (u.hp < oldHp) this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false, isMiss: false }, '#ff00ff'); 
         this.updateUnitView(u);
       });
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.showResult('defeat');
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.showResult('victory');
       this.actionOrder = BattleLogic.buildActionOrder(this.allUnits);
       this.actionIndex = 0;
-      this.time.delayedCall(800, () => this.nextAction());
+      this.time.delayedCall(800 / this.speedMultiplier, () => this.nextAction());
       return;
     }
     const actor = this.actionOrder[this.actionIndex++];
-    if (!actor.isAlive()) return this.time.delayedCall(80, () => this.nextAction());
+    if (!actor.isAlive()) return this.time.delayedCall(80 / this.speedMultiplier, () => this.nextAction());
     this.executeAction(actor);
   }
   
   executeAction(actor) {
     const skill = BattleLogic.chooseSkill(actor);
-    if (!skill) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction()); 
+    if (!skill) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction()); 
     const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
-    if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
+    if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
+    
     const view = this.unitViews.get(actor);
-    if (view) this.tweens.add({ targets: view.container, scaleX: 1.2, scaleY: 1.2, duration: 150, yoyo: true });
+    if (view) this.tweens.add({ targets: view.container, scaleX: 1.2, scaleY: 1.2, duration: 150 / this.speedMultiplier, yoyo: true });
+    
     const isUlt = skill.type === 'ultimate';
     this.logText.setText(`${actor.name} 使用了【${skill.name}】`).setColor(isUlt ? '#e74c3c' : '#ffffff');
 
-    this.time.delayedCall(450, () => {
+    this.time.delayedCall(450 / this.speedMultiplier, () => {
       actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
+      
       targets.forEach(t => {
         const result = BattleLogic.computeDamage(actor, t, skill);
-        t.takeDamage(result.damage);
-        if (skill.statusId && skill.statusChance > 0) {
-          if (Math.random() * 100 < skill.statusChance && STATUSES[skill.statusId]) {
-            t.addStatus(skill.statusId);
-            const tView = this.unitViews.get(t);
-            if (tView) {
-              const stName = STATUSES[skill.statusId].name;
-              const txt = this.add.text(tView.container.x, tView.container.y - 40, `+${stName}`, { fontSize: '18px', color: '#00ffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-              this.tweens.add({ targets: txt, y: txt.y - 60, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
-            }
-          }
+        
+        if (result.isMiss) {
+           // 显示 MISS
+           const tView = this.unitViews.get(t);
+           if(tView) {
+             const txt = this.add.text(tView.container.x, tView.container.y - 70, 'MISS', { fontSize: '28px', color: '#aaaaaa', fontStyle: 'bold', stroke: '#000000', strokeThickness: 4 }).setOrigin(0.5);
+             this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => txt.destroy() });
+           }
+        } else {
+           t.takeDamage(result.damage);
+           if (skill.statusId && skill.statusChance > 0) {
+             if (Math.random() * 100 < skill.statusChance && STATUSES[skill.statusId]) {
+               t.addStatus(skill.statusId);
+               // 飘字提示省略，为了速度
+             }
+           }
+           this.showDamageNumber(t, result);
+           this.updateUnitView(t);
         }
-        this.showDamageNumber(t, result);
-        this.updateUnitView(t);
       });
+      
       actor.gainMp();
       actor.reduceCooldowns();
       this.updateUnitView(actor);
       if (skill.comboTagOut) this.checkFollowups(skill.comboTagOut, actor); 
-      this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
+      this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     });
   }
   
@@ -386,19 +454,21 @@ class BattleScene extends Phaser.Scene {
     if (targets.length === 0) return;
     const view = this.unitViews.get(actor);
     if (view) {
-      const txt = this.add.text(view.container.x, view.container.y - 100, `⚡追打! ${skill.name}`, { fontSize: '24px', color: '#ffcc00', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
-      this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 1000, onComplete: () => txt.destroy() });
-      this.tweens.add({ targets: view.container, scaleX: 1.3, scaleY: 1.3, duration: 150, yoyo: true });
+      const txt = this.add.text(view.container.x, view.container.y - 100, `⚡追打!`, { fontSize: '24px', color: '#ffcc00', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+      this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 1000 / this.speedMultiplier, onComplete: () => txt.destroy() });
+      this.tweens.add({ targets: view.container, scaleX: 1.3, scaleY: 1.3, duration: 150 / this.speedMultiplier, yoyo: true });
     }
-    this.logText.setText(`⚡ 队友响应！${actor.name} 追打【${skill.name}】`).setColor('#ffcc00');
-    this.time.delayedCall(300, () => {
+    this.logText.setText(`⚡ ${actor.name} 追打【${skill.name}】`).setColor('#ffcc00');
+    this.time.delayedCall(300 / this.speedMultiplier, () => {
       actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
       targets.forEach(t => {
         const result = BattleLogic.computeDamage(actor, t, skill);
-        t.takeDamage(result.damage);
-        this.showDamageNumber(t, result);
-        this.updateUnitView(t);
+        if(!result.isMiss) {
+          t.takeDamage(result.damage);
+          this.showDamageNumber(t, result);
+          this.updateUnitView(t);
+        }
       });
       this.updateUnitView(actor);
     });
@@ -411,14 +481,14 @@ class BattleScene extends Phaser.Scene {
     const size = result.isCrit ? '38px' : '26px';
     const label = result.isCrit ? `-${result.damage} 暴击!` : `-${result.damage}`;
     const txt = this.add.text(view.container.x, view.container.y - 70, label, { fontSize: size, color: color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5);
-    this.tweens.add({ targets: txt, y: txt.y - 90, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => txt.destroy() });
+    this.tweens.add({ targets: txt, y: txt.y - 90, alpha: 0, duration: 900 / this.speedMultiplier, ease: 'Cubic.easeOut', onComplete: () => txt.destroy() });
   }
 
   updateUnitView(unit) {
     const view = this.unitViews.get(unit);
     if (!view) return;
-    this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 });
-    this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 });
+    this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 / this.speedMultiplier });
+    this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 / this.speedMultiplier });
     if (unit.statuses.length > 0) {
       const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
       view.statusText.setText(`[${stNames}]`);
@@ -426,6 +496,41 @@ class BattleScene extends Phaser.Scene {
     if (!unit.isAlive()) { view.emoji.setAlpha(0.25); view.circle.setAlpha(0.25); }
   }
   
+  // ★ 跳过战斗（快速后台结算）
+  fastForwardBattle() {
+    let rounds = 0;
+    while (rounds < CONFIG.MAX_ROUNDS) {
+      const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
+      const enemies = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
+      if (players.length === 0) return this.showResult('defeat');
+      if (enemies.length === 0) return this.showResult('victory');
+      
+      this.allUnits.forEach(u => {
+        if (u.isAlive()) u.tickStatuses();
+      });
+
+      const actionOrder = BattleLogic.buildActionOrder(this.allUnits);
+      for (let actor of actionOrder) {
+        if (!actor.isAlive()) continue;
+        const skill = BattleLogic.chooseSkill(actor);
+        if (!skill) continue;
+        const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
+        
+        actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
+        if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
+
+        targets.forEach(t => {
+          const res = BattleLogic.computeDamage(actor, t, skill);
+          if (!res.isMiss) t.takeDamage(res.damage);
+        });
+        actor.gainMp();
+        actor.reduceCooldowns();
+      }
+      rounds++;
+    }
+    this.showResult('timeout');
+  }
+
   showResult(type) {
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
@@ -439,8 +544,6 @@ class BattleScene extends Phaser.Scene {
       const level = LEVELS[this.currentLevelIndex];
       if (level && level.rewardItemId && ITEMS[level.rewardItemId]) {
         const item = ITEMS[level.rewardItemId];
-        
-        // 生成新的物品实例加入背包
         const newInst = { uid: 'inst_' + Date.now(), itemId: item.id, equippedBy: '' };
         INVENTORY.push(newInst);
         localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
@@ -459,7 +562,7 @@ class BattleScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v8') {
+  if (e.key === 'my_game_data_v9') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
