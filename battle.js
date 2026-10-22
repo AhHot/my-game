@@ -69,7 +69,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 场景 1：战前布阵（版本号验证 + 严格限制5人）
+// 场景 1：战前布阵
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
@@ -83,10 +83,10 @@ class FormationScene extends Phaser.Scene {
     const gridTop = 180;
     const standbyTop = 680; 
 
-    // ★ 核心：版本水印，看到这个说明代码绝对是最新的
-    this.add.text(10, 10, '版本: v1.0.5 (限制5人)', { fontSize: '16px', color: '#00ff00' });
+    // 版本水印
+    this.add.text(10, 10, '版本: v1.0.6 (自然拖拽)', { fontSize: '16px', color: '#00ff00' });
     
-    // ★ 新增：实时显示上阵人数
+    // 实时显示上阵人数
     this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
 
     // 强刷按钮
@@ -126,7 +126,6 @@ class FormationScene extends Phaser.Scene {
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
     const playerChars = CHARACTERS.filter(c => c.side === 'player');
     
-    // 强制所有人初始在待命区
     playerChars.forEach(data => {
       data.gridX = -1; 
       data.gridY = -1; 
@@ -151,17 +150,7 @@ class FormationScene extends Phaser.Scene {
       this.unitContainers.push(container);
 
       container.on('dragstart', () => {
-        // 拖动开始时，如果是从待命区拖，且场上满了5人，直接强制取消
-        if (!container.isOnGrid) {
-          const currentCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
-          if (currentCount >= 5) {
-            alert("上阵人数已满 (5/5)！请先撤回一名角色。");
-            container.disableInteractive(); // 禁用拖拽
-            setTimeout(() => container.setInteractive({ draggable: true }), 100); // 稍微延迟恢复
-            return;
-          }
-        }
-
+        // 移除所有限制提示，纯粹腾出格子
         if (container.isOnGrid) {
           this.gridState[data.gridX][data.gridY] = null;
         }
@@ -178,22 +167,40 @@ class FormationScene extends Phaser.Scene {
         let row = Math.floor((container.y - gridTop) / cell);
 
         if (col >= 0 && col < CONFIG.GRID_SIZE && row >= 0 && row < CONFIG.GRID_SIZE) {
-          
-          // 双重保险：由于拖动中状态可能改变，再次检查
-          if (!container.isOnGrid) {
-            const currentCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
-            if (currentCount >= 5) {
-              data.gridX = -1; data.gridY = -1;
-              container.isOnGrid = false;
-              this.layoutStandby(standbyTop);
-              return;
-            }
-          }
-
+          // 落在了网格内
           const targetUnitData = this.gridState[col][row];
-          
-          if (targetUnitData && targetUnitData !== data) {
-            if (container.isOnGrid) {
+
+          if (!container.isOnGrid) {
+            // === 情况 A：从待命区拖到网格 ===
+            if (targetUnitData) {
+              // 拖到已上阵的角色身上，直接替换（把人踢回待命区）
+              targetUnitData.gridX = -1;
+              targetUnitData.gridY = -1;
+              const targetContainer = this.unitContainers.find(c => c.unitData === targetUnitData);
+              targetContainer.isOnGrid = false;
+              
+              // 自己上阵
+              data.gridX = col; data.gridY = row;
+              this.gridState[col][row] = data;
+              container.isOnGrid = true;
+            } else {
+              // 拖到空格，检查场上人数
+              const currentCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+              if (currentCount >= 5) {
+                // 满5人，自然弹回待命区（不加提示）
+                data.gridX = -1; data.gridY = -1;
+                container.isOnGrid = false;
+              } else {
+                // 不满5人，上阵
+                data.gridX = col; data.gridY = row;
+                this.gridState[col][row] = data;
+                container.isOnGrid = true;
+              }
+            }
+          } else {
+            // === 情况 B：从网格拖到网格 ===
+            if (targetUnitData && targetUnitData !== data) {
+              // 互换位置
               const oldCol = data.gridX;
               const oldRow = data.gridY;
               
@@ -204,25 +211,25 @@ class FormationScene extends Phaser.Scene {
               const targetContainer = this.unitContainers.find(c => c.unitData === targetUnitData);
               targetContainer.x = gridLeft + oldCol * cell + cell / 2;
               targetContainer.y = gridTop + oldRow * cell + cell / 2;
-            } else {
-              targetUnitData.gridX = -1;
-              targetUnitData.gridY = -1;
-              const targetContainer = this.unitContainers.find(c => c.unitData === targetUnitData);
-              targetContainer.isOnGrid = false;
             }
+            // 自己落入新格子
+            data.gridX = col; data.gridY = row;
+            this.gridState[col][row] = data;
           }
 
-          data.gridX = col; data.gridY = row;
-          this.gridState[col][row] = data;
-          container.x = gridLeft + col * cell + cell / 2;
-          container.y = gridTop + row * cell + cell / 2;
-          container.isOnGrid = true;
+          // 更新视觉坐标（如果最终是在场上）
+          if (container.isOnGrid) {
+            container.x = gridLeft + data.gridX * cell + cell / 2;
+            container.y = gridTop + data.gridY * cell + cell / 2;
+          }
 
         } else {
+          // === 情况 C：拖到了网格外面（回待命区） ===
           data.gridX = -1; data.gridY = -1;
           container.isOnGrid = false;
         }
 
+        // 无论是拖上去还是拖下来，最后都整理一次待命区和人数显示
         this.layoutStandby(standbyTop);
       });
     });
@@ -234,15 +241,10 @@ class FormationScene extends Phaser.Scene {
   layoutStandby(standbyTop) {
     const standbyContainers = this.unitContainers.filter(c => !c.isOnGrid);
     
-    // 计算当前场上人数
+    // 计算当前场上人数并更新UI
     const currentCount = this.unitContainers.filter(c => c.isOnGrid).length;
     this.countText.setText(`当前上阵: ${currentCount} / 5`);
-    this.countText.setColor(currentCount >= 5 ? '#e74c3c' : '#f1c40f'); // 满了变红
-
-    // 如果满了，待命区的角色变半透明，给玩家视觉提示
-    standbyContainers.forEach(c => {
-      c.setAlpha(currentCount >= 5 ? 0.5 : 1);
-    });
+    this.countText.setColor(currentCount >= 5 ? '#e74c3c' : '#f1c40f');
 
     const cols = 4; 
     const cellW = 140; 
