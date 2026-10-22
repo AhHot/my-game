@@ -12,7 +12,9 @@ if (localStorage.getItem('my_game_statuses_sync')) { try { const d = JSON.parse(
 class Unit {
   constructor(data) {
     Object.assign(this, data);
-    if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
+    if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
+    if (this.skillSlots.followup === undefined) this.skillSlots.followup = '';
+
     this.baseAtk = this.atk || 10; this.baseDef = this.def || 10; this.baseSpeed = this.speed || 10;
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
@@ -26,11 +28,16 @@ class Unit {
     });
     this.hp = this.maxHp; this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
     this.cooldowns = {}; this.statuses = []; 
+    this.followupCounts = {}; // ★ 记录追打技能本回合使用次数
   }
   isAlive() { return this.hp > 0; }
   gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
   takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); }
   reduceCooldowns() { for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; } }
+  
+  // ★ 新回合重置追打次数
+  resetFollowups() { this.followupCounts = {}; }
+
   refreshStats() {
     this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
     this.statuses.forEach(st => {
@@ -82,7 +89,8 @@ const BattleLogic = {
   },
   chooseSkill(actor) {
     const slots = actor.skillSlots || {};
-    const availableSkills = Object.values(slots).filter(id => id && SKILLS[id] && SKILLS[id].type !== 'passive').map(id => SKILLS[id]);
+    // ★ 过滤掉追打和被动，保证角色自己回合不会释放追打技能
+    const availableSkills = Object.values(slots).filter(id => id && SKILLS[id] && SKILLS[id].type !== 'passive' && SKILLS[id].type !== 'followup').map(id => SKILLS[id]);
     const usable = availableSkills.filter(sk => { const cd = actor.cooldowns[sk.id] || 0; return actor.mp >= (sk.cost?.mp || 0) && cd <= 0; });
     const typeWeight = { ultimate: 3, skill: 2, normal: 1 };
     usable.sort((a, b) => (typeWeight[b.type] || 0) - (typeWeight[a.type] || 0));
@@ -104,9 +112,8 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v2.0.2', { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, '版本: v2.2.0 (追打优先级)', { fontSize: '16px', color: '#00ff00' });
     
-    // ★ 修改：按钮改为上下排列，右侧留出安全距离，绝对不遮挡
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 打开编辑器', { fontSize: '20px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 15, y: 8 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
 
@@ -196,7 +203,7 @@ class BattleScene extends Phaser.Scene {
       if (enemy.gridX === -1 || enemy.gridX === undefined) { enemy.gridX = enemyCount % CONFIG.GRID_SIZE; enemy.gridY = Math.floor(enemyCount / CONFIG.GRID_SIZE); }
       enemyCount++;
     });
-    if (enemyCount === 0) CHARACTERS.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 500, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', learned: '' } });
+    if (enemyCount === 0) CHARACTERS.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 500, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' } });
 
     const activeFighters = CHARACTERS.filter(c => c.side === 'enemy' || (c.side === 'player' && c.gridX !== -1));
     activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); this.createUnitView(unit); });
@@ -240,7 +247,13 @@ class BattleScene extends Phaser.Scene {
     let y = unit.side === 'enemy' ? 70 + (CONFIG.GRID_SIZE - 1 - unit.gridY) * cell + cell / 2 : 700 + unit.gridY * cell + cell / 2;
     return { x, y };
   }
-  startBattle() { this.round = 1; this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); this.actionIndex = 0; this.nextAction(); }
+  startBattle() { 
+    this.round = 1; 
+    this.allUnits.forEach(u => u.resetFollowups()); // 初始化追打次数
+    this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); 
+    this.actionIndex = 0; 
+    this.nextAction(); 
+  }
   
   nextAction() {
     const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
@@ -253,8 +266,10 @@ class BattleScene extends Phaser.Scene {
       this.round++;
       this.roundText.setText(`第 ${this.round} 回合`);
       
+      // ★ 新回合：重置追打次数并结算DOT
       this.allUnits.forEach(u => {
         if (!u.isAlive()) return;
+        u.resetFollowups();
         const oldHp = u.hp;
         u.tickStatuses(); 
         if (u.hp < oldHp) this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); 
@@ -314,7 +329,75 @@ class BattleScene extends Phaser.Scene {
       actor.gainMp();
       actor.reduceCooldowns();
       this.updateUnitView(actor);
+      
+      // ★ 检查是否触发追打
+      if (skill.comboTagOut) {
+        this.checkFollowups(skill.comboTagOut, actor.side);
+      }
+      
       this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
+    });
+  }
+  
+  // ★ 核心逻辑：按站位寻找追打者
+  checkFollowups(tag, side) {
+    // 找出所有同阵营、活着的、不在行动的角色
+    let candidates = this.allUnits.filter(u => u.isAlive() && u.side === side);
+    
+    // 按阵型站位排序：左上优先 (gridY越小越靠上，gridX越小越靠左)
+    candidates.sort((a, b) => {
+      if (a.gridY !== b.gridY) return a.gridY - b.gridY;
+      return a.gridX - b.gridX;
+    });
+
+    let triggered = false;
+
+    for (let unit of candidates) {
+      const followupId = unit.skillSlots.followup;
+      if (!followupId || !SKILLS[followupId]) continue;
+      
+      const sk = SKILLS[followupId];
+      // 检查是否符合触发条件
+      if (sk.comboTagIn === tag) {
+        const used = unit.followupCounts[sk.id] || 0;
+        const max = sk.maxTriggers || 1;
+        
+        // 次数未满，则触发！
+        if (used < max) {
+          unit.followupCounts[sk.id] = used + 1; // 扣除次数
+          this.triggerFollowupAction(unit, sk, tag);
+          triggered = true;
+          break; // 每次技能释放，只触发一个追打，立刻跳出
+        }
+      }
+    }
+  }
+
+  // ★ 执行追打
+  triggerFollowupAction(actor, skill, tag) {
+    const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
+    if (targets.length === 0) return;
+
+    const view = this.unitViews.get(actor);
+    if (view) {
+      const txt = this.add.text(view.container.x, view.container.y - 100, `⚡追打! ${skill.name}`, { fontSize: '24px', color: '#ffcc00', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+      this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 1000, onComplete: () => txt.destroy() });
+      this.tweens.add({ targets: view.container, scaleX: 1.3, scaleY: 1.3, duration: 150, yoyo: true });
+    }
+    
+    this.logText.setText(`⚡ 站位优先！${actor.name} 发动追打【${skill.name}】`).setColor('#ffcc00');
+
+    this.time.delayedCall(300, () => {
+      actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
+      if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
+
+      targets.forEach(t => {
+        const result = BattleLogic.computeDamage(actor, t, skill);
+        t.takeDamage(result.damage);
+        this.showDamageNumber(t, result);
+        this.updateUnitView(t);
+      });
+      this.updateUnitView(actor);
     });
   }
   
