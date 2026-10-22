@@ -28,12 +28,11 @@ class Unit {
   constructor(data) {
     Object.assign(this, data);
     
-    // ★ 修复卡死 Bug：移除旧版 skills 读取，安全处理 skillSlots
     if (!this.skillSlots) {
       this.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
     }
 
-    // ★ 核心新增：应用被动技能加成
+    // 应用被动技能加成
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
       const sk = SKILLS[skId];
@@ -91,31 +90,25 @@ const BattleLogic = {
     return { damage: Math.round(finalDamage), isCrit, elemMult };
   },
   
-  // ★ 修复：更安全的 AI 技能选择逻辑
   chooseSkill(actor) {
     const slots = actor.skillSlots || {};
-    // 把 4 个槽位里填了技能 ID 的都拿出来，并且过滤掉找不到的被动技能
     const availableSkills = Object.values(slots)
       .filter(id => id && SKILLS[id] && SKILLS[id].type !== 'passive')
       .map(id => SKILLS[id]);
 
-    // 1. 筛选可用（蓝量够 且 CD 好 或 无CD）
     const usable = availableSkills.filter(sk => {
       const cd = actor.cooldowns[sk.id] || 0;
       return actor.mp >= (sk.cost?.mp || 0) && cd <= 0;
     });
 
-    // 2. 按优先级排序：绝技 > 招式 > 普攻
     const typeWeight = { ultimate: 3, skill: 2, normal: 1 };
     usable.sort((a, b) => (typeWeight[b.type] || 0) - (typeWeight[a.type] || 0));
 
     if (usable.length > 0) return usable[0];
 
-    // 3. 终极兜底：如果全都没蓝或CD中，强行返回一个普攻
     const fallbackSkill = Object.values(SKILLS).find(s => s.type === 'normal');
     if (fallbackSkill) return fallbackSkill;
 
-    // 4. 如果连普攻都没配，返回一个默认假数据防止崩溃
     return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, cost: {mp: 0}, targetRule: 'frontRow', element: 'fire' };
   },
 
@@ -137,7 +130,7 @@ class FormationScene extends Phaser.Scene {
     const gridTop = 180;
     const standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v1.2.0 (修复卡死+被动)', { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, '版本: v1.2.1 (修复敌方丢失)', { fontSize: '16px', color: '#00ff00' });
     this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
 
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { fontSize: '20px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
@@ -248,8 +241,28 @@ class BattleScene extends Phaser.Scene {
     this.unitViews = new Map();
     this.drawBattlefield();
     
-    // 此时 CHARACTERS 里包含了上阵的战士
-    const activeFighters = CHARACTERS.filter(c => c.gridX !== -1);
+    // ★ 修复核心：确保所有敌人都上场，并分配坐标
+    let enemyCount = 0;
+    CHARACTERS.filter(c => c.side === 'enemy').forEach(enemy => {
+      if (enemy.gridX === -1 || enemy.gridX === undefined || enemy.gridY === -1 || enemy.gridY === undefined) {
+        enemy.gridX = enemyCount % CONFIG.GRID_SIZE;
+        enemy.gridY = Math.floor(enemyCount / CONFIG.GRID_SIZE);
+      }
+      enemyCount++;
+    });
+
+    // 如果完全没有敌人数据，自动补一个陪练木桩
+    if (enemyCount === 0) {
+      CHARACTERS.push({
+        id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire',
+        maxHp: 500, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0,
+        gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', learned: '' }
+      });
+    }
+
+    // 玩家只取上阵的，敌人全取
+    const activeFighters = CHARACTERS.filter(c => c.side === 'enemy' || (c.side === 'player' && c.gridX !== -1));
+    
     activeFighters.forEach(data => {
       const unit = new Unit(data); 
       this.allUnits.push(unit);
@@ -325,7 +338,7 @@ class BattleScene extends Phaser.Scene {
   
   executeAction(actor) {
     const skill = BattleLogic.chooseSkill(actor);
-    if (!skill) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction()); // 终极保护
+    if (!skill) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction()); 
     
     const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
     if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
