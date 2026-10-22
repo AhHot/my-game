@@ -8,24 +8,20 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
     h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
-    
     .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
     .tab { flex: 1; padding: 12px; text-align: center; background: #16213e; border-radius: 6px; cursor: pointer; border: 1px solid #0f3460; font-size: 14px;}
     .tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
-    
     .card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .card-header h3 { color: #3498db; }
     .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
-    
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 2; }
     .form-item label { font-size: 12px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 14px; }
-    
     .skill-slot { background: #0f0f1a; padding: 10px; border-radius: 4px; margin-top: 5px; border: 1px dashed #444; }
-    
+    .passive-box { background: #1e1e2e; padding: 10px; border-radius: 4px; border: 1px solid #e67e22; margin-top: 10px; display: none; }
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; flex-wrap: wrap; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; min-width: 45%; }
     .btn-sync { background: #3498db; }
@@ -60,7 +56,6 @@
   </div>
 
   <script>
-    // 默认数据（适配新版技能结构）
     const DEFAULT_CHARS = [
       { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', learned: '' } },
       { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, skillSlots: { normal: 'skill_slash', skill: 'skill_frost_arrow', ultimate: 'skill_ice_age', learned: '' } },
@@ -72,11 +67,12 @@
       { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', multiplier: 2.0, mpCost: 20, cooldown: 2, targetRule: 'frontRow' },
       { id: 'skill_frost_arrow', name: '霜冻箭', type: 'skill', element: 'water', multiplier: 1.8, mpCost: 15, cooldown: 1, targetRule: 'lowestHp' },
       { id: 'skill_ice_age', name: '极寒风暴', type: 'ultimate', element: 'water', multiplier: 3.5, mpCost: 40, cooldown: 4, targetRule: 'lowestHp' },
-      { id: 'skill_dark_claw', name: '暗影爪', type: 'normal', element: 'dark', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'random' }
+      { id: 'skill_dark_claw', name: '暗影爪', type: 'normal', element: 'dark', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'random' },
+      { id: 'passive_atk_up', name: '力量强化', type: 'passive', passiveType: 'atkAdd', passiveValue: 10 } // 被动示例：攻击+10
     ];
 
-    let gameChars = JSON.parse(localStorage.getItem('my_game_data_v2')) || DEFAULT_CHARS;
-    let gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v2')) || DEFAULT_SKILLS;
+    let gameChars = JSON.parse(localStorage.getItem('my_game_data_v3')) || DEFAULT_CHARS;
+    let gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v3')) || DEFAULT_SKILLS;
 
     const elements = ['fire', 'water', 'wind', 'light', 'dark'];
     const sides = [{ val: 'player', label: '我方' }, { val: 'enemy', label: '敌方' }];
@@ -90,6 +86,12 @@
       { val: 'frontRow', label: '前排' },
       { val: 'lowestHp', label: '血量最低' },
       { val: 'random', label: '随机目标' }
+    ];
+    const passiveTypes = [
+      { val: 'atkAdd', label: '攻击力固定加成' },
+      { val: 'hpAdd', label: '生命值固定加成' },
+      { val: 'defAdd', label: '防御力固定加成' },
+      { val: 'speedAdd', label: '速度固定加成' }
     ];
 
     function switchTab(tab) {
@@ -106,11 +108,11 @@
       renderSkills();
     }
 
-    // 生成技能下拉框的辅助函数
-    function getSkillOptions(type, selectedId) {
+    // ★ 修改：不再限制技能类型，所有技能自由选择
+    function getSkillOptions(selectedId) {
       let html = `<option value="">(空)</option>`;
-      gameSkills.filter(sk => sk.type === type || type === 'learned').forEach(sk => {
-        html += `<option value="${sk.id}" ${selectedId === sk.id ? 'selected' : ''}>${sk.name}</option>`;
+      gameSkills.forEach(sk => {
+        html += `<option value="${sk.id}" ${selectedId === sk.id ? 'selected' : ''}>[${sk.type}] ${sk.name}</option>`;
       });
       return html;
     }
@@ -120,10 +122,7 @@
       list.innerHTML = '';
       
       gameChars.forEach((char, index) => {
-        // 兼容旧数据：如果没有 skillSlots，自动转换
-        if (!char.skillSlots) {
-          char.skillSlots = { normal: char.skills?.[0] || '', skill: char.skills?.[1] || '', ultimate: '', learned: '' };
-        }
+        if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
 
         const div = document.createElement('div');
         div.className = 'card';
@@ -153,23 +152,23 @@
             <div class="form-item"><label>速度</label><input type="number" value="${char.speed}" onchange="updateChar(${index}, 'speed', parseInt(this.value))"></div>
             
             <div class="form-item full">
-              <label>技能装配</label>
+              <label>技能装配 (可自由组合)</label>
               <div class="skill-slot">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                  <span>普攻:</span>
-                  <select style="flex:1; margin-left:10px;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions('normal', char.skillSlots.normal)}</select>
+                  <span style="width:70px;">槽位1:</span>
+                  <select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                  <span>招式:</span>
-                  <select style="flex:1; margin-left:10px;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions('skill', char.skillSlots.skill)}</select>
+                  <span style="width:70px;">槽位2:</span>
+                  <select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-                  <span>绝技:</span>
-                  <select style="flex:1; margin-left:10px;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions('ultimate', char.skillSlots.ultimate)}</select>
+                  <span style="width:70px;">槽位3:</span>
+                  <select style="flex:1;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions(char.skillSlots.ultimate)}</select>
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span style="color:#f1c40f;">学习槽(1):</span>
-                  <select style="flex:1; margin-left:10px;" onchange="updateSkillSlot(${index}, 'learned', this.value)">${getSkillOptions('learned', char.skillSlots.learned)}</select>
+                  <span style="width:70px; color:#f1c40f;">学习槽:</span>
+                  <select style="flex:1;" onchange="updateSkillSlot(${index}, 'learned', this.value)">${getSkillOptions(char.skillSlots.learned)}</select>
                 </div>
               </div>
             </div>
@@ -184,6 +183,8 @@
       list.innerHTML = '';
       
       gameSkills.forEach((skill, index) => {
+        const isPassive = skill.type === 'passive';
+        
         const div = document.createElement('div');
         div.className = 'card';
         div.innerHTML = `
@@ -200,20 +201,33 @@
                 ${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}
               </select>
             </div>
-            <div class="form-item">
+            
+            <!-- 主动技能配置区 -->
+            <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};">
               <label>属性</label>
               <select onchange="updateSkill(${index}, 'element', this.value)">
                 ${elements.map(e => `<option value="${e}" ${skill.element === e ? 'selected' : ''}>${e}</option>`).join('')}
               </select>
             </div>
-            <div class="form-item"><label>耗蓝</label><input type="number" value="${skill.mpCost}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
-            <div class="form-item"><label>冷却回合</label><input type="number" value="${skill.cooldown}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
-            <div class="form-item"><label>伤害倍率</label><input type="number" step="0.1" value="${skill.multiplier}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
-            <div class="form-item">
+            <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};"><label>耗蓝</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
+            <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};"><label>冷却回合</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
+            <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};"><label>伤害倍率</label><input type="number" step="0.1" value="${skill.multiplier || 1.0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
+            <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};">
               <label>目标</label>
               <select onchange="updateSkill(${index}, 'targetRule', this.value)">
                 ${targetRules.map(r => `<option value="${r.val}" ${skill.targetRule === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}
               </select>
+            </div>
+
+            <!-- 被动技能专属配置区 -->
+            <div class="form-item full passive-box" style="display: ${isPassive ? 'block' : 'none'};">
+              <label style="color:#e67e22; font-weight:bold;">被动效果配置</label>
+              <div style="display:flex; gap:10px; margin-top:5px;">
+                <select style="flex:1;" onchange="updateSkill(${index}, 'passiveType', this.value)">
+                  ${passiveTypes.map(p => `<option value="${p.val}" ${skill.passiveType === p.val ? 'selected' : ''}>${p.label}</option>`).join('')}
+                </select>
+                <input type="number" style="flex:1;" placeholder="加成数值" value="${skill.passiveValue || 0}" onchange="updateSkill(${index}, 'passiveValue', parseInt(this.value))">
+              </div>
             </div>
           </div>
         `;
@@ -222,16 +236,12 @@
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v2', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v2', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_data_v3', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v3', JSON.stringify(gameSkills));
     }
 
     function updateChar(index, key, value) { gameChars[index][key] = value; saveData(); }
-    
-    function updateSkillSlot(charIndex, slotKey, skillId) {
-      gameChars[charIndex].skillSlots[slotKey] = skillId;
-      saveData();
-    }
+    function updateSkillSlot(charIndex, slotKey, skillId) { gameChars[charIndex].skillSlots[slotKey] = skillId; saveData(); }
 
     function addChar() {
       gameChars.push({
@@ -248,7 +258,7 @@
     function updateSkill(index, key, value) {
       gameSkills[index][key] = value;
       saveData();
-      if(key === 'name' || key === 'type') renderChars(); // 名字或分类变了，下拉框更新
+      if (key === 'name' || key === 'type') render(); // 切换类型时刷新UI
     }
 
     function addSkill() {
@@ -269,22 +279,22 @@
     function syncToGame() {
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
-      alert('✅ 同步成功！\n刷新游戏页面体验全新技能机制吧！');
+      alert('✅ 同步成功！刷新游戏体验吧！');
     }
 
     function generateCode() {
       const output = document.getElementById('output-area');
       const skillsObj = {};
       gameSkills.forEach(sk => {
-        skillsObj[sk.id] = {
-          id: sk.id, name: sk.name, type: sk.type, element: sk.element, multiplier: sk.multiplier, 
-          cost: { mp: sk.mpCost, rage: 0 }, cooldown: sk.cooldown, targetRule: sk.targetRule
-        };
+        skillsObj[sk.id] = { ...sk }; // 导出全部字段（包括被动）
+        if(sk.type !== 'passive') {
+          skillsObj[sk.id].cost = { mp: sk.mpCost, rage: 0 };
+        }
       });
       const codeStr = `// ===== 自动生成的技能库 =====\nconst SKILLS = ${JSON.stringify(skillsObj, null, 2)};\n\n// ===== 自动生成的角色库 =====\nconst CHARACTERS = ${JSON.stringify(gameChars, null, 2)};`;
       output.value = codeStr; output.style.display = 'block'; output.scrollIntoView();
       output.select(); document.execCommand('copy');
-      alert('代码已生成并自动复制！\n去 data.js 替换吧。');
+      alert('代码已生成并自动复制！');
     }
 
     render();
