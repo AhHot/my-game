@@ -1,10 +1,20 @@
 // ==========================================
-// 读取同步数据
+// 读取同步数据（加入安全判断）
 // ==========================================
-if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } } catch(e){} }
-if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } } catch(e){} }
-// ★ 新增读取状态库
-if (localStorage.getItem('my_game_statuses_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); if (d.length) { Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); d.forEach(st => STATUSES[st.id]={...st}); } } catch(e){} }
+if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } } catch(e){ console.error(e); } }
+if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } } catch(e){ console.error(e); } }
+
+// ★ 状态库安全锁：防止未定义或者同步缺失
+if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
+if (localStorage.getItem('my_game_statuses_sync')) { 
+  try { 
+    const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); 
+    if (Array.isArray(d) && d.length) { 
+      Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); 
+      d.forEach(st => STATUSES[st.id]={...st}); 
+    } 
+  } catch(e){ console.error(e); } 
+}
 
 // ==========================================
 // 纯逻辑层：战斗单位与伤害计算
@@ -14,7 +24,7 @@ class Unit {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
 
-    this.baseAtk = this.atk; // 记录基础属性，方便算 Buff
+    this.baseAtk = this.atk;
     this.baseDef = this.def;
     this.baseSpeed = this.speed;
 
@@ -33,24 +43,22 @@ class Unit {
     this.hp = this.maxHp;
     this.mp = Math.floor(this.maxMp * CONFIG.START_MP_RATIO);
     this.cooldowns = {};
-    this.statuses = []; // ★ 新增：存储当前身上的状态 { id, duration }
+    this.statuses = []; 
   }
   
   isAlive() { return this.hp > 0; }
   gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
   takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); }
   
-  // 冷却减少
   reduceCooldowns() {
     for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; }
   }
 
-  // ★ 新增：刷新属性（计算 Buff/Debuff 加成）
   refreshStats() {
     this.atk = this.baseAtk;
     this.def = this.baseDef;
     this.speed = this.baseSpeed;
-    
+    if (typeof STATUSES === 'undefined') return;
     this.statuses.forEach(st => {
       const config = STATUSES[st.id];
       if (!config) return;
@@ -58,33 +66,30 @@ class Unit {
       if (config.statMod === 'def') this.def += config.statValue;
       if (config.statMod === 'speed') this.speed += config.statValue;
     });
-    // 防止属性被减成负数
     this.atk = Math.max(1, this.atk);
     this.def = Math.max(0, this.def);
     this.speed = Math.max(1, this.speed);
   }
 
-  // ★ 新增：回合结束处理状态（扣血、减持续回合）
   tickStatuses() {
+    if (typeof STATUSES === 'undefined') return;
     for (let i = this.statuses.length - 1; i >= 0; i--) {
       const st = this.statuses[i];
       const config = STATUSES[st.id];
       if (config && config.isDot && config.dotValue > 0) {
-        this.takeDamage(config.dotValue); // 扣血
-        // 我们可以返回扣血量用于飘字展示
+        this.takeDamage(config.dotValue); 
       }
       st.duration--;
-      if (st.duration <= 0) this.statuses.splice(i, 1); // 时间到了，移除
+      if (st.duration <= 0) this.statuses.splice(i, 1); 
     }
-    this.refreshStats(); // 重新计算属性
+    this.refreshStats(); 
   }
 
-  // 加上状态
   addStatus(statusId) {
-    if (!statusId || !STATUSES[statusId]) return;
+    if (!statusId || typeof STATUSES === 'undefined' || !STATUSES[statusId]) return;
     const existing = this.statuses.find(s => s.id === statusId);
     if (existing) {
-      existing.duration = STATUSES[statusId].duration; // 刷新持续时间
+      existing.duration = STATUSES[statusId].duration; 
     } else {
       this.statuses.push({ id: statusId, duration: STATUSES[statusId].duration });
     }
@@ -110,7 +115,7 @@ const BattleLogic = {
     return [enemies[0]];
   },
   computeDamage(actor, target, skill) {
-    let base = actor.atk * skill.multiplier; // 这里的 actor.atk 已经是包含 Buff 的数值了
+    let base = actor.atk * skill.multiplier;
     const elemMult = this.getElementMultiplier(skill.element, target.element);
     base *= elemMult;
     const isCrit = Math.random() < actor.critRate;
@@ -145,7 +150,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2;
     const gridTop = 180, standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v1.3.0 (状态系统)', { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, '版本: v1.3.1 (防卡死状态版)', { fontSize: '16px', color: '#00ff00' });
     this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
 
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { fontSize: '20px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
@@ -278,7 +283,6 @@ class BattleScene extends Phaser.Scene {
     const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
     const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
     
-    // ★ 新增：状态文字显示区域
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
 
     container.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, statusText]);
@@ -304,18 +308,16 @@ class BattleScene extends Phaser.Scene {
       this.round++;
       this.roundText.setText(`第 ${this.round} 回合`);
       
-      // ★ 新回合开始：结算所有人的状态（扣血、持续时间）
       this.allUnits.forEach(u => {
         if (!u.isAlive()) return;
         const oldHp = u.hp;
         u.tickStatuses(); 
         if (u.hp < oldHp) {
-          this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); // 毒伤用紫色字体
+          this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); 
         }
         this.updateUnitView(u);
       });
 
-      // 再次检查是否被毒死
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.showResult('defeat');
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.showResult('victory');
 
@@ -350,16 +352,17 @@ class BattleScene extends Phaser.Scene {
         const result = BattleLogic.computeDamage(actor, t, skill);
         t.takeDamage(result.damage);
         
-        // ★ 核心：附加状态判定
+        // ★ 附加状态（加入严苛的判空安全锁，绝不卡死）
         if (skill.statusId && skill.statusChance > 0) {
           if (Math.random() * 100 < skill.statusChance) {
-            t.addStatus(skill.statusId);
-            // 飘字提示获得状态
-            const tView = this.unitViews.get(t);
-            if (tView) {
-              const stName = STATUSES[skill.statusId].name;
-              const txt = this.add.text(tView.container.x, tView.container.y - 40, `+${stName}`, { fontSize: '18px', color: '#00ffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-              this.tweens.add({ targets: txt, y: txt.y - 60, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+            if (typeof STATUSES !== 'undefined' && STATUSES[skill.statusId]) {
+              t.addStatus(skill.statusId);
+              const tView = this.unitViews.get(t);
+              if (tView) {
+                const stName = STATUSES[skill.statusId].name;
+                const txt = this.add.text(tView.container.x, tView.container.y - 40, `+${stName}`, { fontSize: '18px', color: '#00ffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+                this.tweens.add({ targets: txt, y: txt.y - 60, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+              }
             }
           }
         }
@@ -375,7 +378,6 @@ class BattleScene extends Phaser.Scene {
     });
   }
   
-  // ★ 新增：独立的飘字函数，支持多种颜色
   showDamageNumber(unit, result, customColor = null) {
     const view = this.unitViews.get(unit);
     if (!view) return;
@@ -392,9 +394,8 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 });
     this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 });
     
-    // ★ 更新状态文字（显示当前身上的 Buff/Debuff 简称）
-    if (unit.statuses.length > 0) {
-      const stNames = unit.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('');
+    if (unit.statuses.length > 0 && typeof STATUSES !== 'undefined') {
+      const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
       view.statusText.setText(`[${stNames}]`);
     } else {
       view.statusText.setText('');
