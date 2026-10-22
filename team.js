@@ -6,9 +6,6 @@ class TeamScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.add.text(CONFIG.WIDTH / 2, 60, '👥 队伍与装备', { fontSize: '36px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     
-    // 增加一个背包状态的提示，方便测试
-    this.bagInfoText = this.add.text(CONFIG.WIDTH / 2, 110, '', { fontSize: '16px', color: '#aaa' }).setOrigin(0.5);
-
     const backBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT - 80, '返回布阵', { fontSize: '28px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 40, y: 15 } }).setOrigin(0.5).setInteractive();
     backBtn.on('pointerdown', () => { this.scene.start('FormationScene', { levelIndex: this.levelIndex }); });
 
@@ -18,11 +15,6 @@ class TeamScene extends Phaser.Scene {
   renderTeamList() {
     if (this.teamContainer) this.teamContainer.destroy();
     this.teamContainer = this.add.container(0, 0);
-
-    // 更新顶部提示
-    if(this.bagInfoText) {
-      this.bagInfoText.setText(`当前背包物品总数: ${INVENTORY.length}`);
-    }
 
     let startY = 150;
     const playerChars = CHARACTERS.filter(c => c.side === 'player');
@@ -34,12 +26,9 @@ class TeamScene extends Phaser.Scene {
           if (!uid) return;
           const inst = INVENTORY.find(i => i.uid === uid);
           if (inst) {
-            const item = ITEMS[inst.itemId];
-            if (item) {
-              totalAtk += (item.atk || 0);
-              totalDef += (item.def || 0);
-              totalHp += (item.hp || 0);
-            }
+            totalAtk += (inst.baseAtk || 0);
+            totalDef += (inst.baseDef || 0);
+            totalHp += (inst.baseHp || 0);
           }
         });
       }
@@ -53,10 +42,7 @@ class TeamScene extends Phaser.Scene {
         const uid = char.equipment ? char.equipment[slotType] : '';
         if (uid) {
           const inst = INVENTORY.find(inst => inst.uid === uid);
-          if (inst) {
-            const item = ITEMS[inst.itemId];
-            if (item) itemName = item.name;
-          }
+          if (inst) itemName = ITEMS[inst.itemId]?.name || '未知';
         }
 
         const btn = this.add.text(50 + i * 250, startY + 40, `[${slotType === 'weapon' ? '武器' : '防具'}] ${itemName}`, { 
@@ -77,53 +63,30 @@ class TeamScene extends Phaser.Scene {
     this.equipContainer = this.add.container(0, 0);
 
     const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.95);
-    const title = this.add.text(CONFIG.WIDTH / 2, 60, `为 ${char.name} 选择${slotType === 'weapon' ? '武器' : '防具'}`, { fontSize: '30px', color: '#f1c40f' }).setOrigin(0.5);
-    const closeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT - 80, '取消', { fontSize: '28px', color: '#fff', backgroundColor: '#555', padding: { x: 30, y: 10 } }).setOrigin(0.5).setInteractive();
+    const title = this.add.text(CONFIG.WIDTH / 2, 60, `选择${slotType === 'weapon' ? '武器' : '防具'}`, { fontSize: '30px', color: '#f1c40f' }).setOrigin(0.5);
+    const closeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT - 80, '关闭', { fontSize: '28px', color: '#fff', backgroundColor: '#555', padding: { x: 30, y: 10 } }).setOrigin(0.5).setInteractive();
     closeBtn.on('pointerdown', () => { this.equipContainer.destroy(); });
     this.equipContainer.add([overlay, title, closeBtn]);
 
-    let y = 140;
+    let y = 130;
     const equippedUid = char.equipment ? char.equipment[slotType] : '';
     let hasItem = false;
 
-    INVENTORY.forEach(inst => {
-      if (inst.equippedBy !== '' && inst.equippedBy !== char.id) return;
-      if (inst.uid === equippedUid) return;
+    const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
 
-      const item = ITEMS[inst.itemId];
-      if (!item) return; // 找不到模板则跳过
-
-      // ★ 核心修改：放宽了分类限制，只要是为了测试，或者分类匹配，就显示
-      const isMatch = item.category === slotType;
-      const bg = this.add.rectangle(CONFIG.WIDTH / 2, y, CONFIG.WIDTH - 60, 70, isMatch ? 0x1e3a5f : 0x2a2a2a);
-      const name = this.add.text(60, y - 10, `${item.icon || ''} ${item.name}`, { fontSize: '20px', color: isMatch ? '#fff' : '#888' });
-      const info = this.add.text(60, y + 15, `攻+${item.atk||0} 防+${item.def||0} 血+${item.hp||0}`, { fontSize: '14px', color: '#aaa' });
-      
-      const btnText = equippedUid ? '替换' : '穿戴';
-      const btnColor = equippedUid ? '#e67e22' : '#2ecc71';
-      const btn = this.add.text(CONFIG.WIDTH - 120, y, btnText, { fontSize: '18px', color: '#fff', backgroundColor: btnColor, padding: { x: 15, y: 8 } }).setOrigin(0.5).setInteractive();
-      
-      btn.on('pointerdown', () => {
-        if (equippedUid) { const oldInst = INVENTORY.find(i => i.uid === equippedUid); if (oldInst) oldInst.equippedBy = ''; }
-        inst.equippedBy = char.id;
-        char.equipment[slotType] = inst.uid;
-        
-        this.saveGameData();
-        this.equipContainer.destroy();
-        this.renderTeamList(); 
-      });
-
-      this.equipContainer.add([bg, name, info, btn]);
-      y += 85;
-      hasItem = true;
-    });
-
+    // 1. 先渲染“已穿戴”的
     if (equippedUid) {
       const inst = INVENTORY.find(i => i.uid === equippedUid);
       const item = inst ? ITEMS[inst.itemId] : null;
       if (item) {
-        const bg = this.add.rectangle(CONFIG.WIDTH / 2, y, CONFIG.WIDTH - 60, 70, 0x0f3460);
-        const name = this.add.text(60, y - 10, `[已穿戴] ${item.icon || ''} ${item.name}`, { fontSize: '20px', color: '#2ecc71' });
+        const bg = this.add.rectangle(CONFIG.WIDTH / 2, y, CONFIG.WIDTH - 60, 70, 0x0f3460).setInteractive();
+        
+        // ★ 点击查看详情
+        bg.on('pointerdown', () => { this.showItemDetail(inst, item); });
+
+        const name = this.add.text(60, y, `${item.icon || ''} ${item.name}`, { fontSize: '20px', color: qColors[inst.quality] || '#fff' }).setOrigin(0, 0.5).setInteractive();
+        name.on('pointerdown', () => { this.showItemDetail(inst, item); });
+        
         const btn = this.add.text(CONFIG.WIDTH - 120, y, '脱除', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 15, y: 8 } }).setOrigin(0.5).setInteractive();
         btn.on('pointerdown', () => {
           inst.equippedBy = '';
@@ -138,23 +101,96 @@ class TeamScene extends Phaser.Scene {
       }
     }
 
+    // 2. 渲染“背包中未穿戴”的
+    INVENTORY.forEach(inst => {
+      if (inst.equippedBy !== '' && inst.equippedBy !== char.id) return;
+      if (inst.uid === equippedUid) return;
+
+      const item = ITEMS[inst.itemId];
+      if (!item || item.category !== slotType) return;
+
+      const bg = this.add.rectangle(CONFIG.WIDTH / 2, y, CONFIG.WIDTH - 60, 70, 0x1e3a5f).setInteractive();
+      
+      // ★ 点击查看详情
+      bg.on('pointerdown', () => { this.showItemDetail(inst, item); });
+
+      const name = this.add.text(60, y, `${item.icon || ''} ${item.name}`, { fontSize: '20px', color: qColors[inst.quality] || '#fff' }).setOrigin(0, 0.5).setInteractive();
+      name.on('pointerdown', () => { this.showItemDetail(inst, item); });
+
+      const btnText = equippedUid ? '替换' : '穿戴';
+      const btnColor = equippedUid ? '#e67e22' : '#2ecc71';
+      const btn = this.add.text(CONFIG.WIDTH - 120, y, btnText, { fontSize: '18px', color: '#fff', backgroundColor: btnColor, padding: { x: 15, y: 8 } }).setOrigin(0.5).setInteractive();
+      
+      btn.on('pointerdown', () => {
+        if (equippedUid) { const oldInst = INVENTORY.find(i => i.uid === equippedUid); if (oldInst) oldInst.equippedBy = ''; }
+        inst.equippedBy = char.id;
+        char.equipment[slotType] = inst.uid;
+        
+        this.saveGameData();
+        this.equipContainer.destroy();
+        this.renderTeamList(); 
+      });
+
+      this.equipContainer.add([bg, name, btn]);
+      y += 85;
+      hasItem = true;
+    });
+
     if (!hasItem) {
       const emptyTxt = this.add.text(CONFIG.WIDTH / 2, 250, '背包中暂无该类型的可用装备', { fontSize: '20px', color: '#aaa' }).setOrigin(0.5);
       this.equipContainer.add(emptyTxt);
     }
   }
 
+  // 展示详细属性弹窗
+  showItemDetail(inst, item) {
+    if (this.detailContainer) this.detailContainer.destroy();
+    this.detailContainer = this.add.container(0, 0);
+
+    const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.95).setInteractive();
+    overlay.on('pointerdown', () => { this.detailContainer.destroy(); }); // 点空白关闭
+
+    const panel = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH - 100, 400, 0x16213e).setStrokeStyle(2, 0x3498db);
+    
+    const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+    const title = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, `${item.name}`, { fontSize: '32px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    
+    // 品质文字
+    const qualityMap = { white: '普通', green: '精良', blue: '稀有', purple: '史诗', orange: '传说', red: '神话' };
+    const qualityText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 110, `[${qualityMap[inst.quality]}]`, { fontSize: '18px', color: qColors[inst.quality] }).setOrigin(0.5);
+
+    let detailStr = ``;
+    if (inst.baseAtk) detailStr += `攻击力: +${inst.baseAtk}\n`;
+    if (inst.baseDef) detailStr += `防御力: +${inst.baseDef}\n`;
+    if (inst.baseHp) detailStr += `生命值: +${inst.baseHp}\n`;
+    
+    if (inst.extras && inst.extras.length > 0) {
+      detailStr += `\n--- 附加属性 ---\n`;
+      inst.extras.forEach(ex => {
+        let valStr = ex.isPercent ? `${(ex.value * 100).toFixed(1)}%` : `${ex.value}`;
+        detailStr += `${ex.label}: +${valStr}\n`;
+      });
+    }
+    
+    const desc = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 10, detailStr, { fontSize: '20px', color: '#fff', align: 'center', lineSpacing: 8 }).setOrigin(0.5);
+    
+    const closeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 160, '返回', { fontSize: '24px', color: '#fff', backgroundColor: '#555', padding: { x: 30, y: 10 } }).setOrigin(0.5).setInteractive();
+    closeBtn.on('pointerdown', () => { this.detailContainer.destroy(); });
+
+    this.detailContainer.add([overlay, panel, title, qualityText, desc, closeBtn]);
+  }
+
   saveGameData() {
     localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
     localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
     
-    const d = JSON.parse(localStorage.getItem('my_game_data_v9'));
+    const d = JSON.parse(localStorage.getItem('my_game_data_v10'));
     if(d) { 
       d.forEach(c => { 
         const newC = CHARACTERS.find(cc => cc.id === c.id); 
         if(newC) c.equipment = newC.equipment; 
       }); 
-      localStorage.setItem('my_game_data_v9', JSON.stringify(d)); 
+      localStorage.setItem('my_game_data_v10', JSON.stringify(d)); 
     }
   }
 }
