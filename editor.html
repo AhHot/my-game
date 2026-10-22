@@ -41,7 +41,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 游戏配置中心 (v3.0)</h1>
+  <h1>⚙️ 游戏配置中心 (v3.1)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -91,7 +91,7 @@
   </div>
 
   <script>
-    // ===== 初始默认数据 =====
+    // 初始数据
     const DEFAULT_CHARS = [
       { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '' } },
       { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '' } }
@@ -114,28 +114,28 @@
       { id: 'lv_1', name: '第 1 关', enemyIds: ['e_skeleton', 'e_skeleton', ''], rewardEquipId: 'eq_sword' }
     ];
 
-    // 安全加载，防止旧数据崩溃
+    // 升级到 v7 数据
     let gameChars, gameSkills, gameStatuses, gameEquips, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v6')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v6')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v6')) || DEFAULT_STATUS;
-      gameEquips = JSON.parse(localStorage.getItem('my_game_equips_v6')) || DEFAULT_EQUIPS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v6')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v6')) || [
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v7')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v7')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v7')) || DEFAULT_STATUS;
+      gameEquips = JSON.parse(localStorage.getItem('my_game_equips_v7')) || DEFAULT_EQUIPS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v7')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v7')) || [
         { uid: 'inst_1', eqId: 'eq_sword', equippedBy: '' },
         { uid: 'inst_2', eqId: 'eq_shield', equippedBy: '' }
       ];
     } catch(e) {
-      console.error("数据解析错误，已重置", e);
       resetData();
     }
 
-    if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
-    if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
-    if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
-    if (!Array.isArray(gameEquips)) gameEquips = DEFAULT_EQUIPS;
-    if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
+    // 补全保护
+    if (!Array.isArray(gameChars) || gameChars.length === 0) gameChars = DEFAULT_CHARS;
+    if (!Array.isArray(gameSkills) || gameSkills.length === 0) gameSkills = DEFAULT_SKILLS;
+    if (!Array.isArray(gameStatuses) || gameStatuses.length === 0) gameStatuses = DEFAULT_STATUS;
+    if (!Array.isArray(gameEquips) || gameEquips.length === 0) gameEquips = DEFAULT_EQUIPS;
+    if (!Array.isArray(gameLevels) || gameLevels.length === 0) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
     const elements = ['fire', 'water', 'wind', 'light', 'dark'];
@@ -169,9 +169,9 @@
     function getEquipNameByUid(uid) {
       if (!uid) return '空';
       const inst = inventory.find(i => i.uid === uid);
-      if (!inst) return '未知装备';
+      if (!inst) return '未知';
       const eq = gameEquips.find(e => e.id === inst.eqId);
-      return eq ? eq.name : '未知模板';
+      return eq ? eq.name : '未知';
     }
 
     function renderChars() {
@@ -199,11 +199,45 @@
             <div class="form-item full">
               <label>技能装配</label>
               <div class="skill-slot">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">槽位1:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">槽位2:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px; color:#e74c3c;">追打槽:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">普攻:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">招式:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">绝技:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions(char.skillSlots.ultimate)}</select></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px; color:#e74c3c;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
+                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="width:70px; color:#f1c40f;">学习:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'learned', this.value)">${getSkillOptions(char.skillSlots.learned)}</select></div>
               </div>
             </div>
+          </div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderSkills() {
+      const list = document.getElementById('skill-list'); list.innerHTML = '';
+      gameSkills.forEach((skill, index) => {
+        const isPassive = skill.type === 'passive';
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `
+          <div class="card-header"><h3>${skill.name}</h3><button class="btn-del" onclick="deleteSkill(${index})">删除</button></div>
+          <div class="form-grid">
+            <div class="form-item"><label>名称</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>分类</label><select onchange="updateSkill(${index}, 'type', this.value)">${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>耗蓝</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>冷却</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>倍率</label><input type="number" step="0.1" value="${skill.multiplier || 1.0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
+          </div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderStatuses() {
+      const list = document.getElementById('status-list'); list.innerHTML = '';
+      gameStatuses.forEach((st, index) => {
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `
+          <div class="card-header"><h3>${st.name}</h3><button class="btn-del" onclick="deleteStatus(${index})">删除</button></div>
+          <div class="form-grid">
+            <div class="form-item"><label>名称</label><input type="text" value="${st.name}" onchange="updateStatus(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>持续回合</label><input type="number" value="${st.duration}" onchange="updateStatus(${index}, 'duration', parseInt(this.value))"></div>
           </div>`;
         list.appendChild(div);
       });
@@ -214,14 +248,12 @@
       gameEquips.forEach((eq, index) => {
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
-          <div class="card-header"><h3>模板: ${eq.name}</h3><button class="btn-del" onclick="deleteEquip(${index})">删除模板</button></div>
+          <div class="card-header"><h3>模板: ${eq.name}</h3><button class="btn-del" onclick="deleteEquip(${index})">删除</button></div>
           <div class="form-grid">
-            <div class="form-item full"><label>ID(不可改)</label><input type="text" value="${eq.id}" disabled style="color:#666;"></div>
             <div class="form-item"><label>名称</label><input type="text" value="${eq.name}" onchange="updateEquip(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>类型</label><select onchange="updateEquip(${index}, 'type', this.value)">${equipTypes.map(t => `<option value="${t.val}" ${eq.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             <div class="form-item"><label>加攻击</label><input type="number" value="${eq.atk}" onchange="updateEquip(${index}, 'atk', parseInt(this.value))"></div>
             <div class="form-item"><label>加防御</label><input type="number" value="${eq.def}" onchange="updateEquip(${index}, 'def', parseInt(this.value))"></div>
-            <div class="form-item full"><label>加生命</label><input type="number" value="${eq.hp}" onchange="updateEquip(${index}, 'hp', parseInt(this.value))"></div>
           </div>`;
         list.appendChild(div);
       });
@@ -234,11 +266,10 @@
         div.innerHTML = `
           <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">删除</button></div>
           <div class="form-grid">
-            <div class="form-item full"><label>ID(不可改)</label><input type="text" value="${lv.id}" disabled style="color:#666;"></div>
-            <div class="form-item full"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
-            <div class="form-item full"><label>通关掉落</label><select onchange="updateLevel(${index}, 'rewardEquipId', this.value)"><option value="">(无)</option>${gameEquips.map(e => `<option value="${e.id}" ${lv.rewardEquipId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></div>
+            <div class="form-item"><label>名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>掉落模板</label><select onchange="updateLevel(${index}, 'rewardEquipId', this.value)"><option value="">(无)</option>${gameEquips.map(e => `<option value="${e.id}" ${lv.rewardEquipId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></div>
             <div class="form-item full" style="margin-top:10px;">
-              <label style="color:#e74c3c; font-weight:bold;">出阵敌人 (支持多个同款)</label>
+              <label style="color:#e74c3c;">出阵敌人</label>
               ${[0,1,2].map(i => {
                 const curEnemy = lv.enemyIds && lv.enemyIds[i] ? lv.enemyIds[i] : '';
                 return `<div style="display:flex; gap:10px; margin-bottom:5px;"><span>位置 ${i+1}:</span><select style="flex:1;" onchange="updateLevelEnemy(${index}, ${i}, this.value)"><option value="">(空)</option>${gameChars.filter(c=>c.side==='enemy').map(c => `<option value="${c.id}" ${curEnemy === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></div>`;
@@ -249,7 +280,6 @@
       });
     }
 
-    // ===== 弹窗逻辑（只显示背包里未装备的，或当前角色穿的） =====
     let currentCharIdx = -1;
     let currentSlotType = '';
 
@@ -257,52 +287,34 @@
       currentCharIdx = charIdx;
       currentSlotType = slotType;
       const char = gameChars[charIdx];
-      document.getElementById('modal-title').innerText = `为 ${char.name} 选择 ${slotType === 'weapon' ? '武器' : '防具'}`;
+      document.getElementById('modal-title').innerText = `选择 ${slotType === 'weapon' ? '武器' : '防具'}`;
       
       const listDiv = document.getElementById('modal-list');
       listDiv.innerHTML = '';
       const equippedUid = char.equipment[slotType];
 
-      // 1. 渲染当前已穿戴的
       if (equippedUid) {
         const inst = inventory.find(i => i.uid === equippedUid);
         const eq = inst ? gameEquips.find(e => e.id === inst.eqId) : null;
         if (eq) {
           const row = document.createElement('div'); row.className = 'item-row';
-          row.innerHTML = `
-            <div>
-              <div style="color:#2ecc71; font-weight:bold;">[已穿戴] ${eq.name}</div>
-              <div style="font-size:12px; color:#aaa;">攻+${eq.atk} 防+${eq.def} 血+${eq.hp}</div>
-            </div>
-            <button class="btn-action remove" onclick="removeEquip()">脱除</button>
-          `;
+          row.innerHTML = `<div><div style="color:#2ecc71; font-weight:bold;">[已穿戴] ${eq.name}</div></div><button class="btn-action remove" onclick="removeEquip()">脱除</button>`;
           listDiv.appendChild(row);
         }
       }
 
-      // 2. 渲染背包中空闲且符合类型的装备
       inventory.forEach(inst => {
-        if (inst.equippedBy !== '' && inst.equippedBy !== char.id) return; // 被别人穿了
-        if (inst.uid === equippedUid) return; // 自己正穿着
-
+        if (inst.equippedBy !== '' && inst.equippedBy !== char.id) return;
+        if (inst.uid === equippedUid) return;
         const eq = gameEquips.find(e => e.id === inst.eqId);
         if (!eq || eq.type !== slotType) return;
 
         const row = document.createElement('div'); row.className = 'item-row';
-        row.innerHTML = `
-          <div>
-            <div style="font-weight:bold;">${eq.name}</div>
-            <div style="font-size:12px; color:#aaa;">攻+${eq.atk} 防+${eq.def} 血+${eq.hp}</div>
-          </div>
-          <button class="btn-action ${equippedUid ? 'replace' : ''}" onclick="wearEquip('${inst.uid}')">${equippedUid ? '替换' : '穿戴'}</button>
-        `;
+        row.innerHTML = `<div><div style="font-weight:bold;">${eq.name}</div></div><button class="btn-action ${equippedUid ? 'replace' : ''}" onclick="wearEquip('${inst.uid}')">${equippedUid ? '替换' : '穿戴'}</button>`;
         listDiv.appendChild(row);
       });
 
-      if (listDiv.innerHTML === '') {
-        listDiv.innerHTML = '<div style="color:#aaa; text-align:center; padding:20px;">背包中无可用装备</div>';
-      }
-
+      if (listDiv.innerHTML === '') listDiv.innerHTML = '<div style="text-align:center; padding:20px;">无可用装备</div>';
       document.getElementById('equip-modal').style.display = 'flex';
     }
 
@@ -311,42 +323,29 @@
     function wearEquip(uid) {
       const char = gameChars[currentCharIdx];
       const oldUid = char.equipment[currentSlotType];
-
-      // 如果之前有装备，脱下来
-      if (oldUid) {
-        const oldInst = inventory.find(i => i.uid === oldUid);
-        if (oldInst) oldInst.equippedBy = '';
-      }
-
-      // 穿新的
+      if (oldUid) { const oldInst = inventory.find(i => i.uid === oldUid); if (oldInst) oldInst.equippedBy = ''; }
       const newInst = inventory.find(i => i.uid === uid);
       if (newInst) newInst.equippedBy = char.id;
       char.equipment[currentSlotType] = uid;
-
       saveData(); renderChars(); closeModal();
     }
 
     function removeEquip() {
       const char = gameChars[currentCharIdx];
       const oldUid = char.equipment[currentSlotType];
-      if (oldUid) {
-        const oldInst = inventory.find(i => i.uid === oldUid);
-        if (oldInst) oldInst.equippedBy = '';
-      }
+      if (oldUid) { const oldInst = inventory.find(i => i.uid === oldUid); if (oldInst) oldInst.equippedBy = ''; }
       char.equipment[currentSlotType] = '';
       saveData(); renderChars(); closeModal();
     }
 
-    // ===== 数据保存与增删 =====
     function saveData() {
-      localStorage.setItem('my_game_data_v6', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v6', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v6', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_equips_v6', JSON.stringify(gameEquips));
-      localStorage.setItem('my_game_levels_v6', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v6', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v7', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v7', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v7', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_equips_v7', JSON.stringify(gameEquips));
+      localStorage.setItem('my_game_levels_v7', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v7', JSON.stringify(inventory));
 
-      // 同步给游戏
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
       localStorage.setItem('my_game_statuses_sync', JSON.stringify(gameStatuses));
@@ -358,7 +357,7 @@
     function updateChar(index, key, value) { gameChars[index][key] = value; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
     function updateSkill(index, key, value) { gameSkills[index][key] = value; saveData(); if (key === 'name' || key === 'type') render(); }
-    function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); if (key === 'name') renderSkills(); }
+    function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); }
     function updateEquip(index, key, value) { gameEquips[index][key] = value; saveData(); if (key === 'name') renderChars(); }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
     function updateLevelEnemy(lvIndex, slotIndex, enemyId) {
@@ -373,12 +372,11 @@
     function deleteSkill(index) { if (confirm('确定删除？')) { gameSkills.splice(index, 1); saveData(); render(); } }
     function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0 }); saveData(); render(); }
     function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); render(); } }
-    function addEquip() { gameEquips.push({ id:'eq_'+Date.now(), name:'新装备模板', type:'weapon', atk:0, def:0, hp:0 }); saveData(); render(); }
+    function addEquip() { gameEquips.push({ id:'eq_'+Date.now(), name:'新装备', type:'weapon', atk:0, def:0, hp:0 }); saveData(); render(); }
     function deleteEquip(index) { if (confirm('确定删除模板？')) { gameEquips.splice(index, 1); saveData(); render(); } }
     function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyIds:['','',''], rewardEquipId:'' }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
     
-    // 手动发放一件装备到背包
     function grantEquip() {
       if (gameEquips.length === 0) return alert('请先新建装备模板');
       const templateId = prompt("输入要发放的装备模板ID (如: eq_sword)");
@@ -393,7 +391,7 @@
 
     function resetData() { 
       localStorage.clear(); 
-      location.reload(); 
+      location.href = location.href + '?t=' + Date.now(); // 强制跳转刷新
     }
 
     render();
