@@ -2,7 +2,6 @@
 // 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
-
 if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } } catch(e){} }
 if (localStorage.getItem('my_game_statuses_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); if (Array.isArray(d) && d.length) { Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); d.forEach(st => STATUSES[st.id]={...st}); } } catch(e){} }
@@ -105,13 +104,13 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v2.0.1', { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, '版本: v2.0.2', { fontSize: '16px', color: '#00ff00' });
     
-    // ★ 修改：把编辑器和强刷按钮并排放在右上角，绝对不会被遮挡
-    const editBtn = this.add.text(CONFIG.WIDTH - 120, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    // ★ 修改：按钮改为上下排列，右侧留出安全距离，绝对不遮挡
+    const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 打开编辑器', { fontSize: '20px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 15, y: 8 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
 
-    const refreshBtn = this.add.text(CONFIG.WIDTH - 10, 20, '🔄 强刷', { fontSize: '18px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 70, '🔄 强刷更新', { fontSize: '16px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
 
     this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
