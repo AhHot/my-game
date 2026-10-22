@@ -22,14 +22,12 @@ class Unit {
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     if (!this.equipment) this.equipment = { weapon: '', armor: '', accessory: '' };
 
-    // 确保所有战斗属性存在
     this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0;
     this.critResist = this.critResist || 0; this.dmgIncrease = this.dmgIncrease || 0;
     this.dmgReduction = this.dmgReduction || 0; this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
     this.trueDmg = this.trueDmg || 0; this.critDmg = this.critDmg || 1.5;
     this.lifesteal = this.lifesteal || 0;
 
-    // 1. 收集装备的固定加成和百分比加成
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
 
@@ -42,23 +40,29 @@ class Unit {
         eqHpAdd += (inst.baseHp || 0);
         if (inst.extras) {
           inst.extras.forEach(ex => {
-            if (ex.stat === 'atkPercent') eqAtkPct += ex.value;
-            else if (ex.stat === 'defPercent') eqDefPct += ex.value;
-            else if (ex.stat === 'hpPercent') eqHpPct += ex.value;
-            else if (this[ex.stat] !== undefined) this[ex.stat] += ex.value;
+            // ★ 核心修复：脏数据自净锁
+            // 如果读到旧版本的 10% 存成 10，或者 100% 存成 100，强制除以 100 修正
+            let val = ex.value;
+            const percentStats = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critResist', 'hitRate', 'dodgeRate', 'lifesteal', 'dmgIncrease', 'dmgReduction'];
+            if (percentStats.includes(ex.stat) && val > 1) {
+              val = val / 100;
+            }
+
+            if (ex.stat === 'atkPercent') eqAtkPct += val;
+            else if (ex.stat === 'defPercent') eqDefPct += val;
+            else if (ex.stat === 'hpPercent') eqHpPct += val;
+            else if (this[ex.stat] !== undefined) this[ex.stat] += val;
           });
         }
       }
     });
 
-    // 2. 计算最终基础面板 = (角色基础 + 装备固定) * (1 + 装备百分比)
     this.maxHp = Math.floor((this.maxHp + eqHpAdd) * (1 + eqHpPct));
     this.atk = Math.floor((this.atk + eqAtkAdd) * (1 + eqAtkPct));
     this.def = Math.floor((this.def + eqDefAdd) * (1 + eqDefPct));
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
-    // 3. 应用被动加成
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
       const sk = SKILLS[skId];
@@ -148,7 +152,7 @@ const BattleLogic = {
     finalDmg += (actor.trueDmg || 0);
 
     const finalDamage = Math.round(finalDmg);
-    const healAmount = Math.round(finalDamage * (actor.lifesteal || 0)); // 计算吸血回复量
+    const healAmount = Math.round(finalDamage * (actor.lifesteal || 0));
 
     return { damage: finalDamage, isCrit, isMiss: false, elemMult, healAmount };
   },
@@ -186,9 +190,14 @@ function generateRandomInstance(templateId) {
   const ARMOR_POOL = ['hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'];
   const pool = template.category === 'armor' ? ARMOR_POOL : WEAPON_ACC_POOL;
   
+  let tempPool = [...pool];
   const extras = [];
+  
   for (let i = 0; i < extraCount; i++) {
-    const stat = pool[Math.floor(Math.random() * pool.length)];
+    if(tempPool.length === 0) break;
+    const idx = Math.floor(Math.random() * tempPool.length);
+    const stat = tempPool.splice(idx, 1)[0];
+    
     let val = 0;
     if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
     else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
@@ -219,7 +228,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v7.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v7.1.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -449,7 +458,7 @@ class BattleScene extends Phaser.Scene {
            }
         } else {
            t.takeDamage(result.damage);
-           if (result.healAmount > 0) totalHeal += result.healAmount; // 累计吸血量
+           if (result.healAmount > 0) totalHeal += result.healAmount; 
            if (skill.statusId && skill.statusChance > 0) {
              if (Math.random() * 100 < skill.statusChance && STATUSES[skill.statusId]) t.addStatus(skill.statusId);
            }
@@ -458,7 +467,6 @@ class BattleScene extends Phaser.Scene {
         }
       });
       
-      // 结算吸血恢复
       if (totalHeal > 0) {
         actor.heal(totalHeal);
         this.showHealNumber(actor, totalHeal);
@@ -533,7 +541,6 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: txt, y: txt.y - 90, alpha: 0, duration: 900 / this.speedMultiplier, ease: 'Cubic.easeOut', onComplete: () => txt.destroy() });
   }
 
-  // ★ 新增：绿色吸血飘字
   showHealNumber(unit, amount) {
     const view = this.unitViews.get(unit);
     if (!view) return;
