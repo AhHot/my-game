@@ -22,11 +22,12 @@
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 14px; }
     .skill-slot { background: #0f0f1a; padding: 10px; border-radius: 4px; margin-top: 5px; border: 1px dashed #444; }
     .passive-box { background: #1e1e2e; padding: 10px; border-radius: 4px; border: 1px solid #e67e22; margin-top: 10px; display: none; }
-    .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; flex-wrap: wrap; gap: 10px; z-index: 100; }
-    .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; min-width: 45%; }
-    .btn-sync { background: #3498db; }
-    .btn-gen { background: #e67e22; }
-    #output-area { width: 100%; height: 150px; margin-top: 20px; background: #000; color: #2ecc71; padding: 10px; border: 1px solid #444; border-radius: 4px; display: none; font-family: monospace; font-size: 12px; }
+    
+    /* 底部操作栏 */
+    .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
+    .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
+    .btn-play { background: #2ecc71; }
+    .btn-reset { background: #e74c3c; }
   </style>
 </head>
 <body>
@@ -41,46 +42,41 @@
 
   <div id="char-section">
     <div id="char-list"></div>
-    <button class="btn" style="background:#2ecc71; width:100%; margin-bottom:20px;" onclick="addChar()">➕ 新增角色</button>
+    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addChar()">➕ 新增角色</button>
   </div>
 
   <div id="skill-section" style="display:none;">
     <div id="skill-list"></div>
-    <button class="btn" style="background:#2ecc71; width:100%; margin-bottom:20px;" onclick="addSkill()">➕ 新增技能</button>
+    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addSkill()">➕ 新增技能</button>
   </div>
 
   <div id="status-section" style="display:none;">
     <div id="status-list"></div>
-    <button class="btn" style="background:#2ecc71; width:100%; margin-bottom:20px;" onclick="addStatus()">➕ 新增状态</button>
+    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addStatus()">➕ 新增状态</button>
   </div>
 
-  <textarea id="output-area" readonly></textarea>
-
   <div class="bottom-bar">
-    <button class="btn btn-sync" onclick="syncToGame()">🚀 一键同步测试</button>
-    <button class="btn btn-gen" onclick="generateCode()">📦 生成代码上线</button>
+    <a href="index.html" class="btn btn-play">🚀 保存并返回游戏</a>
+    <button class="btn btn-reset" onclick="resetData()">重置所有数据</button>
   </div>
 
   <script>
-    // ===== 默认数据 =====
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', learned: '' } },
-      { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, skillSlots: { normal: 'skill_slash', skill: 'skill_frost_arrow', ultimate: '', learned: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, skillSlots: { normal: 'skill_dark_claw', skill: '', ultimate: '', learned: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', learned: '' } },
+      { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_frost_arrow', ultimate: '', learned: '' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_dark_claw', skill: '', ultimate: '', learned: '' } }
     ];
 
     const DEFAULT_SKILLS = [
       { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'frontRow', statusId: '', statusChance: 0 },
       { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', multiplier: 1.8, mpCost: 20, cooldown: 2, targetRule: 'frontRow', statusId: 'status_burn', statusChance: 100 },
       { id: 'skill_frost_arrow', name: '霜冻箭', type: 'skill', element: 'water', multiplier: 1.8, mpCost: 15, cooldown: 1, targetRule: 'lowestHp', statusId: 'status_slow', statusChance: 100 },
-      { id: 'skill_dark_claw', name: '暗影爪', type: 'normal', element: 'dark', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'random', statusId: '', statusChance: 0 },
-      { id: 'passive_atk_up', name: '力量强化', type: 'passive', passiveType: 'atkAdd', passiveValue: 10 }
+      { id: 'skill_dark_claw', name: '暗影爪', type: 'normal', element: 'dark', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'random', statusId: '', statusChance: 0 }
     ];
 
     const DEFAULT_STATUS = [
-      { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 20 }, // 每回合扣20血
-      { id: 'status_slow', name: '冰缓', type: 'debuff', duration: 2, statMod: 'speed', statValue: -5, isDot: false, dotValue: 0 }, // 速度-5
-      { id: 'status_rage', name: '狂暴', type: 'buff', duration: 2, statMod: 'atk', statValue: 15, isDot: false, dotValue: 0 } // 攻击+15
+      { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 20 },
+      { id: 'status_slow', name: '冰缓', type: 'debuff', duration: 2, statMod: 'speed', statValue: -5, isDot: false, dotValue: 0 }
     ];
 
     let gameChars = JSON.parse(localStorage.getItem('my_game_data_v4')) || DEFAULT_CHARS;
@@ -166,7 +162,6 @@
             <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};"><label>伤害倍率</label><input type="number" step="0.1" value="${skill.multiplier || 1.0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
             <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};"><label>目标</label><select onchange="updateSkill(${index}, 'targetRule', this.value)">${targetRules.map(r => `<option value="${r.val}" ${skill.targetRule === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}</select></div>
             
-            <!-- 附加状态区 -->
             <div class="form-item active-only" style="display: ${isPassive ? 'none' : 'flex'};">
               <label>附加状态</label>
               <select onchange="updateSkill(${index}, 'statusId', this.value)">${getStatusOptions(skill.statusId || '')}</select>
@@ -212,6 +207,10 @@
       localStorage.setItem('my_game_data_v4', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_v4', JSON.stringify(gameSkills));
       localStorage.setItem('my_game_statuses_v4', JSON.stringify(gameStatuses));
+      // 同时更新游戏读取用的键名
+      localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_sync', JSON.stringify(gameStatuses));
     }
 
     function updateChar(index, key, value) { gameChars[index][key] = value; saveData(); }
@@ -228,20 +227,11 @@
     function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0 }); saveData(); render(); }
     function deleteStatus(index) { if (confirm('确定删除？')) { const id = gameStatuses[index].id; gameSkills.forEach(s => { if(s.statusId===id) s.statusId=''; }); gameStatuses.splice(index, 1); saveData(); render(); } }
 
-    function syncToGame() {
-      localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_sync', JSON.stringify(gameStatuses));
-      alert('✅ 同步成功！刷新游戏体验吧！');
-    }
-
-    function generateCode() {
-      const output = document.getElementById('output-area');
-      const skillsObj = {}; gameSkills.forEach(sk => { skillsObj[sk.id] = { ...sk }; if(sk.type !== 'passive') skillsObj[sk.id].cost = { mp: sk.mpCost, rage: 0 }; });
-      const statusObj = {}; gameStatuses.forEach(st => { statusObj[st.id] = { ...st }; });
-      const codeStr = `// ===== 技能库 =====\nconst SKILLS = ${JSON.stringify(skillsObj, null, 2)};\n\n// ===== 状态库 =====\nconst STATUSES = ${JSON.stringify(statusObj, null, 2)};\n\n// ===== 角色库 =====\nconst CHARACTERS = ${JSON.stringify(gameChars, null, 2)};`;
-      output.value = codeStr; output.style.display = 'block'; output.scrollIntoView(); output.select(); document.execCommand('copy');
-      alert('代码已复制！');
+    function resetData() {
+      if (confirm('确定要清空所有修改，恢复默认数据吗？')) {
+        localStorage.clear();
+        location.reload();
+      }
     }
 
     render();
