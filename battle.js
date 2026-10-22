@@ -1,11 +1,22 @@
 // ==========================================
-// 读取同步数据（加入安全判断）
+// 读取同步数据（加入最强安全锁，防止未定义）
 // ==========================================
-if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } } catch(e){ console.error(e); } }
-if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } } catch(e){ console.error(e); } }
-
-// ★ 状态库安全锁：防止未定义或者同步缺失
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
+
+if (localStorage.getItem('my_game_characters')) { 
+  try { 
+    const d = JSON.parse(localStorage.getItem('my_game_characters')); 
+    if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } 
+  } catch(e){ console.error('角色数据错误', e); } 
+}
+
+if (localStorage.getItem('my_game_skills_sync')) { 
+  try { 
+    const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); 
+    if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } 
+  } catch(e){ console.error('技能数据错误', e); } 
+}
+
 if (localStorage.getItem('my_game_statuses_sync')) { 
   try { 
     const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); 
@@ -13,7 +24,7 @@ if (localStorage.getItem('my_game_statuses_sync')) {
       Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); 
       d.forEach(st => STATUSES[st.id]={...st}); 
     } 
-  } catch(e){ console.error(e); } 
+  } catch(e){ console.error('状态数据错误', e); } 
 }
 
 // ==========================================
@@ -24,9 +35,9 @@ class Unit {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
 
-    this.baseAtk = this.atk;
-    this.baseDef = this.def;
-    this.baseSpeed = this.speed;
+    this.baseAtk = this.atk || 10;
+    this.baseDef = this.def || 10;
+    this.baseSpeed = this.speed || 10;
 
     // 应用被动
     Object.values(this.skillSlots).forEach(skId => {
@@ -41,7 +52,7 @@ class Unit {
     });
 
     this.hp = this.maxHp;
-    this.mp = Math.floor(this.maxMp * CONFIG.START_MP_RATIO);
+    this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
     this.cooldowns = {};
     this.statuses = []; 
   }
@@ -58,7 +69,6 @@ class Unit {
     this.atk = this.baseAtk;
     this.def = this.baseDef;
     this.speed = this.baseSpeed;
-    if (typeof STATUSES === 'undefined') return;
     this.statuses.forEach(st => {
       const config = STATUSES[st.id];
       if (!config) return;
@@ -72,7 +82,6 @@ class Unit {
   }
 
   tickStatuses() {
-    if (typeof STATUSES === 'undefined') return;
     for (let i = this.statuses.length - 1; i >= 0; i--) {
       const st = this.statuses[i];
       const config = STATUSES[st.id];
@@ -86,7 +95,7 @@ class Unit {
   }
 
   addStatus(statusId) {
-    if (!statusId || typeof STATUSES === 'undefined' || !STATUSES[statusId]) return;
+    if (!statusId || !STATUSES[statusId]) return;
     const existing = this.statuses.find(s => s.id === statusId);
     if (existing) {
       existing.duration = STATUSES[statusId].duration; 
@@ -150,7 +159,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2;
     const gridTop = 180, standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v1.3.1 (防卡死状态版)', { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, '版本: v1.3.2 (终极防白屏)', { fontSize: '16px', color: '#00ff00' });
     this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
 
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { fontSize: '20px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
@@ -352,10 +361,9 @@ class BattleScene extends Phaser.Scene {
         const result = BattleLogic.computeDamage(actor, t, skill);
         t.takeDamage(result.damage);
         
-        // ★ 附加状态（加入严苛的判空安全锁，绝不卡死）
         if (skill.statusId && skill.statusChance > 0) {
           if (Math.random() * 100 < skill.statusChance) {
-            if (typeof STATUSES !== 'undefined' && STATUSES[skill.statusId]) {
+            if (STATUSES[skill.statusId]) {
               t.addStatus(skill.statusId);
               const tView = this.unitViews.get(t);
               if (tView) {
@@ -394,7 +402,7 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 });
     this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 });
     
-    if (unit.statuses.length > 0 && typeof STATUSES !== 'undefined') {
+    if (unit.statuses.length > 0) {
       const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
       view.statusText.setText(`[${stNames}]`);
     } else {
