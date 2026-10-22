@@ -61,18 +61,20 @@
 
   <script>
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_combo_slash', ultimate: '', learned: '' } },
-      { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', learned: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_dark_claw', skill: '', ultimate: '', learned: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 300, atk: 32, def: 18, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1' } },
+      { id: 'p_mage', name: '法师', side: 'player', emoji: '🔮', element: 'water', maxHp: 180, atk: 42, def: 8, speed: 6, critRate: 0.1, critDmg: 1.6, maxMp: 80, mpPerAttack: 20, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_2' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 240, atk: 26, def: 20, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_dark_claw', skill: '', ultimate: '', followup: '' } }
     ];
 
     const DEFAULT_SKILLS = [
-      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'frontRow', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: '' },
+      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'frontRow', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1 },
       // 火球术：发起连携标签 fire_hit
-      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', multiplier: 1.8, mpCost: 20, cooldown: 2, targetRule: 'frontRow', statusId: 'status_burn', statusChance: 100, comboTagOut: 'fire_hit', comboTagIn: '' },
-      // 战士的连携斩：响应火标签
-      { id: 'skill_combo_slash', name: '连携·烈焰斩', type: 'skill', element: 'fire', multiplier: 2.5, mpCost: 0, cooldown: 0, targetRule: 'lowestHp', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: 'fire_hit' },
-      { id: 'skill_dark_claw', name: '暗影爪', type: 'normal', element: 'dark', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'random', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: '' }
+      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', multiplier: 1.8, mpCost: 20, cooldown: 2, targetRule: 'frontRow', statusId: 'status_burn', statusChance: 100, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1 },
+      // 追打技能1 (战士带)
+      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', multiplier: 2.0, mpCost: 0, cooldown: 0, targetRule: 'lowestHp', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1 },
+      // 追打技能2 (法师带)
+      { id: 'skill_follow_2', name: '追打·寒冰刺', type: 'followup', element: 'water', multiplier: 2.0, mpCost: 0, cooldown: 0, targetRule: 'lowestHp', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1 },
+      { id: 'skill_dark_claw', name: '暗影爪', type: 'normal', element: 'dark', multiplier: 1.0, mpCost: 0, cooldown: 0, targetRule: 'random', statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1 }
     ];
 
     const DEFAULT_STATUS = [
@@ -85,7 +87,8 @@
 
     const elements = ['fire', 'water', 'wind', 'light', 'dark'];
     const sides = [{ val: 'player', label: '我方' }, { val: 'enemy', label: '敌方' }];
-    const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'passive', label: '被动' }];
+    // ★ 新增追打类型
+    const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
     const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'random', label: '随机目标' }];
     const passiveTypes = [{ val: 'atkAdd', label: '攻击加成' }, { val: 'hpAdd', label: '生命加成' }, { val: 'defAdd', label: '防御加成' }, { val: 'speedAdd', label: '速度加成' }];
     const statusMods = [{ val: 'none', label: '无属性变化' }, { val: 'atk', label: '攻击力' }, { val: 'def', label: '防御力' }, { val: 'speed', label: '速度' }];
@@ -115,7 +118,9 @@
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       gameChars.forEach((char, index) => {
-        if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
+        if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
+        if (char.skillSlots.followup === undefined) char.skillSlots.followup = '';
+        
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${char.emoji} ${char.name}</h3><button class="btn-del" onclick="deleteChar(${index})">删除</button></div>
@@ -134,6 +139,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">槽位1:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">槽位2:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">槽位3:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions(char.skillSlots.ultimate)}</select></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px; color:#e74c3c; font-weight:bold;">追打槽:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
                 <div style="display:flex; justify-content:space-between; align-items:center;"><span style="width:70px; color:#f1c40f;">学习槽:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'learned', this.value)">${getSkillOptions(char.skillSlots.learned)}</select></div>
               </div>
             </div>
@@ -169,18 +175,23 @@
               <input type="number" value="${skill.statusChance || 0}" onchange="updateSkill(${index}, 'statusChance', parseInt(this.value))">
             </div>
 
-            <!-- ★ 新增：连携标签 -->
+            <!-- ★ 新增：连携与追打配置 -->
             <div class="form-item active-only combo-box" style="display: ${isPassive ? 'none' : 'block'};">
-              <label style="color:#e74c3c; font-weight:bold;">连携机制 (填入英文标签)</label>
+              <label style="color:#e74c3c; font-weight:bold;">连携 / 追打机制</label>
               <div style="display:flex; gap:10px; margin-top:5px;">
                 <div style="flex:1;">
-                  <label style="font-size:10px;">发起连携(打出此标签)</label>
+                  <label style="font-size:10px;">发起标签 (主动技能填)</label>
                   <input type="text" placeholder="如: fire_hit" value="${skill.comboTagOut || ''}" onchange="updateSkill(${index}, 'comboTagOut', this.value)">
                 </div>
                 <div style="flex:1;">
-                  <label style="font-size:10px;">响应连携(听到此标签)</label>
+                  <label style="font-size:10px;">响应标签 (追打技能填)</label>
                   <input type="text" placeholder="如: fire_hit" value="${skill.comboTagIn || ''}" onchange="updateSkill(${index}, 'comboTagIn', this.value)">
                 </div>
+              </div>
+              <!-- ★ 新增：单回合触发上限 -->
+              <div style="margin-top:10px;">
+                <label style="font-size:10px; color:#f1c40f;">单回合最多触发次数 (追打专用)</label>
+                <input type="number" value="${skill.maxTriggers || 1}" onchange="updateSkill(${index}, 'maxTriggers', parseInt(this.value))">
               </div>
             </div>
 
@@ -230,10 +241,10 @@
     function updateSkill(index, key, value) { gameSkills[index][key] = value; saveData(); if (key === 'name' || key === 'type') render(); }
     function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); if (key === 'name') renderSkills(); }
 
-    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side:'player', emoji:'🙂', element:'fire', maxHp:100, atk:10, def:10, speed:10, critRate:0.1, critDmg:1.5, maxMp:50, mpPerAttack:10, gridX:-1, gridY:-1, skillSlots:{normal:'',skill:'',ultimate:'',learned:''} }); saveData(); render(); }
+    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side:'player', emoji:'🙂', element:'fire', maxHp:100, atk:10, def:10, speed:10, critRate:0.1, critDmg:1.5, maxMp:50, mpPerAttack:10, gridX:-1, gridY:-1, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''} }); saveData(); render(); }
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     
-    function addSkill() { gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:'skill', element:'fire', multiplier:1.0, mpCost:10, cooldown:0, targetRule:'frontRow', statusId:'', statusChance:0, comboTagOut:'', comboTagIn:'' }); saveData(); render(); }
+    function addSkill() { gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:'skill', element:'fire', multiplier:1.0, mpCost:10, cooldown:0, targetRule:'frontRow', statusId:'', statusChance:0, comboTagOut:'', comboTagIn:'', maxTriggers:1 }); saveData(); render(); }
     function deleteSkill(index) { if (confirm('确定删除？')) { const id = gameSkills[index].id; gameChars.forEach(c => { for(let k in c.skillSlots) if(c.skillSlots[k]===id) c.skillSlots[k]=''; }); gameSkills.splice(index, 1); saveData(); render(); } }
     
     function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0 }); saveData(); render(); }
