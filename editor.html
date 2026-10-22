@@ -23,11 +23,8 @@
     .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 3; }
-    .form-item.half { grid-column: span 2; }
     .form-item label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; font-size: 13px; }
-    .slot-btn { background: #0f0f1a; color: #fff; border: 1px dashed #666; padding: 10px; border-radius: 4px; cursor: pointer; text-align: left; }
-    .slot-btn.equipped { border: 1px solid #2ecc71; color: #2ecc71; }
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000; }
     .modal-content { background: #16213e; width: 90%; max-width: 400px; border-radius: 8px; border: 1px solid #3498db; padding: 20px; max-height: 80vh; overflow-y: auto; }
     .modal-title { font-size: 18px; color: #f1c40f; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
@@ -44,7 +41,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v5.0 战斗进阶)</h1>
+  <h1>⚙️ 配置中心 (v6.0)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -87,11 +84,10 @@
       <div class="sub-tab active" id="tab-item-weapon" onclick="switchSubTab('item', 'weapon')">武器</div>
       <div class="sub-tab" id="tab-item-armor" onclick="switchSubTab('item', 'armor')">防具</div>
       <div class="sub-tab" id="tab-item-consumable" onclick="switchSubTab('item', 'consumable')">消耗品</div>
-      <div class="sub-tab" id="tab-item-material" onclick="switchSubTab('item', 'material')">材料</div>
     </div>
     <div id="item-list"></div>
-    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addItem()">➕ 新增物品</button>
-    <button class="btn" style="background:#e67e22; width:100%; margin-bottom:20px;" onclick="grantItem()">🎁 发放物品</button>
+    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addItem()">➕ 新增物品模板</button>
+    <button class="btn" style="background:#e67e22; width:100%; margin-bottom:20px;" onclick="grantItem()">🎁 发放随机实例物品</button>
   </div>
 
   <div id="level-section" style="display:none;">
@@ -102,14 +98,6 @@
   <div class="bottom-bar">
     <a href="index.html?t=9999" class="btn btn-play" onclick="window.location.href='index.html?t='+Date.now(); return false;">🚀 保存并返回游戏</a>
     <button class="btn btn-reset" onclick="resetData()">⚠️ 重置数据</button>
-  </div>
-
-  <div class="modal-overlay" id="equip-modal">
-    <div class="modal-content">
-      <div class="modal-title" id="modal-title">选择装备</div>
-      <div id="modal-list"></div>
-      <button class="btn-close" onclick="closeModal()">取消 / 关闭</button>
-    </div>
   </div>
 
   <script>
@@ -128,8 +116,8 @@
     const DEFAULT_STATUS = [ { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200 } ];
 
     const DEFAULT_ITEMS = [
-      { id: 'item_sword', name: '铁剑', category: 'weapon', icon: '🗡️', desc: '一把生锈的铁剑。', rarity: 'white', atk: 100, def: 0, hp: 0, critRate: 0.05 },
-      { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '简陋的木制盾牌。', rarity: 'green', atk: 0, def: 50, hp: 500, critResist: 0.05 }
+      { id: 'item_sword', name: '铁剑', category: 'weapon', icon: '🗡️', desc: '一把普通的铁剑。', atkMin: 50, atkMax: 150, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0 },
+      { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '简陋的木制盾牌。', atkMin: 0, atkMax: 0, defMin: 20, defMax: 80, hpMin: 200, hpMax: 800 }
     ];
 
     const DEFAULT_LEVELS = [
@@ -141,15 +129,12 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v9')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v9')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v9')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v9')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v9')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v9')) || [
-        { uid: 'inst_1', itemId: 'item_sword', equippedBy: '' },
-        { uid: 'inst_2', itemId: 'item_shield', equippedBy: '' }
-      ];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v10')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v10')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v10')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v10')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v10')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v10')) || [];
     } catch(e) { resetData(); }
 
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
@@ -159,14 +144,64 @@
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
+    function generateRandomInstance(templateId) {
+      const template = gameItems.find(t => t.id === templateId);
+      if (!template) return null;
+
+      const rand = Math.random() * 100;
+      let quality = 'white';
+      if (rand > 99) quality = 'red';
+      else if (rand > 95) quality = 'orange';
+      else if (rand > 85) quality = 'purple';
+      else if (rand > 60) quality = 'blue';
+      else if (rand > 30) quality = 'green';
+
+      const baseAtk = Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0);
+      const baseDef = Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0);
+      const baseHp = Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0);
+
+      let extraCount = 0;
+      if (quality === 'blue') extraCount = 1;
+      if (quality === 'purple') extraCount = 2;
+      if (quality === 'orange') extraCount = 3;
+      if (quality === 'red') extraCount = 4;
+
+      const extraPool = [
+        { key: 'critRate', label: '暴击', isPercent: true },
+        { key: 'critResist', label: '抗暴', isPercent: true },
+        { key: 'hitRate', label: '命中', isPercent: true },
+        { key: 'dodgeRate', label: '闪避', isPercent: true },
+        { key: 'dmgIncrease', label: '增伤', isPercent: true },
+        { key: 'dmgReduction', label: '减伤', isPercent: true },
+        { key: 'trueDmg', label: '真伤', isPercent: false }
+      ];
+
+      const extras = [];
+      for (let i = 0; i < extraCount; i++) {
+        const stat = extraPool[Math.floor(Math.random() * extraPool.length)];
+        let val = 0;
+        if (stat.key === 'trueDmg') val = Math.floor(Math.random() * 20) + 10;
+        else val = (Math.floor(Math.random() * 10) + 1) / 100;
+        extras.push({ stat: stat.key, label: stat.label, value: val, isPercent: stat.isPercent });
+      }
+
+      return {
+        uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
+        itemId: template.id,
+        quality: quality,
+        baseAtk, baseDef, baseHp,
+        extras,
+        equippedBy: ''
+      };
+    }
+
     const elements = ['fire', 'water', 'wind', 'light', 'dark'];
     const sides = [{ val: 'player', label: '我方' }, { val: 'enemy', label: '敌方' }];
     const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
     const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'random', label: '随机目标' }];
     const passiveTypes = [{ val: 'atkAdd', label: '攻击加成' }, { val: 'hpAdd', label: '生命加成' }, { val: 'defAdd', label: '防御加成' }, { val: 'speedAdd', label: '速度加成' }];
     const statusMods = [{ val: 'none', label: '无属性变化' }, { val: 'atk', label: '攻击力' }, { val: 'def', label: '防御力' }, { val: 'speed', label: '速度' }];
-    const itemCategories = [{ val: 'weapon', label: '武器' }, { val: 'armor', label: '防具' }, { val: 'consumable', label: '消耗品' }, { val: 'material', label: '材料' }];
-    const itemRarities = [{ val: 'white', label: '普通(白)' }, { val: 'green', label: '精良(绿)' }, { val: 'blue', label: '稀有(蓝)' }, { val: 'purple', label: '史诗(紫)' }, { val: 'orange', label: '传说(橙)' }];
+    const itemCategories = [{ val: 'weapon', label: '武器' }, { val: 'armor', label: '防具' }, { val: 'consumable', label: '消耗品' }];
 
     function switchTab(tab) {
       currentTab = tab;
@@ -178,7 +213,7 @@
 
     function switchSubTab(tab, sub) {
       subTab[tab] = sub;
-      const ids = { char: ['player', 'enemy'], skill: ['active', 'followup', 'passive'], item: ['weapon', 'armor', 'consumable', 'material'] };
+      const ids = { char: ['player', 'enemy'], skill: ['active', 'followup', 'passive'], item: ['weapon', 'armor', 'consumable'] };
       if (ids[tab]) {
         ids[tab].forEach(s => { document.getElementById(`tab-${tab}-${s}`).classList.remove('active'); });
         document.getElementById(`tab-${tab}-${sub}`).classList.add('active');
@@ -206,15 +241,6 @@
       return html;
     }
 
-    function getItemNameByUid(uid) {
-      if (!uid) return '空';
-      const inst = inventory.find(i => i.uid === uid);
-      if (!inst) return '未知';
-      const item = gameItems.find(e => e.id === inst.itemId);
-      return item ? item.name : '未知';
-    }
-
-    // ===== 渲染：角色（包含全新战斗属性） =====
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-char').value.toLowerCase();
@@ -225,15 +251,6 @@
         
         if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
         if (!char.equipment) char.equipment = { weapon: '', armor: '' };
-        
-        // 补齐旧数据的属性，防止报错
-        if (char.hitRate === undefined) char.hitRate = 0;
-        if (char.dodgeRate === undefined) char.dodgeRate = 0;
-        if (char.critResist === undefined) char.critResist = 0;
-        if (char.dmgIncrease === undefined) char.dmgIncrease = 0;
-        if (char.dmgReduction === undefined) char.dmgReduction = 0;
-        if (char.dmgTakenIncrease === undefined) char.dmgTakenIncrease = 0;
-        if (char.trueDmg === undefined) char.trueDmg = 0;
 
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
@@ -247,23 +264,15 @@
             <div class="form-item"><label>攻击</label><input type="number" value="${char.atk}" onchange="updateChar(${index}, 'atk', parseInt(this.value))"></div>
             <div class="form-item"><label>防御</label><input type="number" value="${char.def}" onchange="updateChar(${index}, 'def', parseInt(this.value))"></div>
             <div class="form-item"><label>速度</label><input type="number" value="${char.speed}" onchange="updateChar(${index}, 'speed', parseInt(this.value))"></div>
+            <div class="form-item"><label>暴击(%)</label><input type="number" step="0.01" value="${char.critRate||0}" onchange="updateChar(${index}, 'critRate', parseFloat(this.value))"></div>
+            <div class="form-item"><label>抗暴(%)</label><input type="number" step="0.01" value="${char.critResist||0}" onchange="updateChar(${index}, 'critResist', parseFloat(this.value))"></div>
+            <div class="form-item"><label>命中(%)</label><input type="number" step="0.01" value="${char.hitRate||0}" onchange="updateChar(${index}, 'hitRate', parseFloat(this.value))"></div>
+            <div class="form-item"><label>闪避(%)</label><input type="number" step="0.01" value="${char.dodgeRate||0}" onchange="updateChar(${index}, 'dodgeRate', parseFloat(this.value))"></div>
+            <div class="form-item"><label>增伤</label><input type="number" step="0.01" value="${char.dmgIncrease||0}" onchange="updateChar(${index}, 'dmgIncrease', parseFloat(this.value))"></div>
+            <div class="form-item"><label>减伤</label><input type="number" step="0.01" value="${char.dmgReduction||0}" onchange="updateChar(${index}, 'dmgReduction', parseFloat(this.value))"></div>
+            <div class="form-item"><label>受伤增加</label><input type="number" step="0.01" value="${char.dmgTakenIncrease||0}" onchange="updateChar(${index}, 'dmgTakenIncrease', parseFloat(this.value))"></div>
+            <div class="form-item"><label>真实伤害</label><input type="number" value="${char.trueDmg||0}" onchange="updateChar(${index}, 'trueDmg', parseInt(this.value))"></div>
             
-            <div class="form-item"><label>暴击(%)</label><input type="number" step="0.01" value="${char.critRate}" onchange="updateChar(${index}, 'critRate', parseFloat(this.value))"></div>
-            <div class="form-item"><label>抗暴(%)</label><input type="number" step="0.01" value="${char.critResist}" onchange="updateChar(${index}, 'critResist', parseFloat(this.value))"></div>
-            <div class="form-item"><label>命中(%)</label><input type="number" step="0.01" value="${char.hitRate}" onchange="updateChar(${index}, 'hitRate', parseFloat(this.value))"></div>
-            <div class="form-item"><label>闪避(%)</label><input type="number" step="0.01" value="${char.dodgeRate}" onchange="updateChar(${index}, 'dodgeRate', parseFloat(this.value))"></div>
-            <div class="form-item"><label>伤害增加</label><input type="number" step="0.01" value="${char.dmgIncrease}" onchange="updateChar(${index}, 'dmgIncrease', parseFloat(this.value))"></div>
-            <div class="form-item"><label>伤害减少</label><input type="number" step="0.01" value="${char.dmgReduction}" onchange="updateChar(${index}, 'dmgReduction', parseFloat(this.value))"></div>
-            <div class="form-item"><label>受伤增加</label><input type="number" step="0.01" value="${char.dmgTakenIncrease}" onchange="updateChar(${index}, 'dmgTakenIncrease', parseFloat(this.value))"></div>
-            <div class="form-item"><label>真实伤害</label><input type="number" value="${char.trueDmg}" onchange="updateChar(${index}, 'trueDmg', parseInt(this.value))"></div>
-            
-            <div class="form-item full">
-              <label>装备槽</label>
-              <div style="display:flex; gap:10px; margin-top:5px;">
-                <button class="slot-btn ${char.equipment.weapon ? 'equipped' : ''}" style="flex:1;" onclick="openItemModal(${index}, 'weapon')">⚔️ 武器: ${getItemNameByUid(char.equipment.weapon)}</button>
-                <button class="slot-btn ${char.equipment.armor ? 'equipped' : ''}" style="flex:1;" onclick="openItemModal(${index}, 'armor')">🛡️ 防具: ${getItemNameByUid(char.equipment.armor)}</button>
-              </div>
-            </div>
             <div class="form-item full">
               <label>技能装配</label>
               <div class="skill-slot">
@@ -271,7 +280,6 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">招式:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px;">绝技:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions(char.skillSlots.ultimate)}</select></div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;"><span style="width:70px; color:#e74c3c;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
-                <div style="display:flex; justify-content:space-between; align-items:center;"><span style="width:70px; color:#f1c40f;">学习:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'learned', this.value)">${getSkillOptions(char.skillSlots.learned)}</select></div>
               </div>
             </div>
           </div>`;
@@ -279,7 +287,6 @@
       });
     }
 
-    // ===== 渲染：技能 =====
     function renderSkills() {
       const list = document.getElementById('skill-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-skill').value.toLowerCase();
@@ -327,7 +334,6 @@
       });
     }
 
-    // ===== 渲染：状态 =====
     function renderStatuses() {
       const list = document.getElementById('status-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-status').value.toLowerCase();
@@ -345,7 +351,6 @@
       });
     }
 
-    // ===== 渲染：物品（包含新属性） =====
     function renderItems() {
       const list = document.getElementById('item-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-item').value.toLowerCase();
@@ -357,23 +362,33 @@
         const isEquipment = ['weapon', 'armor'].includes(item.category);
         const isConsumable = item.category === 'consumable';
 
-        if (item.critRate === undefined) item.critRate = 0;
-        if (item.critResist === undefined) item.critResist = 0;
-
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
-          <div class="card-header"><h3>${item.icon} ${item.name}</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
+          <div class="card-header"><h3>${item.icon} ${item.name} 模板</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
           <div class="form-grid">
             <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>图标</label><input type="text" value="${item.icon}" onchange="updateItem(${index}, 'icon', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateItem(${index}, 'category', this.value)">${itemCategories.map(c => `<option value="${c.val}" ${item.category === c.val ? 'selected' : ''}>${c.label}</option>`).join('')}</select></div>
             
-            <div class="form-item" style="display:${isEquipment?'flex':'none'};"><label>加攻击</label><input type="number" value="${item.atk||0}" onchange="updateItem(${index}, 'atk', parseInt(this.value))"></div>
-            <div class="form-item" style="display:${isEquipment?'flex':'none'};"><label>加防御</label><input type="number" value="${item.def||0}" onchange="updateItem(${index}, 'def', parseInt(this.value))"></div>
-            <div class="form-item" style="display:${isEquipment?'flex':'none'};"><label>加生命</label><input type="number" value="${item.hp||0}" onchange="updateItem(${index}, 'hp', parseInt(this.value))"></div>
-            
-            <div class="form-item" style="display:${isEquipment?'flex':'none'};"><label>加暴击</label><input type="number" step="0.01" value="${item.critRate||0}" onchange="updateItem(${index}, 'critRate', parseFloat(this.value))"></div>
-            <div class="form-item" style="display:${isEquipment?'flex':'none'};"><label>加抗暴</label><input type="number" step="0.01" value="${item.critResist||0}" onchange="updateItem(${index}, 'critResist', parseFloat(this.value))"></div>
+            <!-- 基础属性范围 -->
+            <div class="form-item" style="display:${isEquipment?'flex':'none'}; grid-column: span 3;"><label>攻击力范围 (Min - Max)</label>
+              <div style="display:flex; gap:10px;">
+                <input type="number" value="${item.atkMin||0}" onchange="updateItem(${index}, 'atkMin', parseInt(this.value))" style="flex:1;" placeholder="Min">
+                <input type="number" value="${item.atkMax||0}" onchange="updateItem(${index}, 'atkMax', parseInt(this.value))" style="flex:1;" placeholder="Max">
+              </div>
+            </div>
+            <div class="form-item" style="display:${isEquipment?'flex':'none'}; grid-column: span 3;"><label>防御力范围 (Min - Max)</label>
+              <div style="display:flex; gap:10px;">
+                <input type="number" value="${item.defMin||0}" onchange="updateItem(${index}, 'defMin', parseInt(this.value))" style="flex:1;" placeholder="Min">
+                <input type="number" value="${item.defMax||0}" onchange="updateItem(${index}, 'defMax', parseInt(this.value))" style="flex:1;" placeholder="Max">
+              </div>
+            </div>
+            <div class="form-item" style="display:${isEquipment?'flex':'none'}; grid-column: span 3;"><label>生命值范围 (Min - Max)</label>
+              <div style="display:flex; gap:10px;">
+                <input type="number" value="${item.hpMin||0}" onchange="updateItem(${index}, 'hpMin', parseInt(this.value))" style="flex:1;" placeholder="Min">
+                <input type="number" value="${item.hpMax||0}" onchange="updateItem(${index}, 'hpMax', parseInt(this.value))" style="flex:1;" placeholder="Max">
+              </div>
+            </div>
 
             <div class="form-item" style="display:${isConsumable?'flex':'none'};"><label>恢复生命</label><input type="number" value="${item.hpRestore||0}" onchange="updateItem(${index}, 'hpRestore', parseInt(this.value))"></div>
           </div>`;
@@ -381,7 +396,6 @@
       });
     }
 
-    // ===== 渲染：关卡 =====
     function renderLevels() {
       const list = document.getElementById('level-list'); list.innerHTML = '';
       gameLevels.forEach((lv, index) => {
@@ -390,7 +404,7 @@
           <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">删除</button></div>
           <div class="form-grid">
             <div class="form-item full"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
-            <div class="form-item full"><label>掉落物品</label><select onchange="updateLevel(${index}, 'rewardItemId', this.value)"><option value="">(无)</option>${gameItems.map(e => `<option value="${e.id}" ${lv.rewardItemId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></div>
+            <div class="form-item full"><label>掉落物品模板</label><select onchange="updateLevel(${index}, 'rewardItemId', this.value)"><option value="">(无)</option>${gameItems.map(e => `<option value="${e.id}" ${lv.rewardItemId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></div>
             <div class="form-item full">
               ${[0,1,2].map(i => {
                 const curEnemy = lv.enemyIds && lv.enemyIds[i] ? lv.enemyIds[i] : '';
@@ -402,72 +416,13 @@
       });
     }
 
-    // ===== 弹窗及操作逻辑 =====
-    let currentCharIdx = -1;
-    let currentSlotType = '';
-
-    function openItemModal(charIdx, slotType) {
-      currentCharIdx = charIdx;
-      currentSlotType = slotType;
-      const char = gameChars[charIdx];
-      document.getElementById('modal-title').innerText = `选择 ${slotType === 'weapon' ? '武器' : '防具'}`;
-      
-      const listDiv = document.getElementById('modal-list');
-      listDiv.innerHTML = '';
-      const equippedUid = char.equipment[slotType];
-
-      if (equippedUid) {
-        const inst = inventory.find(i => i.uid === equippedUid);
-        const item = inst ? gameItems.find(e => e.id === inst.itemId) : null;
-        if (item) {
-          const row = document.createElement('div'); row.className = 'item-row';
-          row.innerHTML = `<div><div style="color:#2ecc71; font-weight:bold;">[已穿戴] ${item.name}</div></div><button class="btn-action remove" onclick="removeItem()">脱除</button>`;
-          listDiv.appendChild(row);
-        }
-      }
-
-      inventory.forEach(inst => {
-        if (inst.equippedBy !== '' && inst.equippedBy !== char.id) return;
-        if (inst.uid === equippedUid) return;
-        const item = gameItems.find(e => e.id === inst.itemId);
-        if (!item || item.category !== slotType) return;
-
-        const row = document.createElement('div'); row.className = 'item-row';
-        row.innerHTML = `<div><div style="font-weight:bold;">${item.name}</div></div><button class="btn-action ${equippedUid ? 'replace' : ''}" onclick="wearItem('${inst.uid}')">${equippedUid ? '替换' : '穿戴'}</button>`;
-        listDiv.appendChild(row);
-      });
-
-      if (listDiv.innerHTML === '') listDiv.innerHTML = '<div style="text-align:center; padding:20px;">无可用物品</div>';
-      document.getElementById('equip-modal').style.display = 'flex';
-    }
-
-    function closeModal() { document.getElementById('equip-modal').style.display = 'none'; }
-
-    function wearItem(uid) {
-      const char = gameChars[currentCharIdx];
-      const oldUid = char.equipment[currentSlotType];
-      if (oldUid) { const oldInst = inventory.find(i => i.uid === oldUid); if (oldInst) oldInst.equippedBy = ''; }
-      const newInst = inventory.find(i => i.uid === uid);
-      if (newInst) newInst.equippedBy = char.id;
-      char.equipment[currentSlotType] = uid;
-      saveData(); renderChars(); closeModal();
-    }
-
-    function removeItem() {
-      const char = gameChars[currentCharIdx];
-      const oldUid = char.equipment[currentSlotType];
-      if (oldUid) { const oldInst = inventory.find(i => i.uid === oldUid); if (oldInst) oldInst.equippedBy = ''; }
-      char.equipment[currentSlotType] = '';
-      saveData(); renderChars(); closeModal();
-    }
-
     function saveData() {
-      localStorage.setItem('my_game_data_v9', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v9', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v9', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v9', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v9', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v9', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v10', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v10', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v10', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v10', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v10', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v10', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -506,7 +461,7 @@
     
     function addItem() { 
       const cat = subTab.item;
-      gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:cat, icon:'📦', desc:'', rarity:'white', atk:0, def:0, hp:0, critRate:0, critResist:0, hpRestore:0, mpRestore:0 }); 
+      gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:cat, icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0 }); 
       saveData(); render(); 
     }
     function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); render(); } }
@@ -515,14 +470,17 @@
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
     
     function grantItem() {
-      if (gameItems.length === 0) return alert('请先新建物品');
-      const itemId = prompt("输入要发放的物品ID (如: item_sword)");
+      if (gameItems.length === 0) return alert('请先新建物品模板');
+      const itemId = prompt("输入要发放的物品模板ID (如: item_sword)");
       if (itemId && gameItems.find(e => e.id === itemId)) {
-        inventory.push({ uid: 'inst_' + Date.now(), itemId: itemId, equippedBy: '' });
-        saveData();
-        alert('发放成功，可以去角色界面穿戴了！');
+        const inst = generateRandomInstance(itemId);
+        if(inst) {
+          inventory.push(inst);
+          saveData();
+          alert(`发放成功！随机到了 [${inst.quality}] 品质。可以去队伍界面穿戴了！`);
+        }
       } else {
-        alert('物品ID不存在');
+        alert('物品模板ID不存在');
       }
     }
 
