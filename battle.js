@@ -1,5 +1,5 @@
 // ==========================================
-// 读取同步数据 (这部分不变)
+// 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
@@ -147,45 +147,47 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
+const ALL_EXTRAS = [
+  { key: 'critRate', label: '暴击', isPercent: true },
+  { key: 'critResist', label: '抗暴', isPercent: true },
+  { key: 'hitRate', label: '命中', isPercent: true },
+  { key: 'dodgeRate', label: '闪避', isPercent: true },
+  { key: 'dmgIncrease', label: '增伤', isPercent: true },
+  { key: 'dmgReduction', label: '减伤', isPercent: true },
+  { key: 'trueDmg', label: '真伤', isPercent: false }
+];
+
 function generateRandomInstance(templateId) {
   const template = ITEMS[templateId];
   if (!template) return null;
 
   const rand = Math.random() * 100;
   let quality = 'white';
-  if (rand > 99) quality = 'red';
-  else if (rand > 95) quality = 'orange';
-  else if (rand > 85) quality = 'purple';
-  else if (rand > 60) quality = 'blue';
-  else if (rand > 30) quality = 'green';
+  let qMult = 1.0; let extraCount = 0;
+  if (rand > 99) { quality = 'red'; qMult = 2.0; extraCount = 4; }
+  else if (rand > 95) { quality = 'orange'; qMult = 1.6; extraCount = 3; }
+  else if (rand > 85) { quality = 'purple'; qMult = 1.4; extraCount = 2; }
+  else if (rand > 60) { quality = 'blue'; qMult = 1.25; extraCount = 1; }
+  else if (rand > 30) { quality = 'green'; qMult = 1.1; }
 
-  const baseAtk = Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0);
-  const baseDef = Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0);
-  const baseHp = Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0);
-
-  let extraCount = 0;
-  if (quality === 'blue') extraCount = 1;
-  if (quality === 'purple') extraCount = 2;
-  if (quality === 'orange') extraCount = 3;
-  if (quality === 'red') extraCount = 4;
-
-  const extraPool = [
-    { key: 'critRate', label: '暴击', isPercent: true },
-    { key: 'critResist', label: '抗暴', isPercent: true },
-    { key: 'hitRate', label: '命中', isPercent: true },
-    { key: 'dodgeRate', label: '闪避', isPercent: true },
-    { key: 'dmgIncrease', label: '增伤', isPercent: true },
-    { key: 'dmgReduction', label: '减伤', isPercent: true },
-    { key: 'trueDmg', label: '真伤', isPercent: false }
-  ];
+  let baseAtk = Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0);
+  let baseDef = Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0);
+  let baseHp = Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0);
+  
+  baseAtk = Math.floor(baseAtk * qMult);
+  baseDef = Math.floor(baseDef * qMult);
+  baseHp = Math.floor(baseHp * qMult);
 
   const extras = [];
-  for (let i = 0; i < extraCount; i++) {
-    const stat = extraPool[Math.floor(Math.random() * extraPool.length)];
-    let val = 0;
-    if (stat.key === 'trueDmg') val = Math.floor(Math.random() * 20) + 10;
-    else val = (Math.floor(Math.random() * 10) + 1) / 100;
-    extras.push({ stat: stat.key, label: stat.label, value: val, isPercent: stat.isPercent });
+  const allowedPool = ALL_EXTRAS.filter(ex => template.extraPool && template.extraPool.includes(ex.key));
+  if (allowedPool.length > 0) {
+    for (let i = 0; i < extraCount; i++) {
+      const stat = allowedPool[Math.floor(Math.random() * allowedPool.length)];
+      let val = 0;
+      if (stat.key === 'trueDmg') val = Math.floor(Math.random() * 10) + 5;
+      else val = (Math.floor(Math.random() * 10) + 1) / 100;
+      extras.push({ stat: stat.key, label: stat.label, value: val, isPercent: stat.isPercent });
+    }
   }
 
   return {
@@ -211,7 +213,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v6.2.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v6.3.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -561,16 +563,10 @@ class BattleScene extends Phaser.Scene {
           const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
           const itemTemplate = ITEMS[inst.itemId];
 
-          // ★ 核心精简：只显示品质和名字
           this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 80, `获得掉落：`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
           this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 20, `${itemTemplate.name}`, { 
-            fontSize: '36px', 
-            color: qColors[inst.quality] || '#fff',
-            fontStyle: 'bold',
-            stroke: '#000',
-            strokeThickness: 4
+            fontSize: '36px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
           }).setOrigin(0.5);
-          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 40, `（请前往“队伍与装备”中查看详细属性）`, { fontSize: '16px', color: '#aaa' }).setOrigin(0.5);
         }
       }
       if (this.currentLevelIndex < LEVELS.length - 1) {
@@ -585,7 +581,7 @@ class BattleScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v10') {
+  if (e.key === 'my_game_data_v11') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
