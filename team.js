@@ -18,6 +18,7 @@ class TeamScene extends Phaser.Scene {
 
     let startY = 150;
     const playerChars = CHARACTERS.filter(c => c.side === 'player');
+    const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
 
     playerChars.forEach((char) => {
       let totalAtk = char.atk, totalDef = char.def, totalHp = char.maxHp;
@@ -39,14 +40,18 @@ class TeamScene extends Phaser.Scene {
 
       ['weapon', 'armor'].forEach((slotType, i) => {
         let itemName = '空';
+        let itemColor = '#ffffff'; // 默认白色
         const uid = char.equipment ? char.equipment[slotType] : '';
         if (uid) {
           const inst = INVENTORY.find(inst => inst.uid === uid);
-          if (inst) itemName = ITEMS[inst.itemId]?.name || '未知';
+          if (inst) {
+            itemName = ITEMS[inst.itemId]?.name || '未知';
+            itemColor = qColors[inst.quality] || '#ffffff'; // ★ 这里修复了穿戴后颜色不匹配的问题
+          }
         }
 
         const btn = this.add.text(50 + i * 250, startY + 40, `[${slotType === 'weapon' ? '武器' : '防具'}] ${itemName}`, { 
-          fontSize: '18px', color: uid ? '#2ecc71' : '#fff', 
+          fontSize: '18px', color: itemColor, 
           backgroundColor: '#333', padding: { x: 10, y: 5 } 
         }).setInteractive();
         
@@ -80,8 +85,6 @@ class TeamScene extends Phaser.Scene {
       const item = inst ? ITEMS[inst.itemId] : null;
       if (item) {
         const bg = this.add.rectangle(CONFIG.WIDTH / 2, y, CONFIG.WIDTH - 60, 70, 0x0f3460).setInteractive();
-        
-        // ★ 点击查看详情
         bg.on('pointerdown', () => { this.showItemDetail(inst, item); });
 
         const name = this.add.text(60, y, `${item.icon || ''} ${item.name}`, { fontSize: '20px', color: qColors[inst.quality] || '#fff' }).setOrigin(0, 0.5).setInteractive();
@@ -110,8 +113,6 @@ class TeamScene extends Phaser.Scene {
       if (!item || item.category !== slotType) return;
 
       const bg = this.add.rectangle(CONFIG.WIDTH / 2, y, CONFIG.WIDTH - 60, 70, 0x1e3a5f).setInteractive();
-      
-      // ★ 点击查看详情
       bg.on('pointerdown', () => { this.showItemDetail(inst, item); });
 
       const name = this.add.text(60, y, `${item.icon || ''} ${item.name}`, { fontSize: '20px', color: qColors[inst.quality] || '#fff' }).setOrigin(0, 0.5).setInteractive();
@@ -142,20 +143,18 @@ class TeamScene extends Phaser.Scene {
     }
   }
 
-  // 展示详细属性弹窗
   showItemDetail(inst, item) {
     if (this.detailContainer) this.detailContainer.destroy();
     this.detailContainer = this.add.container(0, 0);
 
     const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.95).setInteractive();
-    overlay.on('pointerdown', () => { this.detailContainer.destroy(); }); // 点空白关闭
+    overlay.on('pointerdown', () => { this.detailContainer.destroy(); });
 
     const panel = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH - 100, 400, 0x16213e).setStrokeStyle(2, 0x3498db);
     
     const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
     const title = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, `${item.name}`, { fontSize: '32px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     
-    // 品质文字
     const qualityMap = { white: '普通', green: '精良', blue: '稀有', purple: '史诗', orange: '传说', red: '神话' };
     const qualityText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 110, `[${qualityMap[inst.quality]}]`, { fontSize: '18px', color: qColors[inst.quality] }).setOrigin(0.5);
 
@@ -184,13 +183,13 @@ class TeamScene extends Phaser.Scene {
     localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
     localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
     
-    const d = JSON.parse(localStorage.getItem('my_game_data_v10'));
+    const d = JSON.parse(localStorage.getItem('my_game_data_v11'));
     if(d) { 
       d.forEach(c => { 
         const newC = CHARACTERS.find(cc => cc.id === c.id); 
         if(newC) c.equipment = newC.equipment; 
       }); 
-      localStorage.setItem('my_game_data_v10', JSON.stringify(d)); 
+      localStorage.setItem('my_game_data_v11', JSON.stringify(d)); 
     }
   }
 }
