@@ -21,7 +21,10 @@ class TeamScene extends Phaser.Scene {
     const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
 
     playerChars.forEach((char) => {
+      // 计算面板属性（这里做个简易显示，具体计算以战斗内 Unit 为准）
       let totalAtk = char.atk, totalDef = char.def, totalHp = char.maxHp;
+      let atkPct = 0, defPct = 0, hpPct = 0;
+      
       if (char.equipment) {
         Object.values(char.equipment).forEach(uid => {
           if (!uid) return;
@@ -30,29 +33,41 @@ class TeamScene extends Phaser.Scene {
             totalAtk += (inst.baseAtk || 0);
             totalDef += (inst.baseDef || 0);
             totalHp += (inst.baseHp || 0);
+            if(inst.extras) {
+              inst.extras.forEach(ex => {
+                if(ex.stat === 'atkPercent') atkPct += ex.value;
+                if(ex.stat === 'defPercent') defPct += ex.value;
+                if(ex.stat === 'hpPercent') hpPct += ex.value;
+              });
+            }
           }
         });
       }
+      totalAtk = Math.floor(totalAtk * (1 + atkPct));
+      totalDef = Math.floor(totalDef * (1 + defPct));
+      totalHp = Math.floor(totalHp * (1 + hpPct));
 
       const nameTxt = this.add.text(50, startY, `${char.emoji} ${char.name}`, { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' });
       const statTxt = this.add.text(250, startY + 5, `攻:${totalAtk} 防:${totalDef} 血:${totalHp}`, { fontSize: '18px', color: '#aaa' });
       this.teamContainer.add([nameTxt, statTxt]);
 
-      ['weapon', 'armor'].forEach((slotType, i) => {
+      // 三个装备槽：武器、防具、饰品
+      ['weapon', 'armor', 'accessory'].forEach((slotType, i) => {
         let itemName = '空';
-        let itemColor = '#ffffff'; // 默认白色
+        let itemColor = '#ffffff';
         const uid = char.equipment ? char.equipment[slotType] : '';
         if (uid) {
           const inst = INVENTORY.find(inst => inst.uid === uid);
           if (inst) {
             itemName = ITEMS[inst.itemId]?.name || '未知';
-            itemColor = qColors[inst.quality] || '#ffffff'; // ★ 这里修复了穿戴后颜色不匹配的问题
+            itemColor = qColors[inst.quality] || '#ffffff';
           }
         }
 
-        const btn = this.add.text(50 + i * 250, startY + 40, `[${slotType === 'weapon' ? '武器' : '防具'}] ${itemName}`, { 
-          fontSize: '18px', color: itemColor, 
-          backgroundColor: '#333', padding: { x: 10, y: 5 } 
+        const label = slotType === 'weapon' ? '武器' : slotType === 'armor' ? '防具' : '饰品';
+        const btn = this.add.text(30 + i * 160, startY + 40, `[${label}] ${itemName}`, { 
+          fontSize: '16px', color: itemColor, 
+          backgroundColor: '#333', padding: { x: 8, y: 5 } 
         }).setInteractive();
         
         btn.on('pointerdown', () => { this.openEquipSelection(char, slotType); });
@@ -68,7 +83,8 @@ class TeamScene extends Phaser.Scene {
     this.equipContainer = this.add.container(0, 0);
 
     const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.95);
-    const title = this.add.text(CONFIG.WIDTH / 2, 60, `选择${slotType === 'weapon' ? '武器' : '防具'}`, { fontSize: '30px', color: '#f1c40f' }).setOrigin(0.5);
+    const label = slotType === 'weapon' ? '武器' : slotType === 'armor' ? '防具' : '饰品';
+    const title = this.add.text(CONFIG.WIDTH / 2, 60, `选择${label}`, { fontSize: '30px', color: '#f1c40f' }).setOrigin(0.5);
     const closeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT - 80, '关闭', { fontSize: '28px', color: '#fff', backgroundColor: '#555', padding: { x: 30, y: 10 } }).setOrigin(0.5).setInteractive();
     closeBtn.on('pointerdown', () => { this.equipContainer.destroy(); });
     this.equipContainer.add([overlay, title, closeBtn]);
@@ -150,13 +166,13 @@ class TeamScene extends Phaser.Scene {
     const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.95).setInteractive();
     overlay.on('pointerdown', () => { this.detailContainer.destroy(); });
 
-    const panel = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH - 100, 400, 0x16213e).setStrokeStyle(2, 0x3498db);
+    const panel = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH - 100, 450, 0x16213e).setStrokeStyle(2, 0x3498db);
     
     const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
-    const title = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, `${item.name}`, { fontSize: '32px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    const title = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 180, `${item.name}`, { fontSize: '32px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     
     const qualityMap = { white: '普通', green: '精良', blue: '稀有', purple: '史诗', orange: '传说', red: '神话' };
-    const qualityText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 110, `[${qualityMap[inst.quality]}]`, { fontSize: '18px', color: qColors[inst.quality] }).setOrigin(0.5);
+    const qualityText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 140, `[${qualityMap[inst.quality]}]`, { fontSize: '18px', color: qColors[inst.quality] }).setOrigin(0.5);
 
     let detailStr = ``;
     if (inst.baseAtk) detailStr += `攻击力: +${inst.baseAtk}\n`;
@@ -165,15 +181,16 @@ class TeamScene extends Phaser.Scene {
     
     if (inst.extras && inst.extras.length > 0) {
       detailStr += `\n--- 附加属性 ---\n`;
+      const statNames = { atkPercent: '攻击力%', defPercent: '防御力%', hpPercent: '生命值%', critRate: '暴击率', critResist: '抗暴率', hitRate: '命中率', dodgeRate: '闪避率', critDmg: '暴击伤害', lifesteal: '吸血', speed: '速度' };
       inst.extras.forEach(ex => {
-        let valStr = ex.isPercent ? `${(ex.value * 100).toFixed(1)}%` : `${ex.value}`;
-        detailStr += `${ex.label}: +${valStr}\n`;
+        let valStr = ex.value > 0 && ex.value < 1 && ex.stat !== 'speed' ? `${(ex.value * 100).toFixed(1)}%` : `${ex.value}`;
+        detailStr += `${statNames[ex.stat] || ex.stat}: +${valStr}\n`;
       });
     }
     
     const desc = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 10, detailStr, { fontSize: '20px', color: '#fff', align: 'center', lineSpacing: 8 }).setOrigin(0.5);
     
-    const closeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 160, '返回', { fontSize: '24px', color: '#fff', backgroundColor: '#555', padding: { x: 30, y: 10 } }).setOrigin(0.5).setInteractive();
+    const closeBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 180, '返回', { fontSize: '24px', color: '#fff', backgroundColor: '#555', padding: { x: 30, y: 10 } }).setOrigin(0.5).setInteractive();
     closeBtn.on('pointerdown', () => { this.detailContainer.destroy(); });
 
     this.detailContainer.add([overlay, panel, title, qualityText, desc, closeBtn]);
@@ -183,13 +200,13 @@ class TeamScene extends Phaser.Scene {
     localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
     localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
     
-    const d = JSON.parse(localStorage.getItem('my_game_data_v11'));
+    const d = JSON.parse(localStorage.getItem('my_game_data_v12'));
     if(d) { 
       d.forEach(c => { 
         const newC = CHARACTERS.find(cc => cc.id === c.id); 
         if(newC) c.equipment = newC.equipment; 
       }); 
-      localStorage.setItem('my_game_data_v11', JSON.stringify(d)); 
+      localStorage.setItem('my_game_data_v12', JSON.stringify(d)); 
     }
   }
 }
