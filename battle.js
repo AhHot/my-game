@@ -20,30 +20,45 @@ class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-    if (!this.equipment) this.equipment = { weapon: '', armor: '' };
+    if (!this.equipment) this.equipment = { weapon: '', armor: '', accessory: '' };
 
+    // 确保所有战斗属性存在
     this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0;
     this.critResist = this.critResist || 0; this.dmgIncrease = this.dmgIncrease || 0;
     this.dmgReduction = this.dmgReduction || 0; this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
     this.trueDmg = this.trueDmg || 0; this.critDmg = this.critDmg || 1.5;
+    this.lifesteal = this.lifesteal || 0;
+
+    // 1. 收集装备的固定加成和百分比加成
+    let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
+    let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
 
     Object.values(this.equipment).forEach(uid => {
       if (!uid) return;
       const inst = INVENTORY.find(i => i.uid === uid);
       if (inst) {
-        this.maxHp += (inst.baseHp || 0);
-        this.atk += (inst.baseAtk || 0);
-        this.def += (inst.baseDef || 0);
+        eqAtkAdd += (inst.baseAtk || 0);
+        eqDefAdd += (inst.baseDef || 0);
+        eqHpAdd += (inst.baseHp || 0);
         if (inst.extras) {
           inst.extras.forEach(ex => {
-            if (this[ex.stat] !== undefined) this[ex.stat] += ex.value;
+            if (ex.stat === 'atkPercent') eqAtkPct += ex.value;
+            else if (ex.stat === 'defPercent') eqDefPct += ex.value;
+            else if (ex.stat === 'hpPercent') eqHpPct += ex.value;
+            else if (this[ex.stat] !== undefined) this[ex.stat] += ex.value;
           });
         }
       }
     });
 
-    this.baseAtk = this.atk || 10; this.baseDef = this.def || 10; this.baseSpeed = this.speed || 10;
+    // 2. 计算最终基础面板 = (角色基础 + 装备固定) * (1 + 装备百分比)
+    this.maxHp = Math.floor((this.maxHp + eqHpAdd) * (1 + eqHpPct));
+    this.atk = Math.floor((this.atk + eqAtkAdd) * (1 + eqAtkPct));
+    this.def = Math.floor((this.def + eqDefAdd) * (1 + eqDefPct));
+
+    this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
+    // 3. 应用被动加成
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
       const sk = SKILLS[skId];
@@ -61,6 +76,7 @@ class Unit {
   isAlive() { return this.hp > 0; }
   gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
   takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); }
+  heal(amount) { if (this.isAlive()) this.hp = Math.min(this.maxHp, this.hp + amount); }
   reduceCooldowns() { for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; } }
   resetFollowups() { this.followupCounts = {}; }
 
@@ -109,7 +125,7 @@ const BattleLogic = {
   computeDamage(actor, target, skill) {
     let hitRate = 1.0 + (actor.hitRate || 0) - (target.dodgeRate || 0);
     hitRate = Math.max(0.2, Math.min(1.0, hitRate)); 
-    if (Math.random() > hitRate) return { damage: 0, isCrit: false, isMiss: true, elemMult: 1 };
+    if (Math.random() > hitRate) return { damage: 0, isCrit: false, isMiss: true, elemMult: 1, healAmount: 0 };
 
     let base = actor.atk * skill.multiplier;
     const baseForMin = base; 
@@ -131,7 +147,10 @@ const BattleLogic = {
     finalDmg *= elemMult;
     finalDmg += (actor.trueDmg || 0);
 
-    return { damage: Math.round(finalDmg), isCrit, isMiss: false, elemMult };
+    const finalDamage = Math.round(finalDmg);
+    const healAmount = Math.round(finalDamage * (actor.lifesteal || 0)); // 计算吸血回复量
+
+    return { damage: finalDamage, isCrit, isMiss: false, elemMult, healAmount };
   },
   chooseSkill(actor) {
     const slots = actor.skillSlots || {};
@@ -147,57 +166,44 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
-const ALL_EXTRAS = [
-  { key: 'critRate', label: '暴击', isPercent: true },
-  { key: 'critResist', label: '抗暴', isPercent: true },
-  { key: 'hitRate', label: '命中', isPercent: true },
-  { key: 'dodgeRate', label: '闪避', isPercent: true },
-  { key: 'dmgIncrease', label: '增伤', isPercent: true },
-  { key: 'dmgReduction', label: '减伤', isPercent: true },
-  { key: 'trueDmg', label: '真伤', isPercent: false }
-];
-
 function generateRandomInstance(templateId) {
   const template = ITEMS[templateId];
   if (!template) return null;
 
   const rand = Math.random() * 100;
-  let quality = 'white';
-  let qMult = 1.0; let extraCount = 0;
-  if (rand > 99) { quality = 'red'; qMult = 2.0; extraCount = 4; }
-  else if (rand > 95) { quality = 'orange'; qMult = 1.6; extraCount = 3; }
-  else if (rand > 85) { quality = 'purple'; qMult = 1.4; extraCount = 2; }
-  else if (rand > 60) { quality = 'blue'; qMult = 1.25; extraCount = 1; }
-  else if (rand > 30) { quality = 'green'; qMult = 1.1; }
+  let quality = 'white', qMult = 1.0, extraCount = 0, tier = 1;
+  if (rand > 99) { quality = 'red'; qMult = 1.8; extraCount = 5; tier = 3; }
+  else if (rand > 95) { quality = 'orange'; qMult = 1.5; extraCount = 4; tier = 3; }
+  else if (rand > 85) { quality = 'purple'; qMult = 1.3; extraCount = 3; tier = 2; }
+  else if (rand > 60) { quality = 'blue'; qMult = 1.15; extraCount = 2; tier = 2; }
+  else if (rand > 30) { quality = 'green'; qMult = 1.05; extraCount = 1; tier = 1; }
 
-  let baseAtk = Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0);
-  let baseDef = Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0);
-  let baseHp = Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0);
+  const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
+  const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
+  const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
+
+  const WEAPON_ACC_POOL = ['atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'];
+  const ARMOR_POOL = ['hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'];
+  const pool = template.category === 'armor' ? ARMOR_POOL : WEAPON_ACC_POOL;
   
-  baseAtk = Math.floor(baseAtk * qMult);
-  baseDef = Math.floor(baseDef * qMult);
-  baseHp = Math.floor(baseHp * qMult);
-
   const extras = [];
-  const allowedPool = ALL_EXTRAS.filter(ex => template.extraPool && template.extraPool.includes(ex.key));
-  if (allowedPool.length > 0) {
-    for (let i = 0; i < extraCount; i++) {
-      const stat = allowedPool[Math.floor(Math.random() * allowedPool.length)];
-      let val = 0;
-      if (stat.key === 'trueDmg') val = Math.floor(Math.random() * 10) + 5;
-      else val = (Math.floor(Math.random() * 10) + 1) / 100;
-      extras.push({ stat: stat.key, label: stat.label, value: val, isPercent: stat.isPercent });
-    }
+  for (let i = 0; i < extraCount; i++) {
+    const stat = pool[Math.floor(Math.random() * pool.length)];
+    let val = 0;
+    if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
+    else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
+    else if (stat === 'atkPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
+    else if (stat === 'defPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
+    else val = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
+    extras.push({ stat, value: val });
   }
 
-  return {
-    uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
-    itemId: template.id,
-    quality: quality,
-    baseAtk, baseDef, baseHp,
-    extras,
-    equippedBy: ''
-  };
+  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
+  extraKeys.forEach(k => {
+    if (template[k] && template[k] !== 0) extras.push({ stat: k, value: template[k] });
+  });
+
+  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
 }
 
 // ==========================================
@@ -213,7 +219,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v6.3.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v7.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -332,7 +338,7 @@ class BattleScene extends Phaser.Scene {
       }
     });
 
-    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
 
     activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); this.createUnitView(unit); });
     
@@ -432,6 +438,7 @@ class BattleScene extends Phaser.Scene {
       actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
       
+      let totalHeal = 0;
       targets.forEach(t => {
         const result = BattleLogic.computeDamage(actor, t, skill);
         if (result.isMiss) {
@@ -442,6 +449,7 @@ class BattleScene extends Phaser.Scene {
            }
         } else {
            t.takeDamage(result.damage);
+           if (result.healAmount > 0) totalHeal += result.healAmount; // 累计吸血量
            if (skill.statusId && skill.statusChance > 0) {
              if (Math.random() * 100 < skill.statusChance && STATUSES[skill.statusId]) t.addStatus(skill.statusId);
            }
@@ -449,6 +457,14 @@ class BattleScene extends Phaser.Scene {
            this.updateUnitView(t);
         }
       });
+      
+      // 结算吸血恢复
+      if (totalHeal > 0) {
+        actor.heal(totalHeal);
+        this.showHealNumber(actor, totalHeal);
+        this.updateUnitView(actor);
+      }
+
       actor.gainMp(); actor.reduceCooldowns(); this.updateUnitView(actor);
       if (skill.comboTagOut) this.checkFollowups(skill.comboTagOut, actor); 
       this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
@@ -487,10 +503,22 @@ class BattleScene extends Phaser.Scene {
     this.time.delayedCall(300 / this.speedMultiplier, () => {
       actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
+      
+      let totalHeal = 0;
       targets.forEach(t => {
         const result = BattleLogic.computeDamage(actor, t, skill);
-        if(!result.isMiss) { t.takeDamage(result.damage); this.showDamageNumber(t, result); this.updateUnitView(t); }
+        if(!result.isMiss) { 
+          t.takeDamage(result.damage); 
+          if(result.healAmount > 0) totalHeal += result.healAmount;
+          this.showDamageNumber(t, result); 
+          this.updateUnitView(t); 
+        }
       });
+
+      if (totalHeal > 0) {
+        actor.heal(totalHeal);
+        this.showHealNumber(actor, totalHeal);
+      }
       this.updateUnitView(actor);
     });
   }
@@ -503,6 +531,14 @@ class BattleScene extends Phaser.Scene {
     const label = result.isCrit ? `-${result.damage} 暴击!` : `-${result.damage}`;
     const txt = this.add.text(view.container.x, view.container.y - 70, label, { fontSize: size, color: color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5);
     this.tweens.add({ targets: txt, y: txt.y - 90, alpha: 0, duration: 900 / this.speedMultiplier, ease: 'Cubic.easeOut', onComplete: () => txt.destroy() });
+  }
+
+  // ★ 新增：绿色吸血飘字
+  showHealNumber(unit, amount) {
+    const view = this.unitViews.get(unit);
+    if (!view) return;
+    const txt = this.add.text(view.container.x, view.container.y - 30, `+${amount}`, { fontSize: '28px', color: '#2ecc71', fontStyle: 'bold', stroke: '#000000', strokeThickness: 4 }).setOrigin(0.5);
+    this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => txt.destroy() });
   }
 
   updateUnitView(unit) {
@@ -535,7 +571,16 @@ class BattleScene extends Phaser.Scene {
         const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
         actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
         if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
-        targets.forEach(t => { const res = BattleLogic.computeDamage(actor, t, skill); if (!res.isMiss) t.takeDamage(res.damage); });
+        
+        let totalHeal = 0;
+        targets.forEach(t => { 
+          const res = BattleLogic.computeDamage(actor, t, skill); 
+          if (!res.isMiss) {
+            t.takeDamage(res.damage); 
+            if(res.healAmount > 0) totalHeal += res.healAmount;
+          }
+        });
+        if(totalHeal > 0) actor.heal(totalHeal);
         actor.gainMp(); actor.reduceCooldowns();
       }
       rounds++;
@@ -581,7 +626,7 @@ class BattleScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v11') {
+  if (e.key === 'my_game_data_v12') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
