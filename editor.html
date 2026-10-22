@@ -20,15 +20,12 @@
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .card-header h3 { color: #3498db; }
     .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
-    
-    /* 改为 2 列布局 */
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 2; }
     .form-item label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; font-size: 13px; width: 100%; }
     .sub-title { color: #f1c40f; font-size: 14px; margin-top: 15px; margin-bottom: 5px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 5px; grid-column: span 2;}
-    
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
     .btn-play { background: #2ecc71; }
@@ -37,7 +34,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v7.0 饰品与吸血)</h1>
+  <h1>⚙️ 配置中心 (v7.1)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -47,7 +44,6 @@
     <div class="tab" onclick="switchTab('level')">🗺️ 关卡</div>
   </div>
 
-  <!-- 角色模块 -->
   <div id="char-section">
     <div class="search-bar"><input type="text" id="search-char" placeholder="🔍 搜索角色..." oninput="render()"></div>
     <div class="sub-tabs">
@@ -58,7 +54,6 @@
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addChar()">➕ 新增角色</button>
   </div>
 
-  <!-- 技能模块 -->
   <div id="skill-section" style="display:none;">
     <div class="search-bar"><input type="text" id="search-skill" placeholder="🔍 搜索技能..." oninput="render()"></div>
     <div class="sub-tabs">
@@ -70,14 +65,12 @@
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addSkill()">➕ 新增技能</button>
   </div>
 
-  <!-- 状态模块 -->
   <div id="status-section" style="display:none;">
     <div class="search-bar"><input type="text" id="search-status" placeholder="🔍 搜索状态..." oninput="render()"></div>
     <div id="status-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addStatus()">➕ 新增状态</button>
   </div>
 
-  <!-- 物品模块 -->
   <div id="item-section" style="display:none;">
     <div class="search-bar"><input type="text" id="search-item" placeholder="🔍 搜索物品..." oninput="render()"></div>
     <div class="sub-tabs">
@@ -114,7 +107,6 @@
 
     const DEFAULT_STATUS = [ { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200 } ];
 
-    // 新增饰品模板，且模板自带额外属性
     const DEFAULT_ITEMS = [
       { id: 'item_sword', name: '铁剑', category: 'weapon', icon: '🗡️', desc: '普通的剑', atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
       { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '普通的盾', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
@@ -143,6 +135,9 @@
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
+    // ★ 核心修复：进入页面时静默保存一次，确保默认数据落地
+    setTimeout(() => { saveData(); }, 100);
+
     function generateRandomInstance(templateId) {
       const template = gameItems.find(t => t.id === templateId);
       if (!template) return null;
@@ -159,24 +154,29 @@
       const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
       const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
 
-      // 底层词条池定义
       const WEAPON_ACC_POOL = ['atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'];
       const ARMOR_POOL = ['hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'];
       const pool = template.category === 'armor' ? ARMOR_POOL : WEAPON_ACC_POOL;
       
+      // ★ 修复：词条去重池
+      let tempPool = [...pool];
       const extras = [];
+      
       for (let i = 0; i < extraCount; i++) {
-        const stat = pool[Math.floor(Math.random() * pool.length)];
+        if(tempPool.length === 0) break;
+        const idx = Math.floor(Math.random() * tempPool.length);
+        const stat = tempPool.splice(idx, 1)[0]; // 抽中后从池子里删掉
+        
         let val = 0;
         if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
         else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
         else if (stat === 'atkPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
         else if (stat === 'defPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
         else val = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
+        
         extras.push({ stat, value: val });
       }
 
-      // 合并模板自带的额外属性
       const finalExtras = [...extras];
       const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
       extraKeys.forEach(k => {
