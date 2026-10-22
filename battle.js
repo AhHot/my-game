@@ -1,31 +1,11 @@
 // ==========================================
-// 读取同步数据（加入最强安全锁，防止未定义）
+// 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 
-if (localStorage.getItem('my_game_characters')) { 
-  try { 
-    const d = JSON.parse(localStorage.getItem('my_game_characters')); 
-    if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } 
-  } catch(e){ console.error('角色数据错误', e); } 
-}
-
-if (localStorage.getItem('my_game_skills_sync')) { 
-  try { 
-    const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); 
-    if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } 
-  } catch(e){ console.error('技能数据错误', e); } 
-}
-
-if (localStorage.getItem('my_game_statuses_sync')) { 
-  try { 
-    const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); 
-    if (Array.isArray(d) && d.length) { 
-      Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); 
-      d.forEach(st => STATUSES[st.id]={...st}); 
-    } 
-  } catch(e){ console.error('状态数据错误', e); } 
-}
+if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } } catch(e){} }
+if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } } catch(e){} }
+if (localStorage.getItem('my_game_statuses_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); if (Array.isArray(d) && d.length) { Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); d.forEach(st => STATUSES[st.id]={...st}); } } catch(e){} }
 
 // ==========================================
 // 纯逻辑层：战斗单位与伤害计算
@@ -34,12 +14,7 @@ class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', learned: '' };
-
-    this.baseAtk = this.atk || 10;
-    this.baseDef = this.def || 10;
-    this.baseSpeed = this.speed || 10;
-
-    // 应用被动
+    this.baseAtk = this.atk || 10; this.baseDef = this.def || 10; this.baseSpeed = this.speed || 10;
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
       const sk = SKILLS[skId];
@@ -50,58 +25,36 @@ class Unit {
         if (sk.passiveType === 'speedAdd') { this.speed += sk.passiveValue; this.baseSpeed += sk.passiveValue; }
       }
     });
-
-    this.hp = this.maxHp;
-    this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
-    this.cooldowns = {};
-    this.statuses = []; 
+    this.hp = this.maxHp; this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
+    this.cooldowns = {}; this.statuses = []; 
   }
-  
   isAlive() { return this.hp > 0; }
   gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
   takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); }
-  
-  reduceCooldowns() {
-    for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; }
-  }
-
+  reduceCooldowns() { for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; } }
   refreshStats() {
-    this.atk = this.baseAtk;
-    this.def = this.baseDef;
-    this.speed = this.baseSpeed;
+    this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
     this.statuses.forEach(st => {
-      const config = STATUSES[st.id];
-      if (!config) return;
+      const config = STATUSES[st.id]; if (!config) return;
       if (config.statMod === 'atk') this.atk += config.statValue;
       if (config.statMod === 'def') this.def += config.statValue;
       if (config.statMod === 'speed') this.speed += config.statValue;
     });
-    this.atk = Math.max(1, this.atk);
-    this.def = Math.max(0, this.def);
-    this.speed = Math.max(1, this.speed);
+    this.atk = Math.max(1, this.atk); this.def = Math.max(0, this.def); this.speed = Math.max(1, this.speed);
   }
-
   tickStatuses() {
     for (let i = this.statuses.length - 1; i >= 0; i--) {
-      const st = this.statuses[i];
-      const config = STATUSES[st.id];
-      if (config && config.isDot && config.dotValue > 0) {
-        this.takeDamage(config.dotValue); 
-      }
-      st.duration--;
-      if (st.duration <= 0) this.statuses.splice(i, 1); 
+      const st = this.statuses[i]; const config = STATUSES[st.id];
+      if (config && config.isDot && config.dotValue > 0) this.takeDamage(config.dotValue); 
+      st.duration--; if (st.duration <= 0) this.statuses.splice(i, 1); 
     }
     this.refreshStats(); 
   }
-
   addStatus(statusId) {
     if (!statusId || !STATUSES[statusId]) return;
     const existing = this.statuses.find(s => s.id === statusId);
-    if (existing) {
-      existing.duration = STATUSES[statusId].duration; 
-    } else {
-      this.statuses.push({ id: statusId, duration: STATUSES[statusId].duration });
-    }
+    if (existing) existing.duration = STATUSES[statusId].duration; 
+    else this.statuses.push({ id: statusId, duration: STATUSES[statusId].duration });
     this.refreshStats();
   }
 }
@@ -116,19 +69,15 @@ const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
     const enemies = allUnits.filter(u => u.side !== actor.side && u.isAlive());
     if (enemies.length === 0) return [];
-    if (skill.targetRule === 'frontRow') {
-      const minY = Math.min(...enemies.map(u => u.gridY)); return enemies.filter(u => u.gridY === minY);
-    } else if (skill.targetRule === 'lowestHp') {
-      const minHp = Math.min(...enemies.map(u => u.hp)); return enemies.filter(u => u.hp === minHp);
-    } else if (skill.targetRule === 'random') { return [enemies[Math.floor(Math.random() * enemies.length)]]; }
+    if (skill.targetRule === 'frontRow') { const minY = Math.min(...enemies.map(u => u.gridY)); return enemies.filter(u => u.gridY === minY); }
+    else if (skill.targetRule === 'lowestHp') { const minHp = Math.min(...enemies.map(u => u.hp)); return enemies.filter(u => u.hp === minHp); }
+    else if (skill.targetRule === 'random') { return [enemies[Math.floor(Math.random() * enemies.length)]]; }
     return [enemies[0]];
   },
   computeDamage(actor, target, skill) {
     let base = actor.atk * skill.multiplier;
-    const elemMult = this.getElementMultiplier(skill.element, target.element);
-    base *= elemMult;
-    const isCrit = Math.random() < actor.critRate;
-    if (isCrit) base *= actor.critDmg;
+    const elemMult = this.getElementMultiplier(skill.element, target.element); base *= elemMult;
+    const isCrit = Math.random() < actor.critRate; if (isCrit) base *= actor.critDmg;
     const finalDamage = Math.max(base - target.def * 0.5, base * 0.1);
     return { damage: Math.round(finalDamage), isCrit, elemMult };
   },
@@ -143,9 +92,7 @@ const BattleLogic = {
     if (fallbackSkill) return fallbackSkill;
     return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, cost: {mp: 0}, targetRule: 'frontRow', element: 'fire' };
   },
-  buildActionOrder(units) {
-    return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed);
-  }
+  buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
 // ==========================================
@@ -156,15 +103,18 @@ class FormationScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
-    const gridLeft = (CONFIG.WIDTH - gridW) / 2;
-    const gridTop = 180, standbyTop = 680; 
+    const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v1.3.2 (终极防白屏)', { fontSize: '16px', color: '#00ff00' });
-    this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(10, 10, '版本: v2.0.1', { fontSize: '16px', color: '#00ff00' });
+    
+    // ★ 修改：把编辑器和强刷按钮并排放在右上角，绝对不会被遮挡
+    const editBtn = this.add.text(CONFIG.WIDTH - 120, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
 
-    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷更新', { fontSize: '20px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    const refreshBtn = this.add.text(CONFIG.WIDTH - 10, 20, '🔄 强刷', { fontSize: '18px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
 
+    this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
 
     const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
@@ -207,22 +157,10 @@ class FormationScene extends Phaser.Scene {
         if (col >= 0 && col < CONFIG.GRID_SIZE && row >= 0 && row < CONFIG.GRID_SIZE) {
           const tData = this.gridState[col][row];
           if (!container.isOnGrid) {
-            if (tData) {
-              tData.gridX = -1; tData.gridY = -1;
-              const tC = this.unitContainers.find(c => c.unitData === tData); tC.isOnGrid = false;
-              data.gridX = col; data.gridY = row; this.gridState[col][row] = data; container.isOnGrid = true;
-            } else {
-              const cCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
-              if (cCount >= 5) { data.gridX = -1; data.gridY = -1; container.isOnGrid = false; } 
-              else { data.gridX = col; data.gridY = row; this.gridState[col][row] = data; container.isOnGrid = true; }
-            }
+            if (tData) { tData.gridX = -1; tData.gridY = -1; const tC = this.unitContainers.find(c => c.unitData === tData); tC.isOnGrid = false; data.gridX = col; data.gridY = row; this.gridState[col][row] = data; container.isOnGrid = true; }
+            else { const cCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length; if (cCount >= 5) { data.gridX = -1; data.gridY = -1; container.isOnGrid = false; } else { data.gridX = col; data.gridY = row; this.gridState[col][row] = data; container.isOnGrid = true; } }
           } else {
-            if (tData && tData !== data) {
-              const oC = data.gridX, oR = data.gridY;
-              tData.gridX = oC; tData.gridY = oR; this.gridState[oC][oR] = tData;
-              const tC = this.unitContainers.find(c => c.unitData === tData);
-              tC.x = gridLeft + oC * cell + cell / 2; tC.y = gridTop + oR * cell + cell / 2;
-            }
+            if (tData && tData !== data) { const oC = data.gridX, oR = data.gridY; tData.gridX = oC; tData.gridY = oR; this.gridState[oC][oR] = tData; const tC = this.unitContainers.find(c => c.unitData === tData); tC.x = gridLeft + oC * cell + cell / 2; tC.y = gridTop + oR * cell + cell / 2; }
             data.gridX = col; data.gridY = row; this.gridState[col][row] = data;
           }
           if (container.isOnGrid) { container.x = gridLeft + data.gridX * cell + cell / 2; container.y = gridTop + data.gridY * cell + cell / 2; }
@@ -291,7 +229,6 @@ class BattleScene extends Phaser.Scene {
     const hpBar = this.add.rectangle(-45, 72, 90, 8, 0x2ECC71).setOrigin(0, 0.5);
     const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
     const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
-    
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
 
     container.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, statusText]);
@@ -321,9 +258,7 @@ class BattleScene extends Phaser.Scene {
         if (!u.isAlive()) return;
         const oldHp = u.hp;
         u.tickStatuses(); 
-        if (u.hp < oldHp) {
-          this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); 
-        }
+        if (u.hp < oldHp) this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); 
         this.updateUnitView(u);
       });
 
@@ -362,15 +297,13 @@ class BattleScene extends Phaser.Scene {
         t.takeDamage(result.damage);
         
         if (skill.statusId && skill.statusChance > 0) {
-          if (Math.random() * 100 < skill.statusChance) {
-            if (STATUSES[skill.statusId]) {
-              t.addStatus(skill.statusId);
-              const tView = this.unitViews.get(t);
-              if (tView) {
-                const stName = STATUSES[skill.statusId].name;
-                const txt = this.add.text(tView.container.x, tView.container.y - 40, `+${stName}`, { fontSize: '18px', color: '#00ffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-                this.tweens.add({ targets: txt, y: txt.y - 60, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
-              }
+          if (Math.random() * 100 < skill.statusChance && STATUSES[skill.statusId]) {
+            t.addStatus(skill.statusId);
+            const tView = this.unitViews.get(t);
+            if (tView) {
+              const stName = STATUSES[skill.statusId].name;
+              const txt = this.add.text(tView.container.x, tView.container.y - 40, `+${stName}`, { fontSize: '18px', color: '#00ffff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+              this.tweens.add({ targets: txt, y: txt.y - 60, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
             }
           }
         }
@@ -405,10 +338,7 @@ class BattleScene extends Phaser.Scene {
     if (unit.statuses.length > 0) {
       const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
       view.statusText.setText(`[${stNames}]`);
-    } else {
-      view.statusText.setText('');
-    }
-
+    } else { view.statusText.setText(''); }
     if (!unit.isAlive()) { view.emoji.setAlpha(0.25); view.circle.setAlpha(0.25); }
   }
   
@@ -422,6 +352,13 @@ class BattleScene extends Phaser.Scene {
     btn.on('pointerdown', () => { this.scene.start('FormationScene'); });
   }
 }
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'my_game_data_v4') {
+    const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
+    if (confirmReload) window.location.reload();
+  }
+});
 
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
