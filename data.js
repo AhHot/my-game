@@ -18,3 +18,6 @@ const ELEMENTS = {
 const SKILLS = {};
 const STATUSES = {};
 const CHARACTERS = [];
+const EQUIPS = {};
+const LEVELS = [];
+const OWNED_EQUIPS = [];
