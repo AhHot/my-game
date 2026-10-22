@@ -2,9 +2,17 @@
 // 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
+if (typeof EQUIPS === 'undefined') { window.EQUIPS = {}; }
+if (typeof LEVELS === 'undefined') { window.LEVELS = []; }
+if (typeof OWNED_EQUIPS === 'undefined') { window.OWNED_EQUIPS = []; }
+
 if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length=0; CHARACTERS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k=>delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id]={...sk}); } } catch(e){} }
 if (localStorage.getItem('my_game_statuses_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); if (Array.isArray(d) && d.length) { Object.keys(STATUSES).forEach(k=>delete STATUSES[k]); d.forEach(st => STATUSES[st.id]={...st}); } } catch(e){} }
+if (localStorage.getItem('my_game_equips_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_equips_sync')); if (Array.isArray(d) && d.length) { Object.keys(EQUIPS).forEach(k=>delete EQUIPS[k]); d.forEach(eq => EQUIPS[eq.id]={...eq}); } } catch(e){} }
+if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length=0; LEVELS.push(...d); } } catch(e){} }
+if (localStorage.getItem('my_game_owned_equips')) { try { const d = JSON.parse(localStorage.getItem('my_game_owned_equips')); if (Array.isArray(d)) { OWNED_EQUIPS.length=0; OWNED_EQUIPS.push(...d); } } catch(e){} }
+
 
 // ==========================================
 // 纯逻辑层：战斗单位与伤害计算
@@ -13,9 +21,21 @@ class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-    if (this.skillSlots.followup === undefined) this.skillSlots.followup = '';
+    if (!this.equipment) this.equipment = { weapon: '', armor: '' };
+
+    // 1. 应用装备加成
+    Object.values(this.equipment).forEach(eqId => {
+      if (eqId && EQUIPS[eqId]) {
+        const eq = EQUIPS[eqId];
+        this.maxHp += (eq.hp || 0);
+        this.atk += (eq.atk || 0);
+        this.def += (eq.def || 0);
+      }
+    });
 
     this.baseAtk = this.atk || 10; this.baseDef = this.def || 10; this.baseSpeed = this.speed || 10;
+    
+    // 2. 应用被动加成
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
       const sk = SKILLS[skId];
@@ -26,6 +46,7 @@ class Unit {
         if (sk.passiveType === 'speedAdd') { this.speed += sk.passiveValue; this.baseSpeed += sk.passiveValue; }
       }
     });
+
     this.hp = this.maxHp; this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
     this.cooldowns = {}; this.statuses = []; 
     this.followupCounts = {}; 
@@ -104,12 +125,18 @@ const BattleLogic = {
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
+  
+  init(data) {
+    this.currentLevelIndex = data.levelIndex || 0;
+  }
+
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
-    this.add.text(10, 10, '版本: v2.2.1 (修复自我追打)', { fontSize: '16px', color: '#00ff00' });
+    const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
+    this.add.text(10, 10, `版本: v2.3.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 打开编辑器', { fontSize: '20px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 15, y: 8 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -134,7 +161,7 @@ class FormationScene extends Phaser.Scene {
     startBtn.on('pointerdown', () => { 
       const playersCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
       if (playersCount === 0) { alert("至少需要上阵1名角色！"); return; }
-      this.scene.start('BattleScene'); 
+      this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex }); 
     });
 
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
@@ -192,23 +219,44 @@ class FormationScene extends Phaser.Scene {
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
+  
+  init(data) {
+    this.currentLevelIndex = data.levelIndex || 0;
+  }
+
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     
+    const levelData = LEVELS[this.currentLevelIndex] || { enemyIds: [] };
+    const activeFighters = [];
+    
+    // 加载我方
+    CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push(c));
+    
+    // 根据关卡加载敌人
     let enemyCount = 0;
-    CHARACTERS.filter(c => c.side === 'enemy').forEach(enemy => {
-      if (enemy.gridX === -1 || enemy.gridX === undefined) { enemy.gridX = enemyCount % CONFIG.GRID_SIZE; enemy.gridY = Math.floor(enemyCount / CONFIG.GRID_SIZE); }
-      enemyCount++;
+    (levelData.enemyIds || []).forEach(eId => {
+      if (!eId) return;
+      const originalEnemy = CHARACTERS.find(c => c.id === eId);
+      if (originalEnemy) {
+        // 复制一份敌人数据，防止互相干扰，并分配站位
+        const enemyInstance = JSON.parse(JSON.stringify(originalEnemy));
+        enemyInstance.gridX = enemyCount % CONFIG.GRID_SIZE;
+        enemyInstance.gridY = Math.floor(enemyCount / CONFIG.GRID_SIZE);
+        activeFighters.push(enemyInstance);
+        enemyCount++;
+      }
     });
-    if (enemyCount === 0) CHARACTERS.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 500, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' } });
 
-    const activeFighters = CHARACTERS.filter(c => c.side === 'enemy' || (c.side === 'player' && c.gridX !== -1));
+    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 500, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+
     activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); this.createUnitView(unit); });
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
     this.logText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '', { fontSize: '22px', color: '#ffffff', align: 'center', wordWrap: { width: CONFIG.WIDTH - 100 } }).setOrigin(0.5);
     this.time.delayedCall(800, () => this.startBattle());
   }
+
   drawBattlefield() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE, gridLeft = (CONFIG.WIDTH - gridW) / 2;
@@ -262,7 +310,6 @@ class BattleScene extends Phaser.Scene {
     if (this.actionIndex >= this.actionOrder.length) {
       this.round++;
       this.roundText.setText(`第 ${this.round} 回合`);
-      
       this.allUnits.forEach(u => {
         if (!u.isAlive()) return;
         u.resetFollowups();
@@ -271,16 +318,13 @@ class BattleScene extends Phaser.Scene {
         if (u.hp < oldHp) this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false }, '#ff00ff'); 
         this.updateUnitView(u);
       });
-
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.showResult('defeat');
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.showResult('victory');
-
       this.actionOrder = BattleLogic.buildActionOrder(this.allUnits);
       this.actionIndex = 0;
       this.time.delayedCall(800, () => this.nextAction());
       return;
     }
-    
     const actor = this.actionOrder[this.actionIndex++];
     if (!actor.isAlive()) return this.time.delayedCall(80, () => this.nextAction());
     this.executeAction(actor);
@@ -291,21 +335,17 @@ class BattleScene extends Phaser.Scene {
     if (!skill) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction()); 
     const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
     if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
-    
     const view = this.unitViews.get(actor);
     if (view) this.tweens.add({ targets: view.container, scaleX: 1.2, scaleY: 1.2, duration: 150, yoyo: true });
-    
     const isUlt = skill.type === 'ultimate';
     this.logText.setText(`${actor.name} 使用了【${skill.name}】`).setColor(isUlt ? '#e74c3c' : '#ffffff');
 
     this.time.delayedCall(450, () => {
       actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
-
       targets.forEach(t => {
         const result = BattleLogic.computeDamage(actor, t, skill);
         t.takeDamage(result.damage);
-        
         if (skill.statusId && skill.statusChance > 0) {
           if (Math.random() * 100 < skill.statusChance && STATUSES[skill.statusId]) {
             t.addStatus(skill.statusId);
@@ -317,47 +357,31 @@ class BattleScene extends Phaser.Scene {
             }
           }
         }
-
         this.showDamageNumber(t, result);
         this.updateUnitView(t);
       });
-      
       actor.gainMp();
       actor.reduceCooldowns();
       this.updateUnitView(actor);
-      
-      if (skill.comboTagOut) {
-        this.checkFollowups(skill.comboTagOut, actor); // ★ 传入 actor，并在内部排除他
-      }
-      
+      if (skill.comboTagOut) this.checkFollowups(skill.comboTagOut, actor); 
       this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
     });
   }
   
-  // ★ 核心修复：严格排除自己
   checkFollowups(tag, originalActor) {
-    // 找出所有同阵营、活着的，并且【不是自己】的角色
     let candidates = this.allUnits.filter(u => u.isAlive() && u.side === originalActor.side && u !== originalActor);
-    
-    // 按阵型站位排序：左上优先 (gridY越小越靠上，gridX越小越靠左)
-    candidates.sort((a, b) => {
-      if (a.gridY !== b.gridY) return a.gridY - b.gridY;
-      return a.gridX - b.gridX;
-    });
-
+    candidates.sort((a, b) => { if (a.gridY !== b.gridY) return a.gridY - b.gridY; return a.gridX - b.gridX; });
     for (let unit of candidates) {
       const followupId = unit.skillSlots.followup;
       if (!followupId || !SKILLS[followupId]) continue;
-      
       const sk = SKILLS[followupId];
       if (sk.comboTagIn === tag) {
         const used = unit.followupCounts[sk.id] || 0;
         const max = sk.maxTriggers || 1;
-        
         if (used < max) {
           unit.followupCounts[sk.id] = used + 1; 
           this.triggerFollowupAction(unit, sk, tag);
-          break; // 触发了站位最靠前的一个，跳出循环
+          break; 
         }
       }
     }
@@ -366,20 +390,16 @@ class BattleScene extends Phaser.Scene {
   triggerFollowupAction(actor, skill, tag) {
     const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
     if (targets.length === 0) return;
-
     const view = this.unitViews.get(actor);
     if (view) {
-      const txt = this.add.text(view.container.x, view.container.y - 100, `⚡队友追打! ${skill.name}`, { fontSize: '24px', color: '#ffcc00', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+      const txt = this.add.text(view.container.x, view.container.y - 100, `⚡追打! ${skill.name}`, { fontSize: '24px', color: '#ffcc00', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
       this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 1000, onComplete: () => txt.destroy() });
       this.tweens.add({ targets: view.container, scaleX: 1.3, scaleY: 1.3, duration: 150, yoyo: true });
     }
-    
     this.logText.setText(`⚡ 队友响应！${actor.name} 追打【${skill.name}】`).setColor('#ffcc00');
-
     this.time.delayedCall(300, () => {
       actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
-
       targets.forEach(t => {
         const result = BattleLogic.computeDamage(actor, t, skill);
         t.takeDamage(result.damage);
@@ -405,7 +425,6 @@ class BattleScene extends Phaser.Scene {
     if (!view) return;
     this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 });
     this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 });
-    
     if (unit.statuses.length > 0) {
       const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
       view.statusText.setText(`[${stNames}]`);
@@ -414,18 +433,43 @@ class BattleScene extends Phaser.Scene {
   }
   
   showResult(type) {
-    const texts = { victory: '胜 利 !', defeat: '失 败...', timeout: '超时失败' };
+    const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.75);
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, texts[type], { fontSize: '90px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, `共进行 ${this.round} 回合`, { fontSize: '32px', color: '#ffffff' }).setOrigin(0.5);
-    const btn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 150, '🔄 重新布阵', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 22 } }).setOrigin(0.5).setInteractive();
-    btn.on('pointerdown', () => { this.scene.start('FormationScene'); });
+    this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.85);
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 200, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    
+    let btnText = '🔄 重新挑战';
+    let btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex }); };
+
+    // ★ 胜利掉落逻辑
+    if (type === 'victory') {
+      const level = LEVELS[this.currentLevelIndex];
+      if (level && level.rewardEquipId && EQUIPS[level.rewardEquipId]) {
+        const eq = EQUIPS[level.rewardEquipId];
+        
+        // 存进背包（去重）
+        if (!OWNED_EQUIPS.includes(eq.id)) {
+          OWNED_EQUIPS.push(eq.id);
+          localStorage.setItem('my_game_owned_equips', JSON.stringify(OWNED_EQUIPS));
+        }
+
+        this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 80, `获得掉落：${eq.name} (攻+${eq.atk||0} 防+${eq.def||0} 血+${eq.hp||0})`, { fontSize: '24px', color: '#f1c40f' }).setOrigin(0.5);
+      }
+
+      // 下一关按钮
+      if (this.currentLevelIndex < LEVELS.length - 1) {
+        btnText = '➡️ 进入下一关';
+        btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); };
+      }
+    }
+
+    const btn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 100, btnText, { fontSize: '36px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+    btn.on('pointerdown', btnAction);
   }
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v4') {
+  if (e.key === 'my_game_data_v5') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
