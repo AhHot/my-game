@@ -26,6 +26,13 @@
     .form-item label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; font-size: 13px; width: 100%; }
     .sub-title { color: #f1c40f; font-size: 14px; margin-top: 15px; margin-bottom: 5px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 5px; grid-column: span 2;}
+    
+    /* 效果列表专属样式 */
+    .effect-box { background: #0f3460; padding: 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #3498db; position: relative; }
+    .effect-title { font-size: 12px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; display: flex; justify-content: space-between; }
+    .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
+    .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
+
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
     .btn-play { background: #2ecc71; }
@@ -34,7 +41,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v8.0 状态与技能大升级)</h1>
+  <h1>⚙️ 配置中心 (v8.1 多重效果版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -94,6 +101,7 @@
   </div>
 
   <script>
+    // 基础默认数据
     const DEFAULT_CHARS = [
       { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
       { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, critRate: 0.05, critDmg: 1.5, maxMp: 100, mpPerAttack: 20, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
@@ -101,10 +109,28 @@
     ];
 
     const DEFAULT_SKILLS = [
-      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1 },
-      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, statusId: 'status_burn', statusChance: 100, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1 },
-      { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1 },
-      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, statusId: '', statusChance: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1 }
+      { 
+        id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', 
+        multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1,
+        effects: [] 
+      },
+      { 
+        id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', 
+        multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1,
+        effects: [
+          { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } // 跟随主目标
+        ]
+      },
+      { 
+        id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', 
+        multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1,
+        effects: [] 
+      },
+      { 
+        id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', 
+        multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1,
+        effects: []
+      }
     ];
 
     const DEFAULT_STATUS = [ 
@@ -113,8 +139,8 @@
     ];
 
     const DEFAULT_ITEMS = [
-      { id: 'item_sword', name: '铁剑', category: 'weapon', icon: '🗡️', desc: '普通的剑', atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
-      { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '普通的盾', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }
+      { id: 'item_sword', name: '铁剑', category: 'weapon', icon: '🗡️', desc: '', atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
+      { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }
     ];
 
     const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyIds: ['e_skeleton', 'e_skeleton', ''], rewardItemId: 'item_sword' } ];
@@ -124,20 +150,29 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v13')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v13')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v13')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v13')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v13')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v13')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v14')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v14')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v14')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v14')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v14')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v14')) || [];
     } catch(e) { resetData(); }
 
+    // 数据兜底与修复（把旧版 statusId 转为 effects）
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
     if (!Array.isArray(gameItems)) gameItems = DEFAULT_ITEMS;
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
+
+    gameSkills.forEach(sk => {
+      if (!sk.effects) sk.effects = [];
+      if (sk.statusId && sk.effects.length === 0) {
+        sk.effects.push({ type: 'status', value: sk.statusId, chance: sk.statusChance || 1, targetSide: 'enemy', targetRule: 'sameAsMain' });
+      }
+      if (sk.targetSide === undefined) sk.targetSide = 'enemy';
+    });
 
     setTimeout(() => { saveData(); }, 100);
 
@@ -163,35 +198,28 @@
       
       let tempPool = [...pool];
       const extras = [];
-      
       for (let i = 0; i < extraCount; i++) {
         if(tempPool.length === 0) break;
         const idx = Math.floor(Math.random() * tempPool.length);
         const stat = tempPool.splice(idx, 1)[0];
-        
         let val = 0;
         if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
         else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
         else if (stat === 'atkPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
         else if (stat === 'defPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
         else val = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
-        
         extras.push({ stat, value: val });
       }
 
-      const finalExtras = [...extras];
       const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
-      extraKeys.forEach(k => {
-        if (template[k] && template[k] !== 0) finalExtras.push({ stat: k, value: template[k] / 100 });
-      });
+      extraKeys.forEach(k => { if (template[k] && template[k] !== 0) extras.push({ stat: k, value: template[k] / 100 }); });
 
-      return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras: finalExtras, equippedBy: '' };
+      return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
     }
 
     const elements = ['fire', 'water', 'wind', 'light', 'dark'];
-    const sides = [{ val: 'player', label: '我方' }, { val: 'enemy', label: '敌方' }];
     const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
-    const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'highestAtk', label: '攻击最高' }, { val: 'random', label: '随机目标' }];
+    const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '随机目标' }, { val: 'all', label: '群体(全体)' }];
     const passiveTypes = [{ val: 'atkAdd', label: '攻击加成' }, { val: 'hpAdd', label: '生命加成' }, { val: 'defAdd', label: '防御加成' }, { val: 'speedAdd', label: '速度加成' }];
     const itemCategories = [{ val: 'weapon', label: '武器' }, { val: 'armor', label: '防具' }, { val: 'accessory', label: '饰品' }];
     const statusTypes = [{ val: 'buff', label: '增益' }, { val: 'debuff', label: '减益' }, { val: 'control', label: '控制' }];
@@ -228,11 +256,6 @@
       gameSkills.forEach(sk => { html += `<option value="${sk.id}" ${selectedId === sk.id ? 'selected' : ''}>[${sk.type}] ${sk.name}</option>`; });
       return html;
     }
-    function getStatusOptions(selectedId) {
-      let html = `<option value="">(无)</option>`;
-      gameStatuses.forEach(st => { html += `<option value="${st.id}" ${selectedId === st.id ? 'selected' : ''}>${st.name}</option>`; });
-      return html;
-    }
 
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
@@ -240,10 +263,7 @@
       gameChars.forEach((char, index) => {
         if (char.side !== subTab.char) return;
         if (keyword && !char.name.toLowerCase().includes(keyword)) return;
-        if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-        if (!char.equipment) char.equipment = { weapon: '', armor: '', accessory: '' };
-        if (char.lifesteal === undefined) char.lifesteal = 0;
-
+        
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${char.emoji} ${char.name}</h3><button class="btn-del" onclick="deleteChar(${index})">删除</button></div>
@@ -254,26 +274,19 @@
             <div class="form-item"><label>攻击</label><input type="number" value="${char.atk}" onchange="updateChar(${index}, 'atk', parseInt(this.value))"></div>
             <div class="form-item"><label>防御</label><input type="number" value="${char.def}" onchange="updateChar(${index}, 'def', parseInt(this.value))"></div>
             <div class="form-item"><label>速度</label><input type="number" value="${char.speed}" onchange="updateChar(${index}, 'speed', parseInt(this.value))"></div>
-            
             <div class="form-item"><label>暴击(%)</label><input type="number" step="0.1" value="${(char.critRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'critRate', this.value)"></div>
             <div class="form-item"><label>暴伤(倍)</label><input type="number" step="0.1" value="${char.critDmg||1.5}" onchange="updateChar(${index}, 'critDmg', parseFloat(this.value))"></div>
             <div class="form-item"><label>抗暴(%)</label><input type="number" step="0.1" value="${(char.critResist*100).toFixed(1)}" onchange="updateCharPct(${index}, 'critResist', this.value)"></div>
             <div class="form-item"><label>命中(%)</label><input type="number" step="0.1" value="${(char.hitRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'hitRate', this.value)"></div>
             <div class="form-item"><label>闪避(%)</label><input type="number" step="0.1" value="${(char.dodgeRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'dodgeRate', this.value)"></div>
-            <div class="form-item"><label>增伤(%)</label><input type="number" step="0.1" value="${(char.dmgIncrease*100).toFixed(1)}" onchange="updateCharPct(${index}, 'dmgIncrease', this.value)"></div>
-            <div class="form-item"><label>减伤(%)</label><input type="number" step="0.1" value="${(char.dmgReduction*100).toFixed(1)}" onchange="updateCharPct(${index}, 'dmgReduction', this.value)"></div>
-            <div class="form-item"><label>真伤</label><input type="number" value="${char.trueDmg||0}" onchange="updateChar(${index}, 'trueDmg', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#e74c3c;">吸血(%)</label><input type="number" step="0.1" value="${(char.lifesteal*100).toFixed(1)}" onchange="updateCharPct(${index}, 'lifesteal', this.value)"></div>
-            
-            <div class="form-item"><label>属性</label><select onchange="updateChar(${index}, 'element', this.value)">${elements.map(e => `<option value="${e}" ${char.element === e ? 'selected' : ''}>${e}</option>`).join('')}</select></div>
+            <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(char.lifesteal*100).toFixed(1)}" onchange="updateCharPct(${index}, 'lifesteal', this.value)"></div>
             
             <div class="form-item full">
               <label>技能装配</label>
               <div class="skill-slot">
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">普攻:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">招式:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
-                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">绝技:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions(char.skillSlots.ultimate)}</select></div>
-                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px; color:#e74c3c;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
               </div>
             </div>
           </div>`;
@@ -281,6 +294,7 @@
       });
     }
 
+    // ★ 核心大改：技能效果列表
     function renderSkills() {
       const list = document.getElementById('skill-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-skill').value.toLowerCase();
@@ -291,8 +305,65 @@
         if (keyword && !skill.name.toLowerCase().includes(keyword)) return;
 
         const isPassive = skill.type === 'passive';
-        const isHealOrShield = (skill.healMultiplier > 0 || skill.shieldMultiplier > 0);
         
+        // 渲染动态效果列表 HTML
+        let effectsHtml = '';
+        if (skill.effects && skill.effects.length > 0) {
+          skill.effects.forEach((eff, effIdx) => {
+            effectsHtml += `
+              <div class="effect-box">
+                <div class="effect-title">
+                  <span>🔴 效果 ${effIdx + 1}</span>
+                  <button class="btn-remove-effect" onclick="removeSkillEffect(${index}, ${effIdx})">✖ 删除</button>
+                </div>
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr;">
+                  <div class="form-item">
+                    <label>类型</label>
+                    <select onchange="updateEffect(${index}, ${effIdx}, 'type', this.value)">
+                      <option value="status" ${eff.type==='status'?'selected':''}>附加状态</option>
+                      <option value="heal" ${eff.type==='heal'?'selected':''}>恢复生命</option>
+                      <option value="shield" ${eff.type==='shield'?'selected':''}>附加护盾</option>
+                    </select>
+                  </div>
+                  <div class="form-item">
+                    <label>对象阵营</label>
+                    <select onchange="updateEffect(${index}, ${effIdx}, 'targetSide', this.value)">
+                      <option value="sameAsMain" ${eff.targetSide==='sameAsMain'?'selected':''}>跟随主目标</option>
+                      <option value="enemy" ${eff.targetSide==='enemy'?'selected':''}>敌方</option>
+                      <option value="player" ${eff.targetSide==='player'?'selected':''}>我方</option>
+                      <option value="self" ${eff.targetSide==='self'?'selected':''}>自身</option>
+                    </select>
+                  </div>
+                  <div class="form-item">
+                    <label>选取规则</label>
+                    <select onchange="updateEffect(${index}, ${effIdx}, 'targetRule', this.value)">
+                      <option value="sameAsMain" ${eff.targetRule==='sameAsMain'?'selected':''}>跟随主目标</option>
+                      <option value="lowestHp" ${eff.targetRule==='lowestHp'?'selected':''}>血量最低</option>
+                      <option value="all" ${eff.targetRule==='all'?'selected':''}>全体</option>
+                      <option value="random" ${eff.targetRule==='random'?'selected':''}>随机</option>
+                    </select>
+                  </div>
+                  ${eff.type === 'status' ? `
+                  <div class="form-item">
+                    <label>状态ID</label>
+                    <select onchange="updateEffect(${index}, ${effIdx}, 'value', this.value)">
+                      ${gameStatuses.map(st => `<option value="${st.id}" ${eff.value === st.id ? 'selected':''}>${st.name}</option>`).join('')}
+                    </select>
+                  </div>` : `
+                  <div class="form-item">
+                    <label>数值(倍率)</label>
+                    <input type="number" step="0.1" value="${eff.value || 1}" onchange="updateEffect(${index}, ${effIdx}, 'value', parseFloat(this.value))">
+                  </div>`}
+                  <div class="form-item">
+                    <label>触发概率(%)</label>
+                    <input type="number" step="1" value="${(eff.chance||1)*100}" onchange="updateEffect(${index}, ${effIdx}, 'chance', parseFloat(this.value)/100)">
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+        }
+
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${skill.name}</h3><button class="btn-del" onclick="deleteSkill(${index})">删除</button></div>
@@ -300,7 +371,7 @@
             <div class="form-item"><label>名称</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateSkill(${index}, 'type', this.value)">${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};">
+            <div class="form-item" style="display:${isPassive?'none':'flex'};">
               <label>施法对象</label>
               <select onchange="updateSkill(${index}, 'targetSide', this.value)">
                 <option value="enemy" ${skill.targetSide==='enemy'?'selected':''}>敌方</option>
@@ -308,34 +379,31 @@
                 <option value="self" ${skill.targetSide==='self'?'selected':''}>自身</option>
               </select>
             </div>
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};">
+            <div class="form-item" style="display:${isPassive?'none':'flex'};">
               <label>选取规则</label>
               <select onchange="updateSkill(${index}, 'targetRule', this.value)">${targetRules.map(r => `<option value="${r.val}" ${skill.targetRule === r.val ? 'selected' : ''}>${r.label}</option>`).join('')}</select>
             </div>
 
-            <div class="form-item active-only" style="display:${isPassive||isHealOrShield?'none':'flex'};"><label>伤害倍率</label><input type="number" step="0.1" value="${skill.multiplier || 0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};"><label style="color:#2ecc71;">治疗倍率</label><input type="number" step="0.1" value="${skill.healMultiplier || 0}" onchange="updateSkill(${index}, 'healMultiplier', parseFloat(this.value))"></div>
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};"><label style="color:#3498db;">护盾倍率</label><input type="number" step="0.1" value="${skill.shieldMultiplier || 0}" onchange="updateSkill(${index}, 'shieldMultiplier', parseFloat(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>伤害倍率</label><input type="number" step="0.1" value="${skill.multiplier || 0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>主目标治疗/护盾</label><input type="number" step="0.1" value="${skill.healMultiplier || skill.shieldMultiplier || 0}" onchange="updateSkill(${index}, 'healMultiplier', parseFloat(this.value))"></div>
 
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};"><label>耗蓝</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};"><label>冷却</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>耗蓝</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>冷却</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
             
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};"><label>附加状态</label><select onchange="updateSkill(${index}, 'statusId', this.value)">${getStatusOptions(skill.statusId || '')}</select></div>
-            <div class="form-item active-only" style="display:${isPassive?'none':'flex'};"><label>概率(%)</label><input type="number" step="0.1" value="${(skill.statusChance||0)*100}" onchange="updateSkillPct(${index}, 'statusChance', this.value)"></div>
-            
+            <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; border-top:1px dashed #444; padding-top:10px; margin-top:10px;">
+              <label style="color:#f1c40f; font-size:14px;">多重后续效果 (可叠加无数个)</label>
+              <div id="effects-container-${index}">
+                ${effectsHtml}
+              </div>
+              <button class="btn-add-effect" onclick="addSkillEffect(${index})">➕ 添加后续效果</button>
+            </div>
+
             <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; background:#1e1e2e; border:1px solid #e74c3c; padding:10px; border-radius:4px;">
               <label style="color:#e74c3c;">连携机制</label>
               <div style="display:flex; gap:10px; margin-top:5px;">
                 <input type="text" placeholder="发起" value="${skill.comboTagOut || ''}" onchange="updateSkill(${index}, 'comboTagOut', this.value)" style="flex:1;">
                 <input type="text" placeholder="响应" value="${skill.comboTagIn || ''}" onchange="updateSkill(${index}, 'comboTagIn', this.value)" style="flex:1;">
                 <input type="number" placeholder="次数" value="${skill.maxTriggers || 1}" onchange="updateSkill(${index}, 'maxTriggers', parseInt(this.value))" style="width:60px;">
-              </div>
-            </div>
-            <div class="form-item full" style="display: ${isPassive ? 'block' : 'none'}; background:#1e1e2e; border:1px solid #e67e22; padding:10px; border-radius:4px;">
-              <label style="color:#e67e22;">被动效果</label>
-              <div style="display:flex; gap:10px; margin-top:5px;">
-                <select style="flex:1;" onchange="updateSkill(${index}, 'passiveType', this.value)">${passiveTypes.map(p => `<option value="${p.val}" ${skill.passiveType === p.val ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
-                <input type="number" style="flex:1;" value="${skill.passiveValue || 0}" onchange="updateSkill(${index}, 'passiveValue', parseInt(this.value))">
               </div>
             </div>
           </div>`;
@@ -355,16 +423,8 @@
             <div class="form-item"><label>名称</label><input type="text" value="${st.name}" onchange="updateStatus(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateStatus(${index}, 'type', this.value)">${statusTypes.map(t => `<option value="${t.val}" ${st.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             <div class="form-item"><label>持续回合</label><input type="number" value="${st.duration}" onchange="updateStatus(${index}, 'duration', parseInt(this.value))"></div>
-            
-            <div class="sub-title">属性修改</div>
-            <div class="form-item"><label>修改哪个属性</label><select onchange="updateStatus(${index}, 'statMod', this.value)">${statusMods.map(m => `<option value="${m.val}" ${st.statMod === m.val ? 'selected' : ''}>${m.label}</option>`).join('')}</select></div>
-            <div class="form-item"><label>修改数值 (正数加，负数减)</label><input type="number" value="${st.statValue}" onchange="updateStatus(${index}, 'statValue', parseInt(this.value))"></div>
-
-            <div class="sub-title">特殊效果</div>
-            <div class="form-item"><label>是否持续扣血(DOT)</label><select onchange="updateStatus(${index}, 'isDot', this.value === 'true')"><option value="false" ${!st.isDot ? 'selected' : ''}>否</option><option value="true" ${st.isDot ? 'selected' : ''}>是</option></select></div>
-            <div class="form-item"><label>DOT扣血值</label><input type="number" value="${st.dotValue}" onchange="updateStatus(${index}, 'dotValue', parseInt(this.value))"></div>
-            
-            <div class="form-item full"><label>是否眩晕 (无法行动)</label><select onchange="updateStatus(${index}, 'isStun', this.value === 'true')"><option value="false" ${!st.isStun ? 'selected' : ''}>否</option><option value="true" ${st.isStun ? 'selected' : ''}>是</option></select></div>
+            <div class="form-item"><label>是否眩晕</label><select onchange="updateStatus(${index}, 'isStun', this.value === 'true')"><option value="false" ${!st.isStun ? 'selected' : ''}>否</option><option value="true" ${st.isStun ? 'selected' : ''}>是</option></select></div>
+            <div class="form-item"><label>DOT扣血</label><input type="number" value="${st.dotValue}" onchange="updateStatus(${index}, 'dotValue', parseInt(this.value))"></div>
           </div>`;
         list.appendChild(div);
       });
@@ -373,35 +433,18 @@
     function renderItems() {
       const list = document.getElementById('item-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-item').value.toLowerCase();
-
       gameItems.forEach((item, index) => {
         if (item.category !== subTab.item) return;
         if (keyword && !item.name.toLowerCase().includes(keyword)) return;
-
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
-          <div class="card-header"><h3>${item.icon} ${item.name} 模板</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
+          <div class="card-header"><h3>${item.icon} ${item.name}</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
           <div class="form-grid">
             <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)"></div>
-            <div class="form-item"><label>图标</label><input type="text" value="${item.icon}" onchange="updateItem(${index}, 'icon', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateItem(${index}, 'category', this.value)">${itemCategories.map(c => `<option value="${c.val}" ${item.category === c.val ? 'selected' : ''}>${c.label}</option>`).join('')}</select></div>
-            
-            <div class="sub-title">基础属性范围 (Min - Max)</div>
-            <div class="form-item"><label>攻击力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.atkMin||0}" onchange="updateItem(${index}, 'atkMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.atkMax||0}" onchange="updateItem(${index}, 'atkMax', parseInt(this.value))" placeholder="Max"></div></div>
-            <div class="form-item"><label>防御力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.defMin||0}" onchange="updateItem(${index}, 'defMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.defMax||0}" onchange="updateItem(${index}, 'defMax', parseInt(this.value))" placeholder="Max"></div></div>
-            <div class="form-item"><label>生命值</label><div style="display:flex;gap:2px;"><input type="number" value="${item.hpMin||0}" onchange="updateItem(${index}, 'hpMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.hpMax||0}" onchange="updateItem(${index}, 'hpMax', parseInt(this.value))" placeholder="Max"></div></div>
-
-            <div class="sub-title">自带额外属性 (默认0，填10代表10%)</div>
-            <div class="form-item"><label>攻击力(%)</label><input type="number" step="0.1" value="${(item.atkPercent||0)*100}" onchange="updateItemPct(${index}, 'atkPercent', this.value)"></div>
-            <div class="form-item"><label>防御力(%)</label><input type="number" step="0.1" value="${(item.defPercent||0)*100}" onchange="updateItemPct(${index}, 'defPercent', this.value)"></div>
-            <div class="form-item"><label>生命值(%)</label><input type="number" step="0.1" value="${(item.hpPercent||0)*100}" onchange="updateItemPct(${index}, 'hpPercent', this.value)"></div>
-            <div class="form-item"><label>暴击率(%)</label><input type="number" step="0.1" value="${(item.critRate||0)*100}" onchange="updateItemPct(${index}, 'critRate', this.value)"></div>
-            <div class="form-item"><label>暴击伤害</label><input type="number" step="0.1" value="${item.critDmg||0}" onchange="updateItem(${index}, 'critDmg', parseFloat(this.value))"></div>
-            <div class="form-item"><label>抗暴率(%)</label><input type="number" step="0.1" value="${(item.critResist||0)*100}" onchange="updateItemPct(${index}, 'critResist', this.value)"></div>
-            <div class="form-item"><label>命中率(%)</label><input type="number" step="0.1" value="${(item.hitRate||0)*100}" onchange="updateItemPct(${index}, 'hitRate', this.value)"></div>
-            <div class="form-item"><label>闪避率(%)</label><input type="number" step="0.1" value="${(item.dodgeRate||0)*100}" onchange="updateItemPct(${index}, 'dodgeRate', this.value)"></div>
-            <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(item.lifesteal||0)*100}" onchange="updateItemPct(${index}, 'lifesteal', this.value)"></div>
-            <div class="form-item"><label>速度</label><input type="number" value="${item.speed||0}" onchange="updateItem(${index}, 'speed', parseInt(this.value))"></div>
+            <div class="form-item"><label>攻击范围</label><div style="display:flex;gap:2px;"><input type="number" value="${item.atkMin||0}" onchange="updateItem(${index}, 'atkMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.atkMax||0}" onchange="updateItem(${index}, 'atkMax', parseInt(this.value))" placeholder="Max"></div></div>
+            <div class="form-item"><label>防御范围</label><div style="display:flex;gap:2px;"><input type="number" value="${item.defMin||0}" onchange="updateItem(${index}, 'defMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.defMax||0}" onchange="updateItem(${index}, 'defMax', parseInt(this.value))" placeholder="Max"></div></div>
+            <div class="form-item"><label>生命范围</label><div style="display:flex;gap:2px;"><input type="number" value="${item.hpMin||0}" onchange="updateItem(${index}, 'hpMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.hpMax||0}" onchange="updateItem(${index}, 'hpMax', parseInt(this.value))" placeholder="Max"></div></div>
           </div>`;
         list.appendChild(div);
       });
@@ -428,12 +471,12 @@
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v13', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v13', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v13', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v13', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v13', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v13', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v14', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v14', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v14', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v14', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v14', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v14', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -446,12 +489,32 @@
     function updateChar(index, key, value) { gameChars[index][key] = value; saveData(); }
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
-    function updateSkillPct(index, key, value) { gameSkills[index][key] = parseFloat(value) / 100; saveData(); }
-
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
-    function updateSkill(index, key, value) { gameSkills[index][key] = value; saveData(); if (key === 'name' || key === 'type' || key==='healMultiplier' || key==='shieldMultiplier') render(); }
-    function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); if (key === 'name') renderSkills(); }
-    function updateItem(index, key, value) { gameItems[index][key] = value; saveData(); if (key === 'name' || key === 'category') render(); }
+    
+    function updateSkill(index, key, value) { 
+      gameSkills[index][key] = value; 
+      saveData(); 
+      if (['name', 'type', 'healMultiplier', 'multiplier'].includes(key)) render(); 
+    }
+
+    // ★ 效果列表的增删改
+    function addSkillEffect(skillIdx) {
+      if (!gameSkills[skillIdx].effects) gameSkills[skillIdx].effects = [];
+      gameSkills[skillIdx].effects.push({ type: 'status', value: gameStatuses[0]?.id || '', chance: 1.0, targetSide: 'sameAsMain', targetRule: 'sameAsMain' });
+      saveData(); render();
+    }
+    function removeSkillEffect(skillIdx, effIdx) {
+      gameSkills[skillIdx].effects.splice(effIdx, 1);
+      saveData(); render();
+    }
+    function updateEffect(skillIdx, effIdx, key, value) {
+      gameSkills[skillIdx].effects[effIdx][key] = value;
+      saveData();
+      if (key === 'type') render(); // 类型变了重绘UI
+    }
+
+    function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); }
+    function updateItem(index, key, value) { gameItems[index][key] = value; saveData(); }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
     function updateLevelEnemy(lvIndex, slotIndex, enemyId) {
       if (!gameLevels[lvIndex].enemyIds) gameLevels[lvIndex].enemyIds = ['', '', ''];
@@ -463,15 +526,13 @@
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     function addSkill() { 
       let type = subTab.skill === 'followup' ? 'followup' : subTab.skill === 'passive' ? 'passive' : 'skill';
-      gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, shieldMultiplier:0, mpCost:10, cooldown:0, statusId:'', statusChance:0, comboTagOut:'', comboTagIn:'', maxTriggers:1 }); saveData(); render(); 
+      gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, mpCost:10, cooldown:0, comboTagOut:'', comboTagIn:'', maxTriggers:1, effects:[] }); 
+      saveData(); render(); 
     }
     function deleteSkill(index) { if (confirm('确定删除？')) { gameSkills.splice(index, 1); saveData(); render(); } }
     function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0, isStun:false }); saveData(); render(); }
     function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); render(); } }
-    
-    function addItem() { 
-      gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:subTab.item, icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 }); saveData(); render(); 
-    }
+    function addItem() { gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:subTab.item, icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 }); saveData(); render(); }
     function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); render(); } }
     function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyIds:['','',''], rewardItemId:'' }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
@@ -481,11 +542,7 @@
       const itemId = prompt("输入要发放的物品模板ID (如: item_sword)");
       if (itemId && gameItems.find(e => e.id === itemId)) {
         const inst = generateRandomInstance(itemId);
-        if(inst) {
-          inventory.push(inst);
-          saveData();
-          alert(`发放成功！随机到了 [${inst.quality}] 品质。`);
-        }
+        if(inst) { inventory.push(inst); saveData(); alert('发放成功！'); }
       } else { alert('ID不存在'); }
     }
 
