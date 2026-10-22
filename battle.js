@@ -13,7 +13,6 @@ if (localStorage.getItem('my_game_equips_sync')) { try { const d = JSON.parse(lo
 if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length=0; LEVELS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_owned_equips')) { try { const d = JSON.parse(localStorage.getItem('my_game_owned_equips')); if (Array.isArray(d)) { OWNED_EQUIPS.length=0; OWNED_EQUIPS.push(...d); } } catch(e){} }
 
-
 // ==========================================
 // 纯逻辑层：战斗单位与伤害计算
 // ==========================================
@@ -23,7 +22,6 @@ class Unit {
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     if (!this.equipment) this.equipment = { weapon: '', armor: '' };
 
-    // 1. 应用装备加成
     Object.values(this.equipment).forEach(eqId => {
       if (eqId && EQUIPS[eqId]) {
         const eq = EQUIPS[eqId];
@@ -34,8 +32,6 @@ class Unit {
     });
 
     this.baseAtk = this.atk || 10; this.baseDef = this.def || 10; this.baseSpeed = this.speed || 10;
-    
-    // 2. 应用被动加成
     Object.values(this.skillSlots).forEach(skId => {
       if (!skId || !SKILLS[skId]) return;
       const sk = SKILLS[skId];
@@ -48,8 +44,7 @@ class Unit {
     });
 
     this.hp = this.maxHp; this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
-    this.cooldowns = {}; this.statuses = []; 
-    this.followupCounts = {}; 
+    this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; 
   }
   isAlive() { return this.hp > 0; }
   gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
@@ -136,13 +131,17 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v2.3.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v2.5.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
-    const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 打开编辑器', { fontSize: '20px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 15, y: 8 } }).setOrigin(1, 0).setInteractive();
+    const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
 
-    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 70, '🔄 强刷更新', { fontSize: '16px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 65, '🔄 强刷', { fontSize: '18px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
+
+    // 打开独立的队伍管理场景
+    const teamBtn = this.add.text(CONFIG.WIDTH - 20, 110, '👥 队伍与装备', { fontSize: '18px', color: '#ffffff', backgroundColor: '#9b59b6', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    teamBtn.on('pointerdown', () => { this.scene.start('TeamScene', { levelIndex: this.currentLevelIndex }); });
 
     this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
@@ -220,26 +219,20 @@ class FormationScene extends Phaser.Scene {
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
   
-  init(data) {
-    this.currentLevelIndex = data.levelIndex || 0;
-  }
+  init(data) { this.currentLevelIndex = data.levelIndex || 0; }
 
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     
     const levelData = LEVELS[this.currentLevelIndex] || { enemyIds: [] };
     const activeFighters = [];
-    
-    // 加载我方
     CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push(c));
     
-    // 根据关卡加载敌人
     let enemyCount = 0;
     (levelData.enemyIds || []).forEach(eId => {
       if (!eId) return;
       const originalEnemy = CHARACTERS.find(c => c.id === eId);
       if (originalEnemy) {
-        // 复制一份敌人数据，防止互相干扰，并分配站位
         const enemyInstance = JSON.parse(JSON.stringify(originalEnemy));
         enemyInstance.gridX = enemyCount % CONFIG.GRID_SIZE;
         enemyInstance.gridY = Math.floor(enemyCount / CONFIG.GRID_SIZE);
@@ -281,7 +274,6 @@ class BattleScene extends Phaser.Scene {
     const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
     const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
-
     container.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, statusText]);
     this.unitViews.set(unit, { container, circle, emoji, hpBar, mpBar, statusText });
     this.updateUnitView(unit);
@@ -441,22 +433,16 @@ class BattleScene extends Phaser.Scene {
     let btnText = '🔄 重新挑战';
     let btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex }); };
 
-    // ★ 胜利掉落逻辑
     if (type === 'victory') {
       const level = LEVELS[this.currentLevelIndex];
       if (level && level.rewardEquipId && EQUIPS[level.rewardEquipId]) {
         const eq = EQUIPS[level.rewardEquipId];
-        
-        // 存进背包（去重）
         if (!OWNED_EQUIPS.includes(eq.id)) {
           OWNED_EQUIPS.push(eq.id);
           localStorage.setItem('my_game_owned_equips', JSON.stringify(OWNED_EQUIPS));
         }
-
         this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 80, `获得掉落：${eq.name} (攻+${eq.atk||0} 防+${eq.def||0} 血+${eq.hp||0})`, { fontSize: '24px', color: '#f1c40f' }).setOrigin(0.5);
       }
-
-      // 下一关按钮
       if (this.currentLevelIndex < LEVELS.length - 1) {
         btnText = '➡️ 进入下一关';
         btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); };
@@ -475,8 +461,9 @@ window.addEventListener('storage', (e) => {
   }
 });
 
+// 将独立的 TeamScene 也注册进去
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-  scene: [FormationScene, BattleScene],
+  scene: [FormationScene, BattleScene, TeamScene],
 });
