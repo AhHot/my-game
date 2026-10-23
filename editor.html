@@ -54,7 +54,6 @@
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
 
-    /* 表格样式 */
     table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
     th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #222; }
     input[type="color"] { padding: 0; height: 30px; cursor: pointer; }
@@ -62,7 +61,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v12.3 完整版)</h1>
+  <h1>⚙️ 配置中心 (v12.4 安全版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -122,7 +121,7 @@
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addLevel()">➕ 新增关卡</button>
   </div>
 
-  <!-- 全局设置 (新增) -->
+  <!-- 全局设置 -->
   <div id="global-section" style="display:none;">
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 战斗基础参数</h3>
@@ -163,7 +162,7 @@
   </div>
 
   <div class="bottom-bar">
-    <a href="index.html?t=9999" class="btn btn-play" onclick="window.location.href='index.html?t='+Date.now(); return false;">🚀 保存并返回游戏</a>
+    <a href="index.html" class="btn btn-play" onclick="window.location.href='index.html?t='+Date.now(); return false;">🚀 保存并返回游戏</a>
     <button class="btn btn-reset" onclick="resetData()">⚠️ 重置数据</button>
   </div>
 
@@ -199,12 +198,9 @@
       { id: 'lv_1', name: '第 1 关', enemyList: [] } 
     ];
 
-    // ============================================================
-    // 新增：全局配置默认值
-    // ============================================================
     const DEFAULT_GLOBAL_CONFIG = {
       config: {
-        MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
+        WIDTH: 1280, HEIGHT: 720, MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
         START_MP_RATIO: 0.3, MP_REGEN_PER_ROUND: 0.1, DEF_CONSTANT: 1000,
         MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0, HIT_RATE_MIN: 0.2, HIT_RATE_MAX: 1.0
       },
@@ -244,7 +240,6 @@
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
-    // 初始化全局配置
     let globalData;
     try {
       globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
@@ -254,9 +249,8 @@
     if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
     if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
     if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
-    let editingElementIds = new Set(); // 记录新增且未保存的元素ID（允许修改）
+    let editingElementIds = new Set();
 
-    // 兼容旧数据
     gameLevels.forEach(lv => {
       if (!lv.enemyList) {
         lv.enemyList = [];
@@ -265,12 +259,7 @@
             let cell = lv.enemyGrid[i];
             if (cell && (cell.isMain || typeof cell === 'string')) {
                const id = typeof cell === 'string' ? cell : cell.id;
-               lv.enemyList.push({
-                 uid: 'u_' + Date.now() + i,
-                 id: id,
-                 x: i % 4,
-                 y: Math.floor(i / 4)
-               });
+               lv.enemyList.push({ uid: 'u_' + Date.now() + i, id: id, x: i % 4, y: Math.floor(i / 4) });
             }
           }
         }
@@ -319,7 +308,6 @@
       return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
     }
 
-    const elements = ['fire', 'water', 'wind', 'light', 'dark'];
     const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
     const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '随机目标' }, { val: 'all', label: '群体(全体)' }];
     const passiveTypes = [{ val: 'atkAdd', label: '攻击力(%)' }, { val: 'hpAdd', label: '生命值(%)' }, { val: 'defAdd', label: '防御力(%)' }, { val: 'speedAdd', label: '速度(%)' }];
@@ -331,9 +319,7 @@
       currentTab = tab;
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab').forEach(t => { 
-        if (t.innerText.includes({
-          char:'角色', skill:'技能', status:'状态', item:'物品', level:'关卡', global:'设置'
-        }[tab])) t.classList.add('active'); 
+        if (t.innerText.includes({ char:'角色', skill:'技能', status:'状态', item:'物品', level:'关卡', global:'设置' }[tab])) t.classList.add('active'); 
       });
       ['char','skill','status','item','level','global'].forEach(k => { 
         const el = document.getElementById(k+'-section');
@@ -358,7 +344,7 @@
       if (currentTab === 'status') renderStatuses();
       if (currentTab === 'item') renderItems();
       if (currentTab === 'level') renderLevels();
-      if (currentTab === 'global') renderGlobal(); // 新增
+      if (currentTab === 'global') renderGlobal();
     }
 
     function getSkillOptions(selectedId) {
@@ -367,7 +353,6 @@
       return html;
     }
 
-    // ====== 1. 角色渲染 ======
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-char').value.toLowerCase();
@@ -413,7 +398,6 @@
       });
     }
 
-    // ====== 2. 技能渲染 ======
     function renderSkills() {
       const list = document.getElementById('skill-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-skill').value.toLowerCase();
@@ -552,7 +536,6 @@
       });
     }
 
-    // ====== 3. 状态渲染 ======
     function renderStatuses() {
       const list = document.getElementById('status-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-status').value.toLowerCase();
@@ -587,7 +570,6 @@
       });
     }
 
-    // ====== 4. 物品渲染 ======
     function renderItems() {
       const list = document.getElementById('item-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-item').value.toLowerCase();
@@ -622,7 +604,6 @@
       });
     }
 
-    // ====== 5. 关卡渲染（拖拽版） ======
     const genUid = () => 'u_' + Date.now() + Math.floor(Math.random()*1000);
 
     function renderLevels() {
@@ -714,11 +695,7 @@
       for (let y = 0; y < 4; y++) {
         for (let x = 0; x < 4; x++) {
           if (canPlaceAt(lv, x, y, charData.sizeX, charData.sizeY)) {
-            lv.enemyList.push({
-              uid: genUid(),
-              id: enemyId,
-              x: x, y: y
-            });
+            lv.enemyList.push({ uid: genUid(), id: enemyId, x: x, y: y });
             saveData();
             renderBoardUnits(lvIdx);
             return; 
@@ -738,16 +715,13 @@
       
       for (let item of lv.enemyList) {
         if (item.uid === ignoreUid) continue; 
-        
         const c = gameChars.find(ch => ch.id === item.id);
         if (!c) continue;
-        
         const noOverlap = 
           startX >= item.x + c.sizeX || 
           startX + sizeX <= item.x || 
           startY >= item.y + c.sizeY || 
           startY + sizeY <= item.y;
-          
         if (!noOverlap) return false;
       }
       return true;
@@ -765,7 +739,6 @@
       el.addEventListener('pointerdown', (e) => {
         if (e.target.classList.contains('block-del')) return; 
         e.preventDefault();
-        
         startX = e.clientX;
         startY = e.clientY;
         isDragging = true;
@@ -775,17 +748,13 @@
 
       el.addEventListener('pointermove', (e) => {
         if (!isDragging) return;
-        
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        
         const board = el.parentElement;
         const cellSize = board.clientWidth / 4;
-        
         const lv = gameLevels[lvIdx];
         const currentLeft = el.offsetLeft + dx;
         const currentTop = el.offsetTop + dy;
-        
         const targetCol = Math.round(currentLeft / cellSize);
         const targetRow = Math.round(currentTop / cellSize);
 
@@ -796,7 +765,6 @@
         }
 
         el.style.transform = `translate(${dx}px, ${dy}px)`;
-        
         el._targetCol = targetCol;
         el._targetRow = targetRow;
       });
@@ -807,29 +775,27 @@
         el.releasePointerCapture(e.pointerId);
         el.style.zIndex = 10;
         el.style.transform = ''; 
-        
         const lv = gameLevels[lvIdx];
-        
         if (canPlaceAt(lv, el._targetCol, el._targetRow, charData.sizeX, charData.sizeY, uid)) {
            const item = lv.enemyList.find(i => i.uid === uid);
            item.x = el._targetCol;
            item.y = el._targetRow;
            saveData();
         } 
-        
         renderBoardUnits(lvIdx);
       });
     }
 
     // ============================================================
-    // 6. 全局设置渲染 (新增)
+    // 6. 全局设置渲染 (增加安全拦截)
     // ============================================================
     function renderGlobal() {
       const fieldsBox = document.getElementById('global-config-fields');
       if (!fieldsBox) return;
       
-      // 1. 渲染数值参数
       const fieldSchema = [
+        { key: 'WIDTH', label: '游戏宽(px)', step: 10, min: 400 },
+        { key: 'HEIGHT', label: '游戏高(px)', step: 10, min: 400 },
         { key: 'MAX_ROUNDS', label: '回合上限', step: 1, min: 1 },
         { key: 'ACTION_DELAY', label: '行动间隔(ms)', step: 50, min: 0 },
         { key: 'GRID_SIZE', label: '网格边长', step: 1, min: 1 },
@@ -848,12 +814,11 @@
         return `
           <div class="form-item">
             <label>${f.label}</label>
-            <input type="number" step="${f.step}" value="${val}" onchange="globalData.config['${f.key}'] = parseFloat(this.value)">
+            <input type="number" step="${f.step}" value="${val}" onchange="globalData.config['${f.key}'] = isNaN(parseFloat(this.value)) ? DEFAULT_GLOBAL_CONFIG.config['${f.key}'] : parseFloat(this.value)">
           </div>
         `;
       }).join('');
 
-      // 2. 渲染元素表格
       const elBody = document.getElementById('global-elements-body');
       elBody.innerHTML = globalData.elements.map((el, idx) => {
         const isEditing = editingElementIds.has(el.id);
@@ -880,7 +845,6 @@
         `;
       }).join('');
 
-      // 3. 渲染矩阵表格
       const matrixTable = document.getElementById('global-matrix-table');
       let mHtml = '<thead><tr><th style="padding:8px; background:#0f3460;">攻↓ 守→</th>';
       globalData.elements.forEach(def => {
@@ -971,6 +935,11 @@
     }
 
     function saveGlobalConfig() {
+      // 清理可能在输入框里产生的 NaN
+      Object.keys(globalData.config).forEach(k => {
+        if (isNaN(globalData.config[k])) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
+      });
+      
       localStorage.setItem('my_game_config', JSON.stringify(globalData));
       editingElementIds.clear();
       renderGlobal();
