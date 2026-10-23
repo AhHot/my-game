@@ -70,11 +70,12 @@ class Unit {
     this.hp = this.maxHp; this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
     this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; 
     this.shield = 0; 
-    this.skipTurn = false; // ★ 新增：跳过回合标记
+    this.skipTurn = false; 
   }
   isAlive() { return this.hp > 0; }
   gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
   
+  // 返回实际扣除的血量，方便飘字计算
   takeDamage(dmg) { 
     if (this.shield > 0) {
       if (dmg <= this.shield) { this.shield -= dmg; return 0; } 
@@ -91,15 +92,14 @@ class Unit {
     this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
     this.statuses.forEach(st => {
       const config = STATUSES[st.id]; if (!config) return;
-      if (config.statMod === 'atk') this.atk += config.statValue;
-      if (config.statMod === 'def') this.def += config.statValue;
-      if (config.statMod === 'speed') this.speed += config.statValue;
+      if (config.statMod === 'atk') this.atk += this.baseAtk * config.statValue; // 百分比计算
+      if (config.statMod === 'def') this.def += this.baseDef * config.statValue;
+      if (config.statMod === 'speed') this.speed += this.baseSpeed * config.statValue;
     });
-    this.atk = Math.max(1, this.atk); this.def = Math.max(0, this.def); this.speed = Math.max(1, this.speed);
+    this.atk = Math.max(1, Math.floor(this.atk)); this.def = Math.max(0, Math.floor(this.def)); this.speed = Math.max(1, Math.floor(this.speed));
   }
   
   tickStatuses() {
-    // 结算 DOT 和 持续回合
     for (let i = this.statuses.length - 1; i >= 0; i--) {
       const st = this.statuses[i]; const config = STATUSES[st.id];
       if (config && config.isDot && config.dotValue > 0) this.takeDamage(config.dotValue); 
@@ -111,7 +111,6 @@ class Unit {
   addStatus(statusId) {
     if (!statusId || !STATUSES[statusId]) return;
     
-    // 如果是眩晕，标记跳过回合，并且不叠加持续时间，直接覆盖
     if (STATUSES[statusId].isStun) {
       this.skipTurn = true;
       const existing = this.statuses.find(s => s.id === statusId);
@@ -134,7 +133,6 @@ const BattleLogic = {
     return 1.0;
   },
   
-  // 支持 "all" 全体目标
   selectTargets(actor, skill, allUnits) {
     let candidates = [];
     if (skill.targetSide === 'self') return [actor];
@@ -153,11 +151,11 @@ const BattleLogic = {
   },
   
   computeDamage(actor, target, skill) {
-    if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, heal: 0, shield: 0 };
+    if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, heal: 0, shield: 0, lifestealAmount: 0 };
 
     let hitRate = 1.0 + (actor.hitRate || 0) - (target.dodgeRate || 0);
     hitRate = Math.max(0.2, Math.min(1.0, hitRate)); 
-    if (Math.random() > hitRate) return { damage: 0, isCrit: false, isMiss: true, heal: 0, shield: 0 };
+    if (Math.random() > hitRate) return { damage: 0, isCrit: false, isMiss: true, heal: 0, shield: 0, lifestealAmount: 0 };
 
     let base = actor.atk * skill.multiplier;
     const baseForMin = base; 
@@ -179,10 +177,12 @@ const BattleLogic = {
     finalDmg *= elemMult;
     finalDmg += (actor.trueDmg || 0);
 
-    return { damage: Math.round(finalDmg), isCrit, isMiss: false, heal: 0, shield: 0 };
+    const damageVal = Math.round(finalDmg);
+    const lifestealAmount = Math.round(damageVal * (actor.lifesteal || 0)); // 吸血计算
+
+    return { damage: damageVal, isCrit, isMiss: false, heal: 0, shield: 0, lifestealAmount };
   },
   
-  // ★ 核心 AI 升级：不会无脑满血加血
   chooseSkill(actor, allUnits) {
     const slots = actor.skillSlots || {};
     const availableSkills = Object.values(slots).filter(id => id && SKILLS[id] && SKILLS[id].type !== 'passive' && SKILLS[id].type !== 'followup').map(id => SKILLS[id]);
@@ -191,7 +191,6 @@ const BattleLogic = {
       const cd = actor.cooldowns[sk.id] || 0; 
       if (actor.mp < (sk.cost?.mp || 0) || cd > 0) return false;
       
-      // AI 智慧判断：如果是纯治疗技能，且队友（包括自己）满血，则不用
       if (sk.healMultiplier > 0 && sk.multiplier === 0) {
         const allies = allUnits.filter(u => u.side === actor.side && u.isAlive());
         const needsHeal = allies.some(u => u.hp < u.maxHp);
@@ -204,7 +203,6 @@ const BattleLogic = {
     usable.sort((a, b) => (typeWeight[b.type] || 0) - (typeWeight[a.type] || 0));
     if (usable.length > 0) return usable[0];
     
-    // 兜底普攻
     const fallbackSkill = Object.values(SKILLS).find(s => s.type === 'normal');
     if (fallbackSkill) return fallbackSkill;
     return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, cost: {mp: 0}, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier:0, shieldMultiplier:0, effects: [] };
@@ -265,7 +263,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v8.1.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v8.2.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -471,7 +469,6 @@ class BattleScene extends Phaser.Scene {
   }
   
   executeAction(actor) {
-    // ★ 眩晕拦截
     if (actor.skipTurn) {
       actor.skipTurn = false;
       const stIndex = actor.statuses.findIndex(st => STATUSES[st.id] && STATUSES[st.id].isStun);
@@ -517,17 +514,17 @@ class BattleScene extends Phaser.Scene {
             this.showFloatText(t, 'MISS', '#aaaaaa');
           } else {
             t.takeDamage(result.damage);
-            if (result.healAmount > 0) totalHeal += result.healAmount; 
+            if (result.lifestealAmount > 0) totalHeal += result.lifestealAmount; // 累加吸血
             this.showDamageNumber(t, result);
           }
         }
         this.updateUnitView(t);
       });
 
-      // 2. 结算附加的多重效果
+      // 2. 结算附加的多重效果（如果主目标是MISS了，这里依然走概率判定，看你的需求，目前是只要命中/释放就判定）
       if (skill.effects && skill.effects.length > 0) {
         skill.effects.forEach(eff => {
-          if (Math.random() > eff.chance) return; // 概率未命中
+          if (Math.random() > eff.chance) return;
 
           let effTargets = [];
           if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') {
@@ -596,6 +593,7 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
+  // ★ 修复：追打也处理吸血和多重效果（如果追打配了治疗）
   triggerFollowupAction(actor, skill, tag) {
     const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
     if (targets.length === 0) return;
@@ -614,11 +612,33 @@ class BattleScene extends Phaser.Scene {
         const result = BattleLogic.computeDamage(actor, t, skill);
         if(!result.isMiss) { 
           t.takeDamage(result.damage); 
-          if(result.healAmount > 0) totalHeal += result.healAmount;
+          if(result.lifestealAmount > 0) totalHeal += result.lifestealAmount;
           this.showDamageNumber(t, result); 
           this.updateUnitView(t); 
         }
       });
+
+      // 追打附带的效果
+      if (skill.effects && skill.effects.length > 0) {
+        skill.effects.forEach(eff => {
+          if (Math.random() > eff.chance) return;
+          let effTargets = [];
+          if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') effTargets = targets;
+          else {
+            let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u.side !== actor.side && u.isAlive()) : (eff.targetSide === 'player' ? this.allUnits.filter(u => u.side === actor.side && u.isAlive()) : [actor]);
+            if (eff.targetRule === 'all') effTargets = pool;
+            else if (eff.targetRule === 'lowestHp') { const minHp = Math.min(...pool.map(u => u.hp)); effTargets = pool.filter(u => u.hp === minHp); }
+            else effTargets = [pool[0]];
+          }
+          effTargets.forEach(t => {
+            if (!t || !t.isAlive()) return;
+            if (eff.type === 'heal') { const val = Math.round(actor.atk * eff.value); t.heal(val); this.showFloatText(t, `+${val}`, '#2ecc71'); }
+            else if (eff.type === 'shield') { const val = Math.round(actor.atk * eff.value); t.addShield(val); this.showFloatText(t, `盾+${val}`, '#3498db'); }
+            else if (eff.type === 'status') { t.addStatus(eff.value); this.showFloatText(t, `+状态`, '#00ffff'); }
+            this.updateUnitView(t);
+          });
+        });
+      }
 
       if (totalHeal > 0) {
         actor.heal(totalHeal);
@@ -728,7 +748,7 @@ class BattleScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v14') {
+  if (e.key === 'my_game_data_v15') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
