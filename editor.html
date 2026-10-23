@@ -19,7 +19,7 @@
     .card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .card-header h3 { color: #3498db; }
-    .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; }
+    .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer;}
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 2; }
@@ -39,8 +39,8 @@
     .enemy-pool-item:active { background: #3498db; }
     .enemy-pool-item.error { background: #e74c3c; color: white; }
     
-    .grid-container { flex: 1; display: flex; justify-content: center; }
-    .board-wrapper { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; overflow: hidden; }
+    .grid-container { flex: 1; display: flex; justify-content: center; flex-direction: column;}
+    .board-wrapper { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; overflow: hidden; margin: 0 auto;}
     .bg-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
     .bg-cell { border: 1px solid #222; }
     
@@ -50,9 +50,14 @@
     .unit-block .block-del { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; z-index: 11; border: 2px solid #fff; }
     
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
-    .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
+    .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none; cursor:pointer;}
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
+
+    /* 表格样式 */
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #222; }
+    input[type="color"] { padding: 0; height: 30px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -65,6 +70,7 @@
     <div class="tab" onclick="switchTab('status')">🌊 状态</div>
     <div class="tab" onclick="switchTab('item')">🎒 物品</div>
     <div class="tab" onclick="switchTab('level')">🗺️ 关卡</div>
+    <div class="tab" onclick="switchTab('global')">⚙️ 全局设置</div>
   </div>
 
   <!-- 角色 -->
@@ -116,6 +122,46 @@
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addLevel()">➕ 新增关卡</button>
   </div>
 
+  <!-- 全局设置 (新增) -->
+  <div id="global-section" style="display:none;">
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 战斗基础参数</h3>
+      <div id="global-config-fields" class="form-grid"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">🎨 元素管理</h3>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID (新增后可改)</th>
+              <th>显示名</th>
+              <th>图标</th>
+              <th>颜色</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="global-elements-body"></tbody>
+        </table>
+      </div>
+      <button class="btn" style="background:#3498db; width:100%;" onclick="addElement()">➕ 新增元素</button>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 元素克制矩阵</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">行=攻击方，列=防守方。空白代表无克制(倍率1.0)。对角格固定。</p>
+      <div style="overflow-x:auto;">
+        <table id="global-matrix-table" style="text-align:center;"></table>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:20px;">
+      <button class="btn btn-play" onclick="saveGlobalConfig()">💾 保存全局设置</button>
+      <button class="btn btn-reset" onclick="resetGlobalConfig()">⚠️ 恢复默认</button>
+    </div>
+  </div>
+
   <div class="bottom-bar">
     <a href="index.html?t=9999" class="btn btn-play" onclick="window.location.href='index.html?t='+Date.now(); return false;">🚀 保存并返回游戏</a>
     <button class="btn btn-reset" onclick="resetData()">⚠️ 重置数据</button>
@@ -153,6 +199,31 @@
       { id: 'lv_1', name: '第 1 关', enemyList: [] } 
     ];
 
+    // ============================================================
+    // 新增：全局配置默认值
+    // ============================================================
+    const DEFAULT_GLOBAL_CONFIG = {
+      config: {
+        MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
+        START_MP_RATIO: 0.3, MP_REGEN_PER_ROUND: 0.1, DEF_CONSTANT: 1000,
+        MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0, HIT_RATE_MIN: 0.2, HIT_RATE_MAX: 1.0
+      },
+      elements: [
+        { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
+        { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
+        { id: 'wind', name: '风', icon: '🌪️', color: '#4caf50' },
+        { id: 'light', name: '光', icon: '✨', color: '#ffc107' },
+        { id: 'dark', name: '暗', icon: '🌑', color: '#9c27b0' }
+      ],
+      elementMatrix: {
+        fire: { wind: 1.5, water: 0.7 },
+        water: { fire: 1.5, wind: 0.7 },
+        wind: { water: 1.5, fire: 0.7 },
+        light: { dark: 1.5 },
+        dark: { light: 1.5 }
+      }
+    };
+
     let currentTab = 'char';
     let subTab = { char: 'player', skill: 'active', item: 'weapon' };
 
@@ -172,6 +243,18 @@
     if (!Array.isArray(gameItems)) gameItems = DEFAULT_ITEMS;
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
+
+    // 初始化全局配置
+    let globalData;
+    try {
+      globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
+    } catch(e) {
+      globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
+    }
+    if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
+    if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
+    if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
+    let editingElementIds = new Set(); // 记录新增且未保存的元素ID（允许修改）
 
     // 兼容旧数据
     gameLevels.forEach(lv => {
@@ -247,8 +330,15 @@
     function switchTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab').forEach(t => { if (t.innerText.includes({char:'角色', skill:'技能', status:'状态', item:'物品', level:'关卡'}[tab])) t.classList.add('active'); });
-      ['char','skill','status','item','level'].forEach(k => document.getElementById(k+'-section').style.display = tab === k ? 'block' : 'none');
+      document.querySelectorAll('.tab').forEach(t => { 
+        if (t.innerText.includes({
+          char:'角色', skill:'技能', status:'状态', item:'物品', level:'关卡', global:'设置'
+        }[tab])) t.classList.add('active'); 
+      });
+      ['char','skill','status','item','level','global'].forEach(k => { 
+        const el = document.getElementById(k+'-section');
+        if (el) el.style.display = tab === k ? 'block' : 'none'; 
+      });
       render();
     }
 
@@ -268,6 +358,7 @@
       if (currentTab === 'status') renderStatuses();
       if (currentTab === 'item') renderItems();
       if (currentTab === 'level') renderLevels();
+      if (currentTab === 'global') renderGlobal(); // 新增
     }
 
     function getSkillOptions(selectedId) {
@@ -728,6 +819,171 @@
         
         renderBoardUnits(lvIdx);
       });
+    }
+
+    // ============================================================
+    // 6. 全局设置渲染 (新增)
+    // ============================================================
+    function renderGlobal() {
+      const fieldsBox = document.getElementById('global-config-fields');
+      if (!fieldsBox) return;
+      
+      // 1. 渲染数值参数
+      const fieldSchema = [
+        { key: 'MAX_ROUNDS', label: '回合上限', step: 1, min: 1 },
+        { key: 'ACTION_DELAY', label: '行动间隔(ms)', step: 50, min: 0 },
+        { key: 'GRID_SIZE', label: '网格边长', step: 1, min: 1 },
+        { key: 'CELL_SIZE', label: '格子像素', step: 5, min: 20 },
+        { key: 'START_MP_RATIO', label: '开局MP比例', step: 0.05, min: 0, max: 1 },
+        { key: 'MP_REGEN_PER_ROUND', label: '每回合回复MP比例', step: 0.05, min: 0, max: 1 },
+        { key: 'DEF_CONSTANT', label: '防御常数', step: 50, min: 1 },
+        { key: 'MIN_DAMAGE_RATIO', label: '最低伤害比例', step: 0.01, min: 0, max: 1 },
+        { key: 'CRIT_RATE_CAP', label: '暴击率上限', step: 0.1, min: 0, max: 1 },
+        { key: 'HIT_RATE_MIN', label: '命中率下限', step: 0.1, min: 0, max: 1 },
+        { key: 'HIT_RATE_MAX', label: '命中率上限', step: 0.1, min: 0, max: 1 }
+      ];
+      
+      fieldsBox.innerHTML = fieldSchema.map(f => {
+        const val = globalData.config[f.key] !== undefined ? globalData.config[f.key] : DEFAULT_GLOBAL_CONFIG.config[f.key];
+        return `
+          <div class="form-item">
+            <label>${f.label}</label>
+            <input type="number" step="${f.step}" value="${val}" onchange="globalData.config['${f.key}'] = parseFloat(this.value)">
+          </div>
+        `;
+      }).join('');
+
+      // 2. 渲染元素表格
+      const elBody = document.getElementById('global-elements-body');
+      elBody.innerHTML = globalData.elements.map((el, idx) => {
+        const isEditing = editingElementIds.has(el.id);
+        return `
+          <tr>
+            <td style="padding:4px;">
+              <input type="text" value="${el.id}" 
+                ${isEditing ? '' : 'readonly style="background:#333; color:#888; border-color:#222;"'} 
+                onblur="tryRenameElement(${idx}, this.value)">
+            </td>
+            <td style="padding:4px;">
+              <input type="text" value="${el.name || ''}" onchange="globalData.elements[${idx}].name = this.value">
+            </td>
+            <td style="padding:4px;">
+              <input type="text" value="${el.icon || ''}" maxlength="4" onchange="globalData.elements[${idx}].icon = this.value" style="width:50px;">
+            </td>
+            <td style="padding:4px;">
+              <input type="color" value="${el.color || '#888888'}" onchange="globalData.elements[${idx}].color = this.value">
+            </td>
+            <td style="padding:4px;">
+              <button class="btn-del" onclick="deleteElement(${idx})">删除</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // 3. 渲染矩阵表格
+      const matrixTable = document.getElementById('global-matrix-table');
+      let mHtml = '<thead><tr><th style="padding:8px; background:#0f3460;">攻↓ 守→</th>';
+      globalData.elements.forEach(def => {
+        mHtml += `<th style="padding:8px; background:#0f3460;">${def.icon || ''} ${def.name || def.id}</th>`;
+      });
+      mHtml += '</tr></thead><tbody>';
+      
+      globalData.elements.forEach(atk => {
+        mHtml += `<tr><th style="padding:8px; background:#0f3460; text-align:left;">${atk.icon || ''} ${atk.name || atk.id}</th>`;
+        globalData.elements.forEach(def => {
+          if (atk.id === def.id) {
+            mHtml += `<td style="padding:4px; background:#222; color:#555;">—</td>`;
+          } else {
+            const row = globalData.elementMatrix[atk.id] || {};
+            const v = row[def.id];
+            const valStr = typeof v === 'number' ? v : '';
+            mHtml += `<td style="padding:4px;">
+              <input type="number" step="0.1" min="0" value="${valStr}" placeholder="1.0" 
+                style="width:60px; text-align:center;"
+                onchange="updateMatrix('${atk.id}', '${def.id}', this.value)">
+            </td>`;
+          }
+        });
+        mHtml += `</tr>`;
+      });
+      mHtml += '</tbody>';
+      matrixTable.innerHTML = mHtml;
+    }
+
+    function tryRenameElement(idx, newId) {
+      const el = globalData.elements[idx];
+      if (el.id === newId) return;
+      if (!newId) { alert('ID不能为空'); renderGlobal(); return; }
+      if (!/^[A-Za-z0-9_]+$/.test(newId)) { alert('ID只能包含字母、数字、下划线'); renderGlobal(); return; }
+      if (globalData.elements.some((e, i) => i !== idx && e.id === newId)) { alert('ID已存在'); renderGlobal(); return; }
+      
+      const oldId = el.id;
+      el.id = newId;
+      
+      if (globalData.elementMatrix[oldId]) {
+        globalData.elementMatrix[newId] = globalData.elementMatrix[oldId];
+        delete globalData.elementMatrix[oldId];
+      }
+      Object.values(globalData.elementMatrix).forEach(row => {
+        if (row[oldId] !== undefined) {
+          row[newId] = row[oldId];
+          delete row[oldId];
+        }
+      });
+      
+      editingElementIds.delete(oldId);
+      editingElementIds.add(newId);
+      renderGlobal();
+    }
+
+    function addElement() {
+      const id = prompt('元素 ID（字母/数字/下划线，保存后不可改）：');
+      if (!id) return;
+      const nid = id.trim();
+      if (!/^[A-Za-z0-9_]+$/.test(nid)) { alert('ID 只能包含字母、数字、下划线'); return; }
+      if (globalData.elements.some(e => e.id === nid)) { alert('ID 已存在'); return; }
+      const name = prompt('显示名（可随时再改）：', nid) || nid;
+      const icon = prompt('图标 emoji（可留空）：', '') || '';
+      globalData.elements.push({ id: nid, name, icon, color: '#888888' });
+      editingElementIds.add(nid);
+      renderGlobal();
+    }
+
+    function deleteElement(idx) {
+      const el = globalData.elements[idx];
+      if (!confirm(`确定删除元素「${el.name || el.id}」吗？这会同时清理克制矩阵中的相关配置。`)) return;
+      globalData.elements.splice(idx, 1);
+      delete globalData.elementMatrix[el.id];
+      Object.values(globalData.elementMatrix).forEach(row => delete row[el.id]);
+      editingElementIds.delete(el.id);
+      renderGlobal();
+    }
+
+    function updateMatrix(atkId, defId, val) {
+      const nv = parseFloat(val);
+      if (!globalData.elementMatrix[atkId]) globalData.elementMatrix[atkId] = {};
+      if (!isNaN(nv) && nv > 0 && nv !== 1.0) {
+        globalData.elementMatrix[atkId][defId] = nv;
+      } else {
+        delete globalData.elementMatrix[atkId][defId];
+        if (Object.keys(globalData.elementMatrix[atkId]).length === 0) delete globalData.elementMatrix[atkId];
+      }
+    }
+
+    function saveGlobalConfig() {
+      localStorage.setItem('my_game_config', JSON.stringify(globalData));
+      editingElementIds.clear();
+      renderGlobal();
+      alert('✅ 全局设置已保存！点击底部【保存并返回游戏】刷新即可生效。');
+    }
+
+    function resetGlobalConfig() {
+      if (!confirm('确定恢复全部全局设置为默认值？')) return;
+      localStorage.removeItem('my_game_config');
+      globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
+      editingElementIds.clear();
+      renderGlobal();
+      alert('已恢复默认。');
     }
 
     // ====== 核心数据修改与保存 ======
