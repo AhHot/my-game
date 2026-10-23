@@ -27,7 +27,6 @@
     .form-item input, .form-item select { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; font-size: 13px; width: 100%; }
     .sub-title { color: #f1c40f; font-size: 14px; margin-top: 15px; margin-bottom: 5px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 5px; grid-column: span 2;}
     
-    /* 效果列表专属样式 */
     .effect-box { background: #0f3460; padding: 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #3498db; position: relative; }
     .effect-title { font-size: 12px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; display: flex; justify-content: space-between; }
     .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
@@ -41,7 +40,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v8.1 多重效果版)</h1>
+  <h1>⚙️ 配置中心 (v8.2 全功能恢复)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -103,7 +102,7 @@
   <script>
     // 基础默认数据
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
       { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, critRate: 0.05, critDmg: 1.5, maxMp: 100, mpPerAttack: 20, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
       { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } }
     ];
@@ -112,30 +111,30 @@
       { 
         id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', 
         multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1,
-        effects: [] 
+        passiveType: 'atkAdd', passiveValue: 0, effects: [] 
       },
       { 
         id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', 
         multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1,
-        effects: [
-          { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } // 跟随主目标
-        ]
+        passiveType: 'atkAdd', passiveValue: 0,
+        effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ]
       },
       { 
         id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', 
         multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1,
-        effects: [] 
+        passiveType: 'atkAdd', passiveValue: 0, effects: [] 
       },
       { 
         id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', 
         multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1,
-        effects: []
+        passiveType: 'atkAdd', passiveValue: 0, effects: []
       }
     ];
 
     const DEFAULT_STATUS = [ 
       { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
-      { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true }
+      { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true },
+      { id: 'status_atk_up', name: '狂暴', type: 'buff', duration: 3, statMod: 'atk', statValue: 0.3, isDot: false, dotValue: 0, isStun: false }
     ];
 
     const DEFAULT_ITEMS = [
@@ -150,15 +149,15 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v14')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v14')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v14')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v14')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v14')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v14')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v15')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v15')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v15')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v15')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v15')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v15')) || [];
     } catch(e) { resetData(); }
 
-    // 数据兜底与修复（把旧版 statusId 转为 effects）
+    // 数据兜底与修复
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
@@ -172,6 +171,8 @@
         sk.effects.push({ type: 'status', value: sk.statusId, chance: sk.statusChance || 1, targetSide: 'enemy', targetRule: 'sameAsMain' });
       }
       if (sk.targetSide === undefined) sk.targetSide = 'enemy';
+      if (sk.passiveType === undefined) sk.passiveType = 'atkAdd';
+      if (sk.passiveValue === undefined) sk.passiveValue = 0;
     });
 
     setTimeout(() => { saveData(); }, 100);
@@ -286,7 +287,9 @@
               <div class="skill-slot">
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">普攻:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">招式:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
-                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">绝技:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'ultimate', this.value)">${getSkillOptions(char.skillSlots.ultimate)}</select></div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px; color:#e74c3c;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
+                <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px; color:#f1c40f;">学习:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'learned', this.value)">${getSkillOptions(char.skillSlots.learned)}</select></div>
               </div>
             </div>
           </div>`;
@@ -294,7 +297,6 @@
       });
     }
 
-    // ★ 核心大改：技能效果列表
     function renderSkills() {
       const list = document.getElementById('skill-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-skill').value.toLowerCase();
@@ -306,7 +308,6 @@
 
         const isPassive = skill.type === 'passive';
         
-        // 渲染动态效果列表 HTML
         let effectsHtml = '';
         if (skill.effects && skill.effects.length > 0) {
           skill.effects.forEach((eff, effIdx) => {
@@ -398,7 +399,16 @@
               <button class="btn-add-effect" onclick="addSkillEffect(${index})">➕ 添加后续效果</button>
             </div>
 
-            <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; background:#1e1e2e; border:1px solid #e74c3c; padding:10px; border-radius:4px;">
+            <!-- 恢复被动配置 -->
+            <div class="form-item full" style="display: ${isPassive ? 'block' : 'none'}; background:#1e1e2e; border:1px solid #e67e22; padding:10px; border-radius:4px; margin-top:10px;">
+              <label style="color:#e67e22;">被动效果</label>
+              <div style="display:flex; gap:10px; margin-top:5px;">
+                <select style="flex:1;" onchange="updateSkill(${index}, 'passiveType', this.value)">${passiveTypes.map(p => `<option value="${p.val}" ${skill.passiveType === p.val ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
+                <input type="number" style="flex:1;" value="${skill.passiveValue || 0}" onchange="updateSkill(${index}, 'passiveValue', parseInt(this.value))">
+              </div>
+            </div>
+
+            <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; background:#1e1e2e; border:1px solid #e74c3c; padding:10px; border-radius:4px; margin-top:10px;">
               <label style="color:#e74c3c;">连携机制</label>
               <div style="display:flex; gap:10px; margin-top:5px;">
                 <input type="text" placeholder="发起" value="${skill.comboTagOut || ''}" onchange="updateSkill(${index}, 'comboTagOut', this.value)" style="flex:1;">
@@ -411,6 +421,7 @@
       });
     }
 
+    // 恢复状态属性修改
     function renderStatuses() {
       const list = document.getElementById('status-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-status').value.toLowerCase();
@@ -423,8 +434,16 @@
             <div class="form-item"><label>名称</label><input type="text" value="${st.name}" onchange="updateStatus(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateStatus(${index}, 'type', this.value)">${statusTypes.map(t => `<option value="${t.val}" ${st.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             <div class="form-item"><label>持续回合</label><input type="number" value="${st.duration}" onchange="updateStatus(${index}, 'duration', parseInt(this.value))"></div>
-            <div class="form-item"><label>是否眩晕</label><select onchange="updateStatus(${index}, 'isStun', this.value === 'true')"><option value="false" ${!st.isStun ? 'selected' : ''}>否</option><option value="true" ${st.isStun ? 'selected' : ''}>是</option></select></div>
-            <div class="form-item"><label>DOT扣血</label><input type="number" value="${st.dotValue}" onchange="updateStatus(${index}, 'dotValue', parseInt(this.value))"></div>
+            
+            <div class="sub-title">属性修改 (正数加，负数减)</div>
+            <div class="form-item"><label>修改哪个属性</label><select onchange="updateStatus(${index}, 'statMod', this.value)">${statusMods.map(m => `<option value="${m.val}" ${st.statMod === m.val ? 'selected' : ''}>${m.label}</option>`).join('')}</select></div>
+            <div class="form-item"><label>修改数值(%)</label><input type="number" step="1" value="${(st.statValue||0)*100}" onchange="updateStatusPct(${index}, 'statValue', this.value)"></div>
+
+            <div class="sub-title">特殊效果</div>
+            <div class="form-item"><label>是否持续扣血(DOT)</label><select onchange="updateStatus(${index}, 'isDot', this.value === 'true')"><option value="false" ${!st.isDot ? 'selected' : ''}>否</option><option value="true" ${st.isDot ? 'selected' : ''}>是</option></select></div>
+            <div class="form-item"><label>DOT扣血值</label><input type="number" value="${st.dotValue}" onchange="updateStatus(${index}, 'dotValue', parseInt(this.value))"></div>
+            
+            <div class="form-item full"><label>是否眩晕 (跳过下一次行动)</label><select onchange="updateStatus(${index}, 'isStun', this.value === 'true')"><option value="false" ${!st.isStun ? 'selected' : ''}>否</option><option value="true" ${st.isStun ? 'selected' : ''}>是</option></select></div>
           </div>`;
         list.appendChild(div);
       });
@@ -471,12 +490,12 @@
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v14', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v14', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v14', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v14', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v14', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v14', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v15', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v15', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v15', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v15', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v15', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v15', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -490,6 +509,7 @@
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
+    function updateStatusPct(index, key, value) { gameStatuses[index][key] = parseFloat(value) / 100; saveData(); }
     
     function updateSkill(index, key, value) { 
       gameSkills[index][key] = value; 
@@ -497,7 +517,6 @@
       if (['name', 'type', 'healMultiplier', 'multiplier'].includes(key)) render(); 
     }
 
-    // ★ 效果列表的增删改
     function addSkillEffect(skillIdx) {
       if (!gameSkills[skillIdx].effects) gameSkills[skillIdx].effects = [];
       gameSkills[skillIdx].effects.push({ type: 'status', value: gameStatuses[0]?.id || '', chance: 1.0, targetSide: 'sameAsMain', targetRule: 'sameAsMain' });
@@ -510,7 +529,7 @@
     function updateEffect(skillIdx, effIdx, key, value) {
       gameSkills[skillIdx].effects[effIdx][key] = value;
       saveData();
-      if (key === 'type') render(); // 类型变了重绘UI
+      if (key === 'type') render(); 
     }
 
     function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); }
@@ -526,7 +545,7 @@
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     function addSkill() { 
       let type = subTab.skill === 'followup' ? 'followup' : subTab.skill === 'passive' ? 'passive' : 'skill';
-      gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, mpCost:10, cooldown:0, comboTagOut:'', comboTagIn:'', maxTriggers:1, effects:[] }); 
+      gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, mpCost:10, cooldown:0, comboTagOut:'', comboTagIn:'', maxTriggers:1, passiveType:'atkAdd', passiveValue:0, effects:[] }); 
       saveData(); render(); 
     }
     function deleteSkill(index) { if (confirm('确定删除？')) { gameSkills.splice(index, 1); saveData(); render(); } }
