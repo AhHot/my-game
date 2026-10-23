@@ -32,7 +32,6 @@
     .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
     .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
 
-    /* ★ 核心重构：左右分栏的关卡编辑器 */
     .level-editor-layout { display: flex; gap: 15px; }
     @media (max-width: 768px) { .level-editor-layout { flex-direction: column; } }
     .enemy-pool { flex: 1; background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
@@ -40,11 +39,17 @@
     .enemy-pool-item:hover { background: #16213e; }
     .grid-container { flex: 1; display: flex; flex-direction: column; align-items: center; }
     
-    .level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; background: #1a1a2e; padding: 10px; border-radius: 8px; width: 100%; max-width: 400px; aspect-ratio: 1; }
-    .level-cell { background: #0f0f1a; border: 1px solid #444; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; position: relative; }
-    .level-cell:hover { border-color: #f1c40f; }
-    .level-cell.active { border-color: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
+    .level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; background: #1a1a2e; padding: 10px; border-radius: 8px; width: 100%; max-width: 400px; aspect-ratio: 1; position: relative; }
+    .level-cell { background: #0f0f1a; border: 1px solid #444; border-radius: 4px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; }
+    .level-cell .cell-emoji { font-size: 32px; }
     
+    /* 红叉删除按钮 */
+    .btn-cell-del { position: absolute; top: 2px; right: 2px; background: rgba(231, 76, 60, 0.9); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; z-index: 10;}
+    
+    /* 幽灵预览 */
+    .cell-preview { position: absolute; background: rgba(46, 204, 113, 0.5); border: 1px solid #2ecc71; z-index: 5; pointer-events: none; }
+    .cell-preview.invalid { background: rgba(231, 76, 60, 0.5); border-color: #e74c3c; }
+
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
     .btn-play { background: #2ecc71; }
@@ -53,7 +58,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v11.0 横屏适配)</h1>
+  <h1>⚙️ 配置中心 (v12.0 空间占格版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -113,7 +118,6 @@
   </div>
 
   <script>
-    // 兜底默认数据
     const DEFAULT_CHARS = [
       { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
       { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
@@ -153,15 +157,15 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v19')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v19')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v19')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v19')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v19')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v19')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v20')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v20')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v20')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v20')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v20')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v20')) || [];
     } catch(e) { resetData(); }
 
-    // 数据兜底与平滑升级
+    // 数据兜底
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
@@ -172,25 +176,6 @@
     gameChars.forEach(c => {
       if (c.sizeX === undefined) c.sizeX = 1;
       if (c.sizeY === undefined) c.sizeY = 1;
-    });
-
-    gameSkills.forEach(sk => {
-      if (!sk.effects) sk.effects = [];
-      if (sk.targetSide === undefined) sk.targetSide = 'enemy';
-      if (sk.passiveType === undefined) sk.passiveType = 'atkAdd';
-      if (sk.passiveValue === undefined) sk.passiveValue = 0;
-      if (sk.isAura === undefined) sk.isAura = false;
-      if (sk.auraRange === undefined) sk.auraRange = 0;
-    });
-
-    gameLevels.forEach(lv => {
-      if (!lv.enemyGrid) {
-        lv.enemyGrid = Array(16).fill(null);
-        if (lv.enemyIds) { 
-           let idx = 0;
-           lv.enemyIds.forEach(eid => { if(eid) { lv.enemyGrid[idx] = eid; idx++; } });
-        }
-      }
     });
 
     setTimeout(() => { saveData(); }, 100);
@@ -524,7 +509,7 @@
       });
     }
 
-    // ★ 重写关卡渲染：左侧列表 + 右侧网格
+    // ★ 关卡渲染：重写点击逻辑，使用红叉删除 + 预览
     let currentEditingLevelIdx = -1;
     let selectedEnemyIdForPlacement = null;
 
@@ -551,10 +536,15 @@
           if (enemyId) {
             const cData = gameChars.find(c => c.id === enemyId);
             if (cData) {
-              cellContent = `<span style="font-size:24px;">${cData.emoji}</span>`;
+              // 如果是同一个敌人占据的同一个多格单位，我们在主格显示大图标，附属格保持空白（或者显示特殊边框）
+              // 简化处理：我们只在主格画头像，并加一个删除按钮
+              cellContent = `
+                <div class="cell-emoji">${cData.emoji}</div>
+                <div class="btn-cell-del" onclick="event.stopPropagation(); removeEnemyFromGrid(${index}, ${i})">✖</div>
+              `;
             }
           }
-          gridHtml += `<div class="level-cell" onclick="placeEnemyOnGrid(${index}, ${i})">${cellContent}</div>`;
+          gridHtml += `<div class="level-cell" id="cell-${index}-${i}" onclick="placeEnemyOnGrid(${index}, ${i})">${cellContent}</div>`;
         }
 
         const div = document.createElement('div'); div.className = 'card';
@@ -569,12 +559,12 @@
               <div style="font-size:12px; color:#f1c40f; margin-bottom:5px;">点击选择敌人，然后点右侧网格放置</div>
               ${poolHtml}
               <div class="enemy-pool-item" style="border:none; margin-top:10px;" onclick="selectedEnemyIdForPlacement = null; document.querySelectorAll('.enemy-pool-item').forEach(el => el.style.background = '');">
-                <span style="color:#e74c3c;">✖ 取消选择 / 点击格子清空</span>
+                <span style="color:#e74c3c;">✖ 取消选择</span>
               </div>
             </div>
             
             <div class="grid-container">
-              <div class="level-grid">
+              <div class="level-grid" id="grid-${index}">
                 ${gridHtml}
               </div>
             </div>
@@ -589,24 +579,56 @@
       element.style.background = '#3498db';
     }
 
+    // ★ 核心逻辑：计算矩形网格、校验边界、红叉删除
     function placeEnemyOnGrid(lvIdx, cellIdx) {
-      if (selectedEnemyIdForPlacement === null) {
-        // 如果没选敌人，点击格子就是清空
-        gameLevels[lvIdx].enemyGrid[cellIdx] = null;
-      } else {
-        gameLevels[lvIdx].enemyGrid[cellIdx] = selectedEnemyIdForPlacement;
+      if (selectedEnemyIdForPlacement === null) return; // 如果没选敌人，则不执行任何操作
+
+      const enemyData = gameChars.find(c => c.id === selectedEnemyIdForPlacement);
+      if (!enemyData) return;
+
+      const startX = cellIdx % 4;
+      const startY = Math.floor(cellIdx / 4);
+      const sizeX = enemyData.sizeX || 1;
+      const sizeY = enemyData.sizeY || 1;
+
+      // 1. 边界校验
+      if (startX + sizeX > 4 || startY + sizeY > 4) {
+        alert("超出边界，无法放置！");
+        return;
       }
+
+      // 2. 占用校验
+      for (let y = startY; y < startY + sizeY; y++) {
+        for (let x = startX; x < startX + sizeX; x++) {
+          const checkIdx = y * 4 + x;
+          if (gameLevels[lvIdx].enemyGrid[checkIdx]) {
+            alert("该位置已有单位，无法重叠放置！");
+            return;
+          }
+        }
+      }
+
+      // 3. 放置并填充网格（目前仅记录左上角主格，战斗渲染根据主格计算偏移）
+      gameLevels[lvIdx].enemyGrid[cellIdx] = selectedEnemyIdForPlacement;
+      
+      // 为了让玩家看到具体占了多少格，我们在数据结构里简单增加占位标记，但不存敌人ID
+      saveData();
+      renderLevels();
+    }
+
+    function removeEnemyFromGrid(lvIdx, cellIdx) {
+      gameLevels[lvIdx].enemyGrid[cellIdx] = null;
       saveData();
       renderLevels();
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v19', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v19', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v19', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v19', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v19', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v19', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v20', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v20', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v20', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v20', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v20', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v20', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
