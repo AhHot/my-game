@@ -75,7 +75,6 @@ class Unit {
   }
   isAlive() { return this.hp > 0; }
   
-  // 百分比回蓝
   gainMp(amount) { this.mp = Math.min(100, this.mp + amount); }
   
   takeDamage(dmg) { 
@@ -210,6 +209,46 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
+function generateRandomInstance(templateId) {
+  const template = ITEMS[templateId];
+  if (!template) return null;
+  const rand = Math.random() * 100;
+  let quality = 'white', qMult = 1.0, extraCount = 0, tier = 1;
+  if (rand > 99) { quality = 'red'; qMult = 1.8; extraCount = 5; tier = 3; }
+  else if (rand > 95) { quality = 'orange'; qMult = 1.5; extraCount = 4; tier = 3; }
+  else if (rand > 85) { quality = 'purple'; qMult = 1.3; extraCount = 3; tier = 2; }
+  else if (rand > 60) { quality = 'blue'; qMult = 1.15; extraCount = 2; tier = 2; }
+  else if (rand > 30) { quality = 'green'; qMult = 1.05; extraCount = 1; tier = 1; }
+
+  const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
+  const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
+  const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
+
+  const WEAPON_ACC_POOL = ['atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'];
+  const ARMOR_POOL = ['hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'];
+  const pool = template.category === 'armor' ? ARMOR_POOL : WEAPON_ACC_POOL;
+  
+  let tempPool = [...pool];
+  const extras = [];
+  for (let i = 0; i < extraCount; i++) {
+    if(tempPool.length === 0) break;
+    const idx = Math.floor(Math.random() * tempPool.length);
+    const stat = tempPool.splice(idx, 1)[0];
+    let val = 0;
+    if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
+    else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
+    else if (stat === 'atkPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
+    else if (stat === 'defPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
+    else val = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
+    extras.push({ stat, value: val });
+  }
+
+  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
+  extraKeys.forEach(k => { if (template[k] && template[k] !== 0) extras.push({ stat: k, value: template[k] / 100 }); });
+
+  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
+}
+
 // ==========================================
 // 场景 1：战前布阵
 // ==========================================
@@ -223,7 +262,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v9.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v9.1.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -352,9 +391,17 @@ class BattleScene extends Phaser.Scene {
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
     
-    // 战报容器
+    // ★ 战报框 UI
+    const logBg = this.add.rectangle(CONFIG.WIDTH / 2, 580, 600, 120, 0x000000, 0.6).setStrokeStyle(1, 0x3498db);
+    this.logContainer = this.add.container(CONFIG.WIDTH / 2, 560);
+    
+    // 遮罩，防止文字超出框外
+    const maskShape = this.make.graphics();
+    maskShape.fillRect(CONFIG.WIDTH / 2 - 300, 520, 600, 120);
+    const mask = maskShape.createGeometryMask();
+    this.logContainer.setMask(mask);
+
     this.logTexts = [];
-    this.logContainer = this.add.container(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30);
 
     this.time.delayedCall(800, () => this.startBattle());
   }
@@ -363,7 +410,7 @@ class BattleScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE, gridLeft = (CONFIG.WIDTH - gridW) / 2;
     this.drawGrid(gridLeft, 70, cell, 0xE74C3C, 0.2); this.drawGrid(gridLeft, 700, cell, 0x3498DB, 0.2);
-    this.add.rectangle(CONFIG.WIDTH / 2, 620, CONFIG.WIDTH - 100, 2, 0xffffff, 0.15);
+    this.add.rectangle(CONFIG.WIDTH / 2, 640, CONFIG.WIDTH - 100, 2, 0xffffff, 0.15);
     this.add.text(gridLeft + gridW + 10, 74, '敌方', { fontSize: '20px', color: '#E74C3C' });
     this.add.text(gridLeft + gridW + 10, 704, '我方', { fontSize: '20px', color: '#3498DB' });
   }
@@ -379,20 +426,20 @@ class BattleScene extends Phaser.Scene {
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: '48px' }).setOrigin(0.5);
     const nameText = this.add.text(0, 50, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    // HP 红色背景
+    // HP 红色
     const hpBg = this.add.rectangle(0, 72, 90, 10, 0x000000, 0.8).setStrokeStyle(1, 0xffffff, 0.4);
     const hpBar = this.add.rectangle(-45, 72, 90, 8, 0xff4444).setOrigin(0, 0.5);
-    const hpText = this.add.text(0, 72, '', { fontSize: '10px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5); // HP数字
+    const hpText = this.add.text(0, 72, '', { fontSize: '10px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
     
-    // 护盾条 (灰白半透明，斜线效果暂略，用亮灰色)
-    const shieldBar = this.add.rectangle(-45, 72, 90, 8, 0xcccccc, 0.8).setOrigin(0, 0.5);
+    // 护盾条 (灰白半透明覆盖)
+    const shieldBar = this.add.rectangle(-45, 72, 90, 8, 0xdddddd, 0.7).setOrigin(0, 0.5);
     shieldBar.setVisible(false);
-    const shieldText = this.add.text(0, 72, '', { fontSize: '9px', color: '#ffffff' }).setOrigin(0.5);
+    const shieldText = this.add.text(0, 72, '', { fontSize: '9px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
 
-    // MP 蓝色背景
+    // MP 蓝色
     const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
     const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
-    const mpText = this.add.text(45, 82, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5); // MP数字
+    const mpText = this.add.text(45, 82, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
 
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
     
@@ -487,8 +534,8 @@ class BattleScene extends Phaser.Scene {
         } else if (skill.shieldMultiplier > 0) {
           const shieldVal = Math.round(actor.atk * skill.shieldMultiplier);
           t.addShield(shieldVal);
-          this.showFloatText(t, `护盾 +${shieldVal}`, '#3498db');
-          this.addLog(`${actor.name} 为 ${t.name} 提供了 ${shieldVal} 点护盾。`, '#3498db');
+          this.showFloatText(t, `护盾 +${shieldVal}`, '#dddddd');
+          this.addLog(`${actor.name} 为 ${t.name} 提供了 ${shieldVal} 点护盾。`, '#dddddd');
         } else {
           const result = BattleLogic.computeDamage(actor, t, skill);
           if (result.isMiss) {
@@ -530,20 +577,32 @@ class BattleScene extends Phaser.Scene {
               this.showFloatText(t, `+${STATUSES[eff.value]?.name || '状态'}`, '#00ffff');
               this.addLog(`${t.name} 被附加了【${STATUSES[eff.value]?.name || '状态'}】。`, '#00ffff');
               this.updateUnitView(t);
-            } else if (eff.type === 'heal') {
+            } else if (eff.type === 'heal_pct') {
               const val = Math.round(actor.atk * eff.value);
               t.heal(val);
               this.showFloatText(t, `+${val}`, '#2ecc71');
               this.addLog(`${t.name} 恢复了 ${val} 点生命。`, '#2ecc71');
               this.updateUnitView(t);
-            } else if (eff.type === 'shield') {
+            } else if (eff.type === 'heal_flat') {
+              const val = Math.round(eff.value);
+              t.heal(val);
+              this.showFloatText(t, `+${val}`, '#2ecc71');
+              this.addLog(`${t.name} 恢复了 ${val} 点生命。`, '#2ecc71');
+              this.updateUnitView(t);
+            } else if (eff.type === 'shield_pct') {
               const val = Math.round(actor.atk * eff.value);
               t.addShield(val);
-              this.showFloatText(t, `盾+${val}`, '#3498db');
-              this.addLog(`${t.name} 获得了 ${val} 点护盾。`, '#3498db');
+              this.showFloatText(t, `盾+${val}`, '#dddddd');
+              this.addLog(`${t.name} 获得了 ${val} 点护盾。`, '#dddddd');
+              this.updateUnitView(t);
+            } else if (eff.type === 'shield_flat') {
+              const val = Math.round(eff.value);
+              t.addShield(val);
+              this.showFloatText(t, `盾+${val}`, '#dddddd');
+              this.addLog(`${t.name} 获得了 ${val} 点护盾。`, '#dddddd');
               this.updateUnitView(t);
             } else if (eff.type === 'mp') {
-              const val = eff.value; // MP是百分比直接加
+              const val = eff.value; 
               t.gainMp(val);
               this.showFloatText(t, `MP +${val}%`, '#88ccff');
               this.addLog(`${t.name} 恢复了 ${val}% MP。`, '#88ccff');
@@ -560,7 +619,6 @@ class BattleScene extends Phaser.Scene {
         this.updateUnitView(actor);
       }
 
-      // 回合结束回蓝 10%
       if (actor.isAlive()) actor.gainMp(10);
 
       actor.reduceCooldowns(); this.updateUnitView(actor);
@@ -626,8 +684,8 @@ class BattleScene extends Phaser.Scene {
           }
           effTargets.forEach(t => {
             if (!t || !t.isAlive()) return;
-            if (eff.type === 'heal') { const val = Math.round(actor.atk * eff.value); t.heal(val); this.showFloatText(t, `+${val}`, '#2ecc71'); }
-            else if (eff.type === 'shield') { const val = Math.round(actor.atk * eff.value); t.addShield(val); this.showFloatText(t, `盾+${val}`, '#3498db'); }
+            if (eff.type === 'heal_pct' || eff.type === 'heal_flat') { const val = eff.type === 'heal_pct' ? Math.round(actor.atk * eff.value) : Math.round(eff.value); t.heal(val); this.showFloatText(t, `+${val}`, '#2ecc71'); }
+            else if (eff.type === 'shield_pct' || eff.type === 'shield_flat') { const val = eff.type === 'shield_pct' ? Math.round(actor.atk * eff.value) : Math.round(eff.value); t.addShield(val); this.showFloatText(t, `盾+${val}`, '#dddddd'); }
             else if (eff.type === 'mp') { t.gainMp(eff.value); this.showFloatText(t, `MP +${eff.value}%`, '#88ccff'); }
             else if (eff.type === 'status') { t.addStatus(eff.value); this.showFloatText(t, `+状态`, '#00ffff'); }
             this.updateUnitView(t);
@@ -660,20 +718,22 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => txt.destroy() });
   }
 
-  // ★ 新增战报记录
   addLog(text, color = '#ffffff') {
-    const yOffset = this.logTexts.length * 24;
-    const t = this.add.text(0, yOffset, text, { fontSize: '16px', color: color, stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
-    this.logContainer.add(t);
-    this.logTexts.push(t);
+    const newTxt = this.add.text(-280, 40, text, { fontSize: '16px', color: color, stroke: '#000', strokeThickness: 2, wordWrap: { width: 560 } });
+    this.logContainer.add(newTxt);
+    this.logTexts.push(newTxt);
 
-    // 整体上移
-    this.tweens.add({ targets: this.logTexts, y: (target) => target.y - 24, duration: 200 });
+    // 所有旧文字向上推
+    this.logTexts.forEach((t, i) => {
+      if (t !== newTxt) {
+        this.tweens.add({ targets: t, y: t.y - 24, duration: 200 });
+      }
+    });
 
-    // 移除过旧的记录
-    if (this.logTexts.length > 8) {
-      const oldText = this.logTexts.shift();
-      oldText.destroy();
+    // 超过 4 条，移除最老的
+    if (this.logTexts.length > 4) {
+      const oldTxt = this.logTexts.shift();
+      oldTxt.destroy();
     }
   }
 
@@ -691,6 +751,8 @@ class BattleScene extends Phaser.Scene {
       const shieldRatio = Math.min(1, unit.shield / unit.maxHp);
       this.tweens.add({ targets: view.shieldBar, scaleX: shieldRatio, duration: 300 / this.speedMultiplier });
       view.shieldText.setText(`${unit.shield}`);
+      view.shieldBar.setDepth(10); // 覆盖在血条上
+      view.shieldText.setDepth(11);
     } else { 
       view.shieldBar.setVisible(false); 
       view.shieldText.setText('');
@@ -704,13 +766,12 @@ class BattleScene extends Phaser.Scene {
   }
   
   fastForwardBattle() {
-    this.addLog(`⚠️ 玩家点击了跳过战斗`, '#f1c40f');
     let rounds = 0;
     while (rounds < CONFIG.MAX_ROUNDS) {
       const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
       const enemies = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
-      if (players.length === 0) return this.endBattle('defeat');
-      if (enemies.length === 0) return this.endBattle('victory');
+      if (players.length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
+      if (enemies.length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
       
       this.allUnits.forEach(u => { if (u.isAlive()) u.tickStatuses(); });
       const actionOrder = BattleLogic.buildActionOrder(this.allUnits);
@@ -733,35 +794,43 @@ class BattleScene extends Phaser.Scene {
       }
       rounds++;
     }
-    this.endBattle('timeout');
+    this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
   }
 
-  // ★ 点击继续按钮
   endBattle(type) {
     this.battleEnded = true;
+    
+    // 冻结画面，显示继续按钮
+    const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.4).setDepth(100);
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 100, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(101);
     
-    this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.6);
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 100, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-    
-    const contBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 100, '👉 点击继续查看结算', { fontSize: '32px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
-    contBtn.on('pointerdown', () => this.showResultPanel(type));
+    const contBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 100, '👉 点击继续查看结算', { fontSize: '32px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive().setDepth(102);
+    contBtn.on('pointerdown', () => {
+      this.scene.start('ResultScene', { type: type, levelIndex: this.currentLevelIndex });
+    });
   }
+}
 
-  showResultPanel(type) {
-    this.children.removeAll(); // 清空战斗画面
+// ==========================================
+// 场景 3：结算场景
+// ==========================================
+class ResultScene extends Phaser.Scene {
+  constructor() { super('ResultScene'); }
+  init(data) { this.resultType = data.type; this.currentLevelIndex = data.levelIndex || 0; }
+
+  create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
-    
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, texts[this.resultType], { fontSize: '80px', color: colors[this.resultType], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
     
     let btnText = '🔄 重新挑战';
     let btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex }); };
 
-    if (type === 'victory') {
+    if (this.resultType === 'victory') {
       const level = LEVELS[this.currentLevelIndex];
       if (level && level.rewardItemId && ITEMS[level.rewardItemId]) {
         const inst = generateRandomInstance(level.rewardItemId);
@@ -785,7 +854,7 @@ class BattleScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v16') {
+  if (e.key === 'my_game_data_v17') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
@@ -794,5 +863,5 @@ window.addEventListener('storage', (e) => {
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-  scene: [FormationScene, BattleScene, TeamScene],
+  scene: [FormationScene, BattleScene, TeamScene, ResultScene],
 });
