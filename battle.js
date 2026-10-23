@@ -1,9 +1,4 @@
 // ==========================================
-// 全局配置（横屏）
-// ==========================================
-
-
-// ==========================================
 // 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
@@ -134,7 +129,7 @@ class Unit {
 // BattleLogic
 // ==========================================
 const BattleLogic = {
-   selectTargets(actor, skill, allUnits) {
+  selectTargets(actor, skill, allUnits) {
     let pool = [];
     if (skill.targetSide === 'self') return [actor];
     if (skill.targetSide === 'player') pool = allUnits.filter(u => u.side === actor.side && u.isAlive());
@@ -142,9 +137,6 @@ const BattleLogic = {
     if (pool.length === 0) return [];
     if (skill.targetRule === 'all') return pool;
     if (skill.targetRule === 'frontRow') {
-      // 横屏：前排靠近战场中间
-      // 目标是敌方（画面左侧）时，gridX 最大 = 靠右 = 前排
-      // 目标是我方（画面右侧）时，gridX 最小 = 靠左 = 前排
       const xs = pool.map(u => u.gridX);
       const isEnemyTarget = pool[0].side === 'enemy';
       const m = isEnemyTarget ? Math.max(...xs) : Math.min(...xs);
@@ -294,7 +286,8 @@ class FormationScene extends Phaser.Scene {
     this.unitContainers = [];
     playerChars.forEach(data => {
       const c = this.add.container(0, 0);
-      const circle = this.add.circle(0, 0, 42, getElementInfo[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+      // ★ 修改：使用 getElementInfo 安全获取颜色
+      const circle = this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
       const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
       const nameText = this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
       c.add([circle, emoji, nameText]); c.setSize(80, 80);
@@ -351,7 +344,7 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 战斗场景（★ 关键修复：读 enemyList）
+// 战斗场景
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
@@ -374,7 +367,6 @@ class BattleScene extends Phaser.Scene {
     const fighters = [];
     CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => fighters.push({ ...c }));
 
-    // ★★★ v12.3 关键修复：改读 enemyList（新格式）
     if (Array.isArray(lv.enemyList)) {
       lv.enemyList.forEach(item => {
         const orig = CHARACTERS.find(c => c.id === item.id);
@@ -386,7 +378,6 @@ class BattleScene extends Phaser.Scene {
         }
       });
     }
-    // ★★★ 修复结束
 
     if (fighters.filter(f => f.side === 'enemy').length === 0) {
       fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
@@ -433,7 +424,8 @@ class BattleScene extends Phaser.Scene {
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = (cell / 2) * 0.85 * scale;
-    const circle = this.add.circle(0, 0, r, getElementInfo[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+    // ★ 修改：使用 getElementInfo 安全获取颜色
+    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, unit.name, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     const bw = cell * scale * 0.85;
@@ -706,7 +698,7 @@ window.addEventListener('storage', (e) => {
 });
 
 // ==========================================
-// 启动（TeamScene 来自 team.js）
+// 启动
 // ==========================================
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
