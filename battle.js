@@ -28,7 +28,7 @@ class Unit {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     
-    // 【升级】装备槽扩展为6个，兼容旧数据
+    // 装备槽兼容处理
     if (!this.equipment) this.equipment = {};
     if (this.equipment.armor && !this.equipment.body) { this.equipment.body = this.equipment.armor; delete this.equipment.armor; }
     if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
@@ -49,7 +49,7 @@ class Unit {
     this.critDmg = this.critDmg || 1.5;
     this.lifesteal = this.lifesteal || 0;
 
-    // 1. 6大意境数值转化
+    // 6大意境数值转化
     const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     
     this.maxHp = (this.maxHp || 0) + stats.hunHou * CONFIG.hunHouToHp;
@@ -67,7 +67,7 @@ class Unit {
     this.critResist = this.critResist + (stats.jianRen * CONFIG.jianRenToRes / 100);
     this.critDmg = this.critDmg + (stats.guiMi * CONFIG.guiMiToCritDmg / 100);
 
-    // 2. 计算装备加成（遍历新的6个槽位）
+    // 计算装备加成
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
     
@@ -98,7 +98,7 @@ class Unit {
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
-    // 被动技能计算
+    // 被动技能
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
     this.passives.forEach(sk => {
       if (sk.isAura) return;
@@ -229,7 +229,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 随机掉落
+// 随机掉落 (加入 count: 1)
 // ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
@@ -316,7 +316,8 @@ function generateRandomInstance(templateId) {
     }
   });
 
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '' };
+  // 【关键修改】增加 count: 1，完全兼容背包系统
+  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '', count: 1 };
 }
 
 // ==========================================
@@ -362,7 +363,7 @@ class FormationScene extends Phaser.Scene {
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
 
-    // 左下角呼出面板（替换原队伍按钮）
+    // 左下角呼出面板
     const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
     teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
 
@@ -775,7 +776,19 @@ class ResultScene extends Phaser.Scene {
         try {
           const inst = generateRandomInstance(lv.rewardItemId);
           if (inst) {
-            INVENTORY.push(inst);
+            // 如果是消耗品/材料，且背包已有，则堆叠
+            const tpl = ITEMS[inst.itemId];
+            if (tpl && !['weapon', 'armor', 'accessory'].includes(tpl.category)) {
+               const existing = INVENTORY.find(i => i.itemId === tpl.id && !i.equippedBy);
+               if (existing && existing.count < (tpl.maxStack || 1)) {
+                   existing.count = (existing.count || 1) + 1;
+               } else {
+                   INVENTORY.push(inst);
+               }
+            } else {
+               INVENTORY.push(inst);
+            }
+            
             localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
             const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
             this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
@@ -798,7 +811,7 @@ window.addEventListener('storage', (e) => {
   }
 });
 
-// 【重要】把实例赋值给 window.game 供 index.html 全局调用，以禁用输入
+// 【关键】暴露到全局，防穿透
 window.game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
