@@ -40,7 +40,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v9.0 战报与百分比MP)</h1>
+  <h1>⚙️ 配置中心 (v9.1 终极完善版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -148,15 +148,15 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v16')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v16')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v16')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v16')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v16')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v16')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v17')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v17')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v17')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v17')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v17')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v17')) || [];
     } catch(e) { resetData(); }
 
-    // 数据兜底与修复
+    // ★ 数据兜底与平滑升级
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
@@ -318,9 +318,11 @@
                     <label>类型</label>
                     <select onchange="updateEffect(${index}, ${effIdx}, 'type', this.value)">
                       <option value="status" ${eff.type==='status'?'selected':''}>附加状态</option>
-                      <option value="heal" ${eff.type==='heal'?'selected':''}>恢复生命</option>
-                      <option value="shield" ${eff.type==='shield'?'selected':''}>附加护盾</option>
-                      <option value="mp" ${eff.type==='mp'?'selected':''}>恢复MP</option>
+                      <option value="heal_pct" ${eff.type==='heal_pct'?'selected':''}>恢复生命(基于攻击力)</option>
+                      <option value="heal_flat" ${eff.type==='heal_flat'?'selected':''}>恢复生命(固定值)</option>
+                      <option value="shield_pct" ${eff.type==='shield_pct'?'selected':''}>附加护盾(基于攻击力)</option>
+                      <option value="shield_flat" ${eff.type==='shield_flat'?'selected':''}>附加护盾(固定值)</option>
+                      <option value="mp" ${eff.type==='mp'?'selected':''}>恢复MP(%)</option>
                     </select>
                   </div>
                   <div class="form-item">
@@ -349,7 +351,7 @@
                     </select>
                   </div>` : `
                   <div class="form-item">
-                    <label>数值(倍率/固定值)</label>
+                    <label>数值(倍率/固定值/百分比)</label>
                     <input type="number" step="0.1" value="${eff.value || 1}" onchange="updateEffect(${index}, ${effIdx}, 'value', parseFloat(this.value))">
                   </div>`}
                   <div class="form-item">
@@ -417,22 +419,32 @@
       });
     }
 
+    // ★ 核心修复：增益减益自动正负号
     function renderStatuses() {
       const list = document.getElementById('status-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-status').value.toLowerCase();
       gameStatuses.forEach((st, index) => {
         if (keyword && !st.name.toLowerCase().includes(keyword)) return;
+        
+        // 显示时永远取绝对值，让配置者只填正数
+        const displayStatValue = Math.abs((st.statValue || 0) * 100);
+
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${st.name}</h3><button class="btn-del" onclick="deleteStatus(${index})">删除</button></div>
           <div class="form-grid">
             <div class="form-item"><label>名称</label><input type="text" value="${st.name}" onchange="updateStatus(${index}, 'name', this.value)"></div>
-            <div class="form-item"><label>分类</label><select onchange="updateStatus(${index}, 'type', this.value)">${statusTypes.map(t => `<option value="${t.val}" ${st.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
+            <div class="form-item">
+              <label>分类</label>
+              <select onchange="updateStatusType(${index}, this.value)">
+                ${statusTypes.map(t => `<option value="${t.val}" ${st.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}
+              </select>
+            </div>
             <div class="form-item"><label>持续回合</label><input type="number" value="${st.duration}" onchange="updateStatus(${index}, 'duration', parseInt(this.value))"></div>
             
-            <div class="sub-title">属性修改 (正数加，负数减)</div>
+            <div class="sub-title">属性修改 (选择增益填正数，减益填正数自动算扣减)</div>
             <div class="form-item"><label>修改哪个属性</label><select onchange="updateStatus(${index}, 'statMod', this.value)">${statusMods.map(m => `<option value="${m.val}" ${st.statMod === m.val ? 'selected' : ''}>${m.label}</option>`).join('')}</select></div>
-            <div class="form-item"><label>修改数值(%)</label><input type="number" step="1" value="${(st.statValue||0)*100}" onchange="updateStatusPct(${index}, 'statValue', this.value)"></div>
+            <div class="form-item"><label>修改数值(%)</label><input type="number" step="1" value="${displayStatValue}" onchange="updateStatusPct(${index}, 'statValue', this.value)"></div>
 
             <div class="sub-title">特殊效果</div>
             <div class="form-item"><label>是否持续扣血(DOT)</label><select onchange="updateStatus(${index}, 'isDot', this.value === 'true')"><option value="false" ${!st.isDot ? 'selected' : ''}>否</option><option value="true" ${st.isDot ? 'selected' : ''}>是</option></select></div>
@@ -444,6 +456,7 @@
       });
     }
 
+    // ★ 完全恢复物品模板的所有额外属性
     function renderItems() {
       const list = document.getElementById('item-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-item').value.toLowerCase();
@@ -452,13 +465,27 @@
         if (keyword && !item.name.toLowerCase().includes(keyword)) return;
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
-          <div class="card-header"><h3>${item.icon} ${item.name}</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
+          <div class="card-header"><h3>${item.icon} ${item.name} 模板</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
           <div class="form-grid">
             <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateItem(${index}, 'category', this.value)">${itemCategories.map(c => `<option value="${c.val}" ${item.category === c.val ? 'selected' : ''}>${c.label}</option>`).join('')}</select></div>
-            <div class="form-item"><label>攻击范围</label><div style="display:flex;gap:2px;"><input type="number" value="${item.atkMin||0}" onchange="updateItem(${index}, 'atkMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.atkMax||0}" onchange="updateItem(${index}, 'atkMax', parseInt(this.value))" placeholder="Max"></div></div>
-            <div class="form-item"><label>防御范围</label><div style="display:flex;gap:2px;"><input type="number" value="${item.defMin||0}" onchange="updateItem(${index}, 'defMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.defMax||0}" onchange="updateItem(${index}, 'defMax', parseInt(this.value))" placeholder="Max"></div></div>
-            <div class="form-item"><label>生命范围</label><div style="display:flex;gap:2px;"><input type="number" value="${item.hpMin||0}" onchange="updateItem(${index}, 'hpMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.hpMax||0}" onchange="updateItem(${index}, 'hpMax', parseInt(this.value))" placeholder="Max"></div></div>
+            
+            <div class="sub-title">基础属性范围 (Min - Max)</div>
+            <div class="form-item"><label>攻击力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.atkMin||0}" onchange="updateItem(${index}, 'atkMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.atkMax||0}" onchange="updateItem(${index}, 'atkMax', parseInt(this.value))" placeholder="Max"></div></div>
+            <div class="form-item"><label>防御力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.defMin||0}" onchange="updateItem(${index}, 'defMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.defMax||0}" onchange="updateItem(${index}, 'defMax', parseInt(this.value))" placeholder="Max"></div></div>
+            <div class="form-item"><label>生命值</label><div style="display:flex;gap:2px;"><input type="number" value="${item.hpMin||0}" onchange="updateItem(${index}, 'hpMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.hpMax||0}" onchange="updateItem(${index}, 'hpMax', parseInt(this.value))" placeholder="Max"></div></div>
+
+            <div class="sub-title">自带额外属性 (填 10 代表 10%)</div>
+            <div class="form-item"><label>攻击力(%)</label><input type="number" step="0.1" value="${(item.atkPercent||0)*100}" onchange="updateItemPct(${index}, 'atkPercent', this.value)"></div>
+            <div class="form-item"><label>防御力(%)</label><input type="number" step="0.1" value="${(item.defPercent||0)*100}" onchange="updateItemPct(${index}, 'defPercent', this.value)"></div>
+            <div class="form-item"><label>生命值(%)</label><input type="number" step="0.1" value="${(item.hpPercent||0)*100}" onchange="updateItemPct(${index}, 'hpPercent', this.value)"></div>
+            <div class="form-item"><label>暴击率(%)</label><input type="number" step="0.1" value="${(item.critRate||0)*100}" onchange="updateItemPct(${index}, 'critRate', this.value)"></div>
+            <div class="form-item"><label>暴击伤害</label><input type="number" step="0.1" value="${item.critDmg||0}" onchange="updateItem(${index}, 'critDmg', parseFloat(this.value))"></div>
+            <div class="form-item"><label>抗暴率(%)</label><input type="number" step="0.1" value="${(item.critResist||0)*100}" onchange="updateItemPct(${index}, 'critResist', this.value)"></div>
+            <div class="form-item"><label>命中率(%)</label><input type="number" step="0.1" value="${(item.hitRate||0)*100}" onchange="updateItemPct(${index}, 'hitRate', this.value)"></div>
+            <div class="form-item"><label>闪避率(%)</label><input type="number" step="0.1" value="${(item.dodgeRate||0)*100}" onchange="updateItemPct(${index}, 'dodgeRate', this.value)"></div>
+            <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(item.lifesteal||0)*100}" onchange="updateItemPct(${index}, 'lifesteal', this.value)"></div>
+            <div class="form-item"><label>速度</label><input type="number" value="${item.speed||0}" onchange="updateItem(${index}, 'speed', parseInt(this.value))"></div>
           </div>`;
         list.appendChild(div);
       });
@@ -485,12 +512,12 @@
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v16', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v16', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v16', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v16', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v16', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v16', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v17', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v17', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v17', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v17', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v17', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v17', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -504,7 +531,28 @@
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
-    function updateStatusPct(index, key, value) { gameStatuses[index][key] = parseFloat(value) / 100; saveData(); }
+    
+    // ★ 状态数值处理：根据类型自动加正负号
+    function updateStatusPct(index, key, value) {
+      const st = gameStatuses[index];
+      let val = parseFloat(value) / 100;
+      // 如果是减益，强制为负；如果是增益，强制为正
+      if (st.type === 'debuff' || st.type === 'control') val = -Math.abs(val);
+      else val = Math.abs(val);
+      st[key] = val;
+      saveData();
+    }
+
+    // ★ 切换增益/减益时，立即同步修正当前数值的正负号
+    function updateStatusType(index, newType) {
+      const st = gameStatuses[index];
+      st.type = newType;
+      if (st.statValue !== 0) {
+        if (newType === 'debuff' || newType === 'control') st.statValue = -Math.abs(st.statValue);
+        else st.statValue = Math.abs(st.statValue);
+      }
+      saveData(); render();
+    }
     
     function updateSkill(index, key, value) { 
       gameSkills[index][key] = value; 
