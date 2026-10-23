@@ -13,11 +13,12 @@ if (localStorage.getItem('my_game_items_sync')) { try { const d = JSON.parse(loc
 if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length = 0; LEVELS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_inventory_sync')); if (Array.isArray(d)) { INVENTORY.length = 0; INVENTORY.push(...d); } } catch(e){} }
 
-// 读取全局装备配置并挂载到 window，供掉落函数使用
+// 读取全局装备配置并挂载
 try {
   const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
   window.DROP_RATES = gc.dropRates;
   window.GLOBAL_AFFIX_POOLS = gc.affixPools;
+  window.GLOBAL_AFFIX_VALUES = gc.affixValues;
 } catch(e) {}
 
 // ==========================================
@@ -47,11 +48,15 @@ class Unit {
         if (inst.extras) {
           inst.extras.forEach(ex => {
             let val = ex.value;
-            const pct = ['atkPercent','defPercent','hpPercent','critRate','critResist','hitRate','dodgeRate','lifesteal','dmgIncrease','dmgReduction'];
-            if (pct.includes(ex.stat) && val > 1) val = val / 100;
-            if (ex.stat === 'atkPercent') eqAtkPct += val;
+            // 固定数值
+            if (ex.stat === 'atkFlat') eqAtkAdd += val;
+            else if (ex.stat === 'defFlat') eqDefAdd += val;
+            else if (ex.stat === 'hpFlat') eqHpAdd += val;
+            // 百分比数值 (底层生成时已经是小数，如 0.05)
+            else if (ex.stat === 'atkPercent') eqAtkPct += val;
             else if (ex.stat === 'defPercent') eqDefPct += val;
             else if (ex.stat === 'hpPercent') eqHpPct += val;
+            // 其他
             else if (this[ex.stat] !== undefined) this[ex.stat] += val;
           });
         }
@@ -192,7 +197,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 随机掉落（★ 支持自定义词条池 + 绝对不重复）
+// 随机掉落（★ 支持固定数值词条 + 独立三个池子 + 严格区间抽取）
 // ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
@@ -213,46 +218,64 @@ function generateRandomInstance(templateId) {
   const q = config.q;
   const m = config.m;
   const n = config.n;
-  const tier = config.tier;
 
   const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
   
-  // 词条池配置
   const defaultPools = {
-    weapon: ['atkPercent','critRate','critDmg','lifesteal','hitRate','speed'],
-    armor: ['hpPercent','defPercent','critResist','dodgeRate','speed']
+    weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
+    armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
+    accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
   };
   const pools = window.GLOBAL_AFFIX_POOLS || defaultPools;
-  // 饰品暂用武器池
-  let pool = t.category === 'armor' ? pools.armor : pools.weapon;
-  
-  let tp = [...pool]; // 复制一份用来洗牌抽取
+
+  const defaultVals = {
+    atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
+    atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
+    critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
+    dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
+    speed: { min: 1, max: 4 }
+  };
+  const affixValues = window.GLOBAL_AFFIX_VALUES || defaultVals;
+
+  let pool = t.category === 'armor' ? [...pools.armor] : (t.category === 'weapon' ? [...pools.weapon] : [...pools.accessory]);
+  let tp = [...pool];
   const ex = [];
   
+  // 固定类和需要取整的类
+  const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
+
   for (let i = 0; i < n; i++) {
     if (tp.length === 0) break;
-    // 随机取一个下标，然后把它从数组里剔除（这就保证了不会重复）
     const idx = Math.floor(Math.random() * tp.length);
     const s = tp.splice(idx, 1)[0]; 
     
+    const cfg = affixValues[s] || { min: 0, max: 0 };
     let v = 0;
-    if (s === 'speed') v = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
-    else if (s === 'lifesteal') v = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
-    else if (s === 'atkPercent') v = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
-    else if (s === 'defPercent') v = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
-    else v = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
+    
+    if (cfg.max >= cfg.min) {
+      v = Math.random() * (cfg.max - cfg.min) + cfg.min;
+    } else {
+      v = cfg.min;
+    }
+
+    if (intTypes.includes(s)) {
+      v = Math.round(v);
+    } else {
+      // 百分比除以100，保留两位小数防浮点误差
+      v = Math.round((v / 100) * 100) / 100;
+    }
+    
     ex.push({ stat: s, value: v });
   }
 
-  // 物品模板自带的固定属性（不在随机池里，但也检查一下防重复，避免和随机出来的冲突）
+  // 模板固定自带属性
   const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
   extraKeys.forEach(k => { 
     if (t[k] && t[k] !== 0) {
-      // 如果固定属性里已经有这个词条了，就把随机出来的那个删掉（或者不让它加进去）
-      const existIdx = ex.findIndex(x => x.stat === k);
-      if (existIdx !== -1) ex.splice(existIdx, 1);
+      const exIdx = ex.findIndex(e => e.stat === k);
+      if (exIdx !== -1) ex.splice(exIdx, 1);
       ex.push({ stat: k, value: t[k] / 100 }); 
     }
   });
