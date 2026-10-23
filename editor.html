@@ -40,7 +40,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v8.2 全功能恢复)</h1>
+  <h1>⚙️ 配置中心 (v9.0 战报与百分比MP)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -100,11 +100,10 @@
   </div>
 
   <script>
-    // 基础默认数据
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, critRate: 0.15, critDmg: 1.5, maxMp: 60, mpPerAttack: 15, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, critRate: 0.05, critDmg: 1.5, maxMp: 100, mpPerAttack: 20, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, critRate: 0.05, critDmg: 1.4, maxMp: 40, mpPerAttack: 10, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
+      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } }
     ];
 
     const DEFAULT_SKILLS = [
@@ -149,12 +148,12 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v15')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v15')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v15')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v15')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v15')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v15')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v16')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v16')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v16')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v16')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v16')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v16')) || [];
     } catch(e) { resetData(); }
 
     // 数据兜底与修复
@@ -167,9 +166,6 @@
 
     gameSkills.forEach(sk => {
       if (!sk.effects) sk.effects = [];
-      if (sk.statusId && sk.effects.length === 0) {
-        sk.effects.push({ type: 'status', value: sk.statusId, chance: sk.statusChance || 1, targetSide: 'enemy', targetRule: 'sameAsMain' });
-      }
       if (sk.targetSide === undefined) sk.targetSide = 'enemy';
       if (sk.passiveType === undefined) sk.passiveType = 'atkAdd';
       if (sk.passiveValue === undefined) sk.passiveValue = 0;
@@ -324,6 +320,7 @@
                       <option value="status" ${eff.type==='status'?'selected':''}>附加状态</option>
                       <option value="heal" ${eff.type==='heal'?'selected':''}>恢复生命</option>
                       <option value="shield" ${eff.type==='shield'?'selected':''}>附加护盾</option>
+                      <option value="mp" ${eff.type==='mp'?'selected':''}>恢复MP</option>
                     </select>
                   </div>
                   <div class="form-item">
@@ -352,7 +349,7 @@
                     </select>
                   </div>` : `
                   <div class="form-item">
-                    <label>数值(倍率)</label>
+                    <label>数值(倍率/固定值)</label>
                     <input type="number" step="0.1" value="${eff.value || 1}" onchange="updateEffect(${index}, ${effIdx}, 'value', parseFloat(this.value))">
                   </div>`}
                   <div class="form-item">
@@ -386,9 +383,9 @@
             </div>
 
             <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>伤害倍率</label><input type="number" step="0.1" value="${skill.multiplier || 0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
-            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>主目标治疗/护盾</label><input type="number" step="0.1" value="${skill.healMultiplier || skill.shieldMultiplier || 0}" onchange="updateSkill(${index}, 'healMultiplier', parseFloat(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>主目标治疗/护盾</label><input type="number" step="0.1" value="${skill.healMultiplier || 0}" onchange="updateSkill(${index}, 'healMultiplier', parseFloat(this.value))"></div>
 
-            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>耗蓝</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
+            <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>耗蓝(%)</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
             <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>冷却</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
             
             <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; border-top:1px dashed #444; padding-top:10px; margin-top:10px;">
@@ -399,7 +396,6 @@
               <button class="btn-add-effect" onclick="addSkillEffect(${index})">➕ 添加后续效果</button>
             </div>
 
-            <!-- 恢复被动配置 -->
             <div class="form-item full" style="display: ${isPassive ? 'block' : 'none'}; background:#1e1e2e; border:1px solid #e67e22; padding:10px; border-radius:4px; margin-top:10px;">
               <label style="color:#e67e22;">被动效果</label>
               <div style="display:flex; gap:10px; margin-top:5px;">
@@ -421,7 +417,6 @@
       });
     }
 
-    // 恢复状态属性修改
     function renderStatuses() {
       const list = document.getElementById('status-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-status').value.toLowerCase();
@@ -490,12 +485,12 @@
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v15', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v15', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v15', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v15', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v15', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v15', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v16', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v16', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v16', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v16', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v16', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v16', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -541,7 +536,7 @@
       saveData();
     }
 
-    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, critRate:0.1, critDmg:1.5, maxMp:50, mpPerAttack:10, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',armor:'',accessory:''} }); saveData(); render(); }
+    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',armor:'',accessory:''} }); saveData(); render(); }
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     function addSkill() { 
       let type = subTab.skill === 'followup' ? 'followup' : subTab.skill === 'passive' ? 'passive' : 'skill';
