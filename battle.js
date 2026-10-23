@@ -67,15 +67,17 @@ class Unit {
       }
     });
 
-    this.hp = this.maxHp; this.mp = Math.floor((this.maxMp || 50) * CONFIG.START_MP_RATIO);
+    this.hp = this.maxHp; 
+    this.maxMp = 100; this.mp = 100; // 统一 100%
     this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; 
     this.shield = 0; 
     this.skipTurn = false; 
   }
   isAlive() { return this.hp > 0; }
-  gainMp() { this.mp = Math.min(this.maxMp, this.mp + this.mpPerAttack); }
   
-  // 返回实际扣除的血量，方便飘字计算
+  // 百分比回蓝
+  gainMp(amount) { this.mp = Math.min(100, this.mp + amount); }
+  
   takeDamage(dmg) { 
     if (this.shield > 0) {
       if (dmg <= this.shield) { this.shield -= dmg; return 0; } 
@@ -92,7 +94,7 @@ class Unit {
     this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
     this.statuses.forEach(st => {
       const config = STATUSES[st.id]; if (!config) return;
-      if (config.statMod === 'atk') this.atk += this.baseAtk * config.statValue; // 百分比计算
+      if (config.statMod === 'atk') this.atk += this.baseAtk * config.statValue;
       if (config.statMod === 'def') this.def += this.baseDef * config.statValue;
       if (config.statMod === 'speed') this.speed += this.baseSpeed * config.statValue;
     });
@@ -110,14 +112,12 @@ class Unit {
   
   addStatus(statusId) {
     if (!statusId || !STATUSES[statusId]) return;
-    
     if (STATUSES[statusId].isStun) {
       this.skipTurn = true;
       const existing = this.statuses.find(s => s.id === statusId);
       if (!existing) this.statuses.push({ id: statusId, duration: 1 });
       return;
     }
-
     const existing = this.statuses.find(s => s.id === statusId);
     if (existing) existing.duration = STATUSES[statusId].duration; 
     else this.statuses.push({ id: statusId, duration: STATUSES[statusId].duration });
@@ -151,11 +151,11 @@ const BattleLogic = {
   },
   
   computeDamage(actor, target, skill) {
-    if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, heal: 0, shield: 0, lifestealAmount: 0 };
+    if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, lifestealAmount: 0 };
 
     let hitRate = 1.0 + (actor.hitRate || 0) - (target.dodgeRate || 0);
     hitRate = Math.max(0.2, Math.min(1.0, hitRate)); 
-    if (Math.random() > hitRate) return { damage: 0, isCrit: false, isMiss: true, heal: 0, shield: 0, lifestealAmount: 0 };
+    if (Math.random() > hitRate) return { damage: 0, isCrit: false, isMiss: true, lifestealAmount: 0 };
 
     let base = actor.atk * skill.multiplier;
     const baseForMin = base; 
@@ -178,9 +178,9 @@ const BattleLogic = {
     finalDmg += (actor.trueDmg || 0);
 
     const damageVal = Math.round(finalDmg);
-    const lifestealAmount = Math.round(damageVal * (actor.lifesteal || 0)); // 吸血计算
+    const lifestealAmount = Math.round(damageVal * (actor.lifesteal || 0)); 
 
-    return { damage: damageVal, isCrit, isMiss: false, heal: 0, shield: 0, lifestealAmount };
+    return { damage: damageVal, isCrit, isMiss: false, lifestealAmount };
   },
   
   chooseSkill(actor, allUnits) {
@@ -189,7 +189,7 @@ const BattleLogic = {
     
     const usable = availableSkills.filter(sk => { 
       const cd = actor.cooldowns[sk.id] || 0; 
-      if (actor.mp < (sk.cost?.mp || 0) || cd > 0) return false;
+      if (actor.mp < (sk.mpCost || 0) || cd > 0) return false;
       
       if (sk.healMultiplier > 0 && sk.multiplier === 0) {
         const allies = allUnits.filter(u => u.side === actor.side && u.isAlive());
@@ -205,50 +205,10 @@ const BattleLogic = {
     
     const fallbackSkill = Object.values(SKILLS).find(s => s.type === 'normal');
     if (fallbackSkill) return fallbackSkill;
-    return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, cost: {mp: 0}, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier:0, shieldMultiplier:0, effects: [] };
+    return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier:0, shieldMultiplier:0, effects: [] };
   },
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
-
-function generateRandomInstance(templateId) {
-  const template = ITEMS[templateId];
-  if (!template) return null;
-  const rand = Math.random() * 100;
-  let quality = 'white', qMult = 1.0, extraCount = 0, tier = 1;
-  if (rand > 99) { quality = 'red'; qMult = 1.8; extraCount = 5; tier = 3; }
-  else if (rand > 95) { quality = 'orange'; qMult = 1.5; extraCount = 4; tier = 3; }
-  else if (rand > 85) { quality = 'purple'; qMult = 1.3; extraCount = 3; tier = 2; }
-  else if (rand > 60) { quality = 'blue'; qMult = 1.15; extraCount = 2; tier = 2; }
-  else if (rand > 30) { quality = 'green'; qMult = 1.05; extraCount = 1; tier = 1; }
-
-  const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
-  const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
-  const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
-
-  const WEAPON_ACC_POOL = ['atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'];
-  const ARMOR_POOL = ['hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'];
-  const pool = template.category === 'armor' ? ARMOR_POOL : WEAPON_ACC_POOL;
-  
-  let tempPool = [...pool];
-  const extras = [];
-  for (let i = 0; i < extraCount; i++) {
-    if(tempPool.length === 0) break;
-    const idx = Math.floor(Math.random() * tempPool.length);
-    const stat = tempPool.splice(idx, 1)[0];
-    let val = 0;
-    if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
-    else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
-    else if (stat === 'atkPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
-    else if (stat === 'defPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
-    else val = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
-    extras.push({ stat, value: val });
-  }
-
-  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
-  extraKeys.forEach(k => { if (template[k] && template[k] !== 0) extras.push({ stat: k, value: template[k] / 100 }); });
-
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
-}
 
 // ==========================================
 // 场景 1：战前布阵
@@ -263,7 +223,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v8.2.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v9.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -353,7 +313,7 @@ class BattleScene extends Phaser.Scene {
 
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
-    this.speedMultiplier = 1; this.isSkipping = false;
+    this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
     const speedBtn = this.add.text(CONFIG.WIDTH - 120, 10, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
     speedBtn.on('pointerdown', () => {
@@ -363,7 +323,11 @@ class BattleScene extends Phaser.Scene {
     });
 
     const skipBtn = this.add.text(CONFIG.WIDTH - 10, 10, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
-    skipBtn.on('pointerdown', () => { if (this.isSkipping) return; this.isSkipping = true; this.fastForwardBattle(); });
+    skipBtn.on('pointerdown', () => { 
+      if (this.isSkipping || this.battleEnded) return; 
+      this.isSkipping = true; 
+      this.fastForwardBattle(); 
+    });
 
     const levelData = LEVELS[this.currentLevelIndex] || { enemyIds: [] };
     const activeFighters = [];
@@ -382,12 +346,16 @@ class BattleScene extends Phaser.Scene {
       }
     });
 
-    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, maxMp: 0, mpPerAttack: 0, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
 
     activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); this.createUnitView(unit); });
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
-    this.logText = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '', { fontSize: '22px', color: '#ffffff', align: 'center', wordWrap: { width: CONFIG.WIDTH - 100 } }).setOrigin(0.5);
+    
+    // 战报容器
+    this.logTexts = [];
+    this.logContainer = this.add.container(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30);
+
     this.time.delayedCall(800, () => this.startBattle());
   }
 
@@ -410,15 +378,26 @@ class BattleScene extends Phaser.Scene {
     const circle = this.add.circle(0, 0, 42, ELEMENTS[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: '48px' }).setOrigin(0.5);
     const nameText = this.add.text(0, 50, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    
+    // HP 红色背景
     const hpBg = this.add.rectangle(0, 72, 90, 10, 0x000000, 0.8).setStrokeStyle(1, 0xffffff, 0.4);
-    const hpBar = this.add.rectangle(-45, 72, 90, 8, 0x2ECC71).setOrigin(0, 0.5);
-    const shieldBar = this.add.rectangle(-45, 72, 90, 8, 0x3498DB).setOrigin(0, 0.5);
+    const hpBar = this.add.rectangle(-45, 72, 90, 8, 0xff4444).setOrigin(0, 0.5);
+    const hpText = this.add.text(0, 72, '', { fontSize: '10px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5); // HP数字
+    
+    // 护盾条 (灰白半透明，斜线效果暂略，用亮灰色)
+    const shieldBar = this.add.rectangle(-45, 72, 90, 8, 0xcccccc, 0.8).setOrigin(0, 0.5);
     shieldBar.setVisible(false);
+    const shieldText = this.add.text(0, 72, '', { fontSize: '9px', color: '#ffffff' }).setOrigin(0.5);
+
+    // MP 蓝色背景
     const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
     const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
+    const mpText = this.add.text(45, 82, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5); // MP数字
+
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
-    container.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, statusText]);
-    this.unitViews.set(unit, { container, circle, emoji, hpBar, shieldBar, mpBar, statusText });
+    
+    container.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    this.unitViews.set(unit, { container, circle, emoji, hpBar, shieldBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
   getUnitScreenPosition(unit) {
@@ -429,7 +408,7 @@ class BattleScene extends Phaser.Scene {
   }
   
   startBattle() { 
-    if (this.isSkipping) return;
+    if (this.isSkipping || this.battleEnded) return;
     this.round = 1; 
     this.allUnits.forEach(u => u.resetFollowups()); 
     this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); 
@@ -438,12 +417,12 @@ class BattleScene extends Phaser.Scene {
   }
   
   nextAction() {
-    if (this.isSkipping) return;
+    if (this.isSkipping || this.battleEnded) return;
     const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
     const enemies = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
-    if (players.length === 0) return this.showResult('defeat');
-    if (enemies.length === 0) return this.showResult('victory');
-    if (this.round > CONFIG.MAX_ROUNDS) return this.showResult('timeout');
+    if (players.length === 0) return this.endBattle('defeat');
+    if (enemies.length === 0) return this.endBattle('victory');
+    if (this.round > CONFIG.MAX_ROUNDS) return this.endBattle('timeout');
     
     if (this.actionIndex >= this.actionOrder.length) {
       this.round++;
@@ -456,8 +435,8 @@ class BattleScene extends Phaser.Scene {
         if (u.hp < oldHp) this.showDamageNumber(u, { damage: oldHp - u.hp, isCrit: false, isMiss: false }, '#ff00ff'); 
         this.updateUnitView(u);
       });
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.showResult('defeat');
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.showResult('victory');
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.endBattle('defeat');
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.endBattle('victory');
       this.actionOrder = BattleLogic.buildActionOrder(this.allUnits);
       this.actionIndex = 0;
       this.time.delayedCall(800 / this.speedMultiplier, () => this.nextAction());
@@ -469,13 +448,14 @@ class BattleScene extends Phaser.Scene {
   }
   
   executeAction(actor) {
+    if (this.battleEnded) return;
     if (actor.skipTurn) {
       actor.skipTurn = false;
       const stIndex = actor.statuses.findIndex(st => STATUSES[st.id] && STATUSES[st.id].isStun);
       if (stIndex !== -1) actor.statuses.splice(stIndex, 1);
       this.updateUnitView(actor);
+      this.addLog(`${actor.name} 处于眩晕状态，无法行动！`, '#f1c40f');
       
-      this.logText.setText(`${actor.name} 处于眩晕状态，无法行动！`).setColor('#f1c40f');
       const view = this.unitViews.get(actor).container;
       this.tweens.add({ targets: view, angle: 10, yoyo: true, repeat: 3, duration: 100 });
       return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
@@ -490,38 +470,40 @@ class BattleScene extends Phaser.Scene {
     if (view) this.tweens.add({ targets: view.container, scaleX: 1.2, scaleY: 1.2, duration: 150 / this.speedMultiplier, yoyo: true });
     
     const isUlt = skill.type === 'ultimate';
-    this.logText.setText(`${actor.name} 使用了【${skill.name}】`).setColor(isUlt ? '#e74c3c' : '#ffffff');
+    this.addLog(`${actor.name} 使用了【${skill.name}】`, isUlt ? '#e74c3c' : '#ffffff');
 
     this.time.delayedCall(450 / this.speedMultiplier, () => {
-      actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
+      actor.mp = Math.max(0, actor.mp - (skill.mpCost || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
       
       let totalHeal = 0;
       
-      // 1. 结算主目标
       targets.forEach(t => {
         if (skill.healMultiplier > 0) {
           const healVal = Math.round(actor.atk * skill.healMultiplier);
           t.heal(healVal);
           this.showFloatText(t, `+${healVal}`, '#2ecc71');
+          this.addLog(`${actor.name} 为 ${t.name} 恢复了 ${healVal} 点生命。`, '#2ecc71');
         } else if (skill.shieldMultiplier > 0) {
           const shieldVal = Math.round(actor.atk * skill.shieldMultiplier);
           t.addShield(shieldVal);
           this.showFloatText(t, `护盾 +${shieldVal}`, '#3498db');
+          this.addLog(`${actor.name} 为 ${t.name} 提供了 ${shieldVal} 点护盾。`, '#3498db');
         } else {
           const result = BattleLogic.computeDamage(actor, t, skill);
           if (result.isMiss) {
             this.showFloatText(t, 'MISS', '#aaaaaa');
+            this.addLog(`${t.name} 闪避了 ${actor.name} 的攻击！`, '#aaaaaa');
           } else {
             t.takeDamage(result.damage);
-            if (result.lifestealAmount > 0) totalHeal += result.lifestealAmount; // 累加吸血
+            if (result.lifestealAmount > 0) totalHeal += result.lifestealAmount; 
             this.showDamageNumber(t, result);
+            this.addLog(`${actor.name} 对 ${t.name} 造成了 ${result.damage} 点${result.isCrit?'暴击':''}伤害！`, '#ff5555');
           }
         }
         this.updateUnitView(t);
       });
 
-      // 2. 结算附加的多重效果（如果主目标是MISS了，这里依然走概率判定，看你的需求，目前是只要命中/释放就判定）
       if (skill.effects && skill.effects.length > 0) {
         skill.effects.forEach(eff => {
           if (Math.random() > eff.chance) return;
@@ -546,16 +528,25 @@ class BattleScene extends Phaser.Scene {
             if (eff.type === 'status') {
               t.addStatus(eff.value);
               this.showFloatText(t, `+${STATUSES[eff.value]?.name || '状态'}`, '#00ffff');
+              this.addLog(`${t.name} 被附加了【${STATUSES[eff.value]?.name || '状态'}】。`, '#00ffff');
               this.updateUnitView(t);
             } else if (eff.type === 'heal') {
               const val = Math.round(actor.atk * eff.value);
               t.heal(val);
               this.showFloatText(t, `+${val}`, '#2ecc71');
+              this.addLog(`${t.name} 恢复了 ${val} 点生命。`, '#2ecc71');
               this.updateUnitView(t);
             } else if (eff.type === 'shield') {
               const val = Math.round(actor.atk * eff.value);
               t.addShield(val);
               this.showFloatText(t, `盾+${val}`, '#3498db');
+              this.addLog(`${t.name} 获得了 ${val} 点护盾。`, '#3498db');
+              this.updateUnitView(t);
+            } else if (eff.type === 'mp') {
+              const val = eff.value; // MP是百分比直接加
+              t.gainMp(val);
+              this.showFloatText(t, `MP +${val}%`, '#88ccff');
+              this.addLog(`${t.name} 恢复了 ${val}% MP。`, '#88ccff');
               this.updateUnitView(t);
             }
           });
@@ -565,10 +556,14 @@ class BattleScene extends Phaser.Scene {
       if (totalHeal > 0) {
         actor.heal(totalHeal);
         this.showFloatText(actor, `+${totalHeal}`, '#2ecc71');
+        this.addLog(`${actor.name} 触发吸血，恢复了 ${totalHeal} 点生命。`, '#2ecc71');
         this.updateUnitView(actor);
       }
 
-      actor.gainMp(); actor.reduceCooldowns(); this.updateUnitView(actor);
+      // 回合结束回蓝 10%
+      if (actor.isAlive()) actor.gainMp(10);
+
+      actor.reduceCooldowns(); this.updateUnitView(actor);
       if (skill.comboTagOut) this.checkFollowups(skill.comboTagOut, actor); 
       this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     });
@@ -593,7 +588,6 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // ★ 修复：追打也处理吸血和多重效果（如果追打配了治疗）
   triggerFollowupAction(actor, skill, tag) {
     const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
     if (targets.length === 0) return;
@@ -602,9 +596,9 @@ class BattleScene extends Phaser.Scene {
       this.showFloatText(actor, `⚡追打!`, '#ffcc00');
       this.tweens.add({ targets: view.container, scaleX: 1.3, scaleY: 1.3, duration: 150 / this.speedMultiplier, yoyo: true });
     }
-    this.logText.setText(`⚡ ${actor.name} 追打【${skill.name}】`).setColor('#ffcc00');
+    this.addLog(`⚡ ${actor.name} 发动追打【${skill.name}】`, '#ffcc00');
     this.time.delayedCall(300 / this.speedMultiplier, () => {
-      actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
+      actor.mp = Math.max(0, actor.mp - (skill.mpCost || 0));
       if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
       
       let totalHeal = 0;
@@ -614,11 +608,11 @@ class BattleScene extends Phaser.Scene {
           t.takeDamage(result.damage); 
           if(result.lifestealAmount > 0) totalHeal += result.lifestealAmount;
           this.showDamageNumber(t, result); 
+          this.addLog(`${actor.name} 对 ${t.name} 造成了 ${result.damage} 点追打伤害！`, '#ff5555');
           this.updateUnitView(t); 
         }
       });
 
-      // 追打附带的效果
       if (skill.effects && skill.effects.length > 0) {
         skill.effects.forEach(eff => {
           if (Math.random() > eff.chance) return;
@@ -634,6 +628,7 @@ class BattleScene extends Phaser.Scene {
             if (!t || !t.isAlive()) return;
             if (eff.type === 'heal') { const val = Math.round(actor.atk * eff.value); t.heal(val); this.showFloatText(t, `+${val}`, '#2ecc71'); }
             else if (eff.type === 'shield') { const val = Math.round(actor.atk * eff.value); t.addShield(val); this.showFloatText(t, `盾+${val}`, '#3498db'); }
+            else if (eff.type === 'mp') { t.gainMp(eff.value); this.showFloatText(t, `MP +${eff.value}%`, '#88ccff'); }
             else if (eff.type === 'status') { t.addStatus(eff.value); this.showFloatText(t, `+状态`, '#00ffff'); }
             this.updateUnitView(t);
           });
@@ -665,17 +660,41 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => txt.destroy() });
   }
 
+  // ★ 新增战报记录
+  addLog(text, color = '#ffffff') {
+    const yOffset = this.logTexts.length * 24;
+    const t = this.add.text(0, yOffset, text, { fontSize: '16px', color: color, stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
+    this.logContainer.add(t);
+    this.logTexts.push(t);
+
+    // 整体上移
+    this.tweens.add({ targets: this.logTexts, y: (target) => target.y - 24, duration: 200 });
+
+    // 移除过旧的记录
+    if (this.logTexts.length > 8) {
+      const oldText = this.logTexts.shift();
+      oldText.destroy();
+    }
+  }
+
   updateUnitView(unit) {
     const view = this.unitViews.get(unit);
     if (!view) return;
     this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 / this.speedMultiplier });
     this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 / this.speedMultiplier });
     
+    view.hpText.setText(`${unit.hp}/${unit.maxHp}`);
+    view.mpText.setText(`${unit.mp}%`);
+
     if (unit.shield > 0) {
       view.shieldBar.setVisible(true);
       const shieldRatio = Math.min(1, unit.shield / unit.maxHp);
       this.tweens.add({ targets: view.shieldBar, scaleX: shieldRatio, duration: 300 / this.speedMultiplier });
-    } else { view.shieldBar.setVisible(false); }
+      view.shieldText.setText(`${unit.shield}`);
+    } else { 
+      view.shieldBar.setVisible(false); 
+      view.shieldText.setText('');
+    }
 
     if (unit.statuses.length > 0) {
       const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
@@ -685,12 +704,13 @@ class BattleScene extends Phaser.Scene {
   }
   
   fastForwardBattle() {
+    this.addLog(`⚠️ 玩家点击了跳过战斗`, '#f1c40f');
     let rounds = 0;
     while (rounds < CONFIG.MAX_ROUNDS) {
       const players = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
       const enemies = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
-      if (players.length === 0) return this.showResult('defeat');
-      if (enemies.length === 0) return this.showResult('victory');
+      if (players.length === 0) return this.endBattle('defeat');
+      if (enemies.length === 0) return this.endBattle('victory');
       
       this.allUnits.forEach(u => { if (u.isAlive()) u.tickStatuses(); });
       const actionOrder = BattleLogic.buildActionOrder(this.allUnits);
@@ -700,7 +720,7 @@ class BattleScene extends Phaser.Scene {
         const skill = BattleLogic.chooseSkill(actor, this.allUnits);
         if (!skill) continue;
         const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
-        actor.mp = Math.max(0, actor.mp - (skill.cost?.mp || 0));
+        actor.mp = Math.max(0, actor.mp - (skill.mpCost || 0));
         if (skill.cooldown > 0) actor.cooldowns[skill.id] = skill.cooldown;
         
         targets.forEach(t => { 
@@ -708,18 +728,35 @@ class BattleScene extends Phaser.Scene {
           else if (skill.shieldMultiplier > 0) t.addShield(Math.round(actor.atk * skill.shieldMultiplier));
           else { const res = BattleLogic.computeDamage(actor, t, skill); if (!res.isMiss) t.takeDamage(res.damage); }
         });
-        actor.gainMp(); actor.reduceCooldowns();
+        if(actor.isAlive()) actor.gainMp(10);
+        actor.reduceCooldowns();
       }
       rounds++;
     }
-    this.showResult('timeout');
+    this.endBattle('timeout');
   }
 
-  showResult(type) {
+  // ★ 点击继续按钮
+  endBattle(type) {
+    this.battleEnded = true;
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.85);
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 200, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    
+    this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.6);
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 100, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    
+    const contBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 100, '👉 点击继续查看结算', { fontSize: '32px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+    contBtn.on('pointerdown', () => this.showResultPanel(type));
+  }
+
+  showResultPanel(type) {
+    this.children.removeAll(); // 清空战斗画面
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    
+    const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
+    const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
+    
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
     
     let btnText = '🔄 重新挑战';
     let btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex }); };
@@ -732,8 +769,8 @@ class BattleScene extends Phaser.Scene {
           INVENTORY.push(inst);
           localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
           const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
-          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 80, `获得掉落：`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
-          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 20, `${ITEMS[inst.itemId].name}`, { fontSize: '36px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, `获得掉落：`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
+          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, `${ITEMS[inst.itemId].name}`, { fontSize: '36px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
         }
       }
       if (this.currentLevelIndex < LEVELS.length - 1) {
@@ -742,13 +779,13 @@ class BattleScene extends Phaser.Scene {
       }
     }
 
-    const btn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 140, btnText, { fontSize: '36px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+    const btn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 150, btnText, { fontSize: '36px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
     btn.on('pointerdown', btnAction);
   }
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v15') {
+  if (e.key === 'my_game_data_v16') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
