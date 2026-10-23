@@ -798,7 +798,8 @@ window.addEventListener('storage', (e) => {
   }
 });
 
-new Phaser.Game({
+// 【重要】把实例赋值给 window.game 供 index.html 全局调用，以禁用输入
+window.game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
   scene: [MainMenuScene, FormationScene, BattleScene, TeamScene, ResultScene],
