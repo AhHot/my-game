@@ -9,171 +9,165 @@
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; }
         #game { width: 100%; height: 100%; }
         
-        /* ================= 触发按钮 ================= */
-        #test-ui-btn {
-            position: fixed; bottom: 20px; left: 20px; z-index: 999;
-            background: #3498db; color: white; padding: 10px 15px; border-radius: 5px;
-            cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-
         /* ================= 全屏 UI 遮罩 ================= */
         #fullscreen-ui {
-            display: none; /* 默认隐藏 */
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(10, 10, 15, 0.95);
-            z-index: 9000;
-            color: #ddd;
-            display: flex;
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd;
+            flex-direction: row; /* 强制左右分栏 */
         }
 
-        .close-ui-btn {
-            position: absolute; top: 15px; right: 20px; font-size: 30px; color: #aaa; cursor: pointer; z-index: 9100;
-        }
+        .close-ui-btn { position: absolute; top: 15px; right: 20px; font-size: 30px; color: #aaa; cursor: pointer; z-index: 9999; }
         .close-ui-btn:hover { color: #fff; }
 
         /* ================= 左侧基础面板 ================= */
         #left-panel {
-            width: 350px;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
-            border-right: 2px solid #333;
-            display: flex; flex-direction: column;
-            flex-shrink: 0;
+            width: 35%; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
+            border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;
         }
 
         .char-portrait {
-            height: 40%; /* 占左侧高度40% */
-            background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover;
+            flex: 1; /* 占据剩余空间 */
+            background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; 
             position: relative;
+            min-height: 150px;
         }
         .char-portrait::after {
             content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 50%;
             background: linear-gradient(to top, #1a1c29, transparent);
         }
 
-        .char-info-area {
-            flex: 1;
-            padding: 20px;
-            display: flex; flex-direction: column;
-            overflow-y: auto;
-        }
-        .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-        .char-name-level h2 { color: #f1c40f; font-size: 24px; }
-        .char-name-level span { color: #2ecc71; font-weight: bold; }
+        .char-info-area { padding: 15px; background: rgba(15, 15, 21, 0.9); border-top: 1px solid #333; }
+        .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+        .char-name-level h2 { color: #f1c40f; font-size: 20px; }
+        .char-name-level span { color: #2ecc71; font-weight: bold; font-size: 14px; }
 
-        .exp-bar-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
+        .exp-bar-bg { width: 100%; height: 4px; background: #222; border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
         .exp-bar-fill { width: 45%; height: 100%; background: #3498db; }
 
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; margin-bottom: 25px; }
-        .stat-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; margin-bottom: 10px; }
+        .stat-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 2px; }
         .stat-item span { color: #888; }
         .stat-item b { color: #fff; }
 
-        .core-four { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 15px; font-weight: bold; margin-bottom: 20px;}
-        .core-four div { background: #1e2028; padding: 10px; border-radius: 6px; border: 1px solid #333; text-align: center;}
-        .core-four div b { display: block; color: #e74c3c; margin-top: 5px; font-size: 18px;}
+        .core-four { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; font-weight: bold; }
+        .core-four div { background: #1e2028; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;}
+        .core-four div b { display: block; color: #e74c3c; margin-top: 2px; font-size: 14px;}
 
-        /* ================= 右侧内容区 ================= */
-        #right-panel {
-            flex: 1;
-            display: flex; flex-direction: column;
-            background: rgba(20, 22, 30, 0.8);
+        /* 人物列表区域 (底部) */
+        .char-list-area {
+            background: #111; padding: 10px; border-top: 1px solid #333;
+            display: flex; gap: 10px; overflow-x: auto; height: 75px; flex-shrink: 0;
+        }
+        .char-avatar-btn {
+            width: 50px; height: 50px; flex-shrink: 0; border-radius: 8px; background: #222; border: 2px solid #444;
+            display: flex; justify-content: center; align-items: center; font-size: 24px; cursor: pointer; transition: all 0.2s;
+        }
+        .char-avatar-btn.active { border-color: #f1c40f; box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); background: #333; }
+
+        /* 展开箭头 */
+        .expand-btn {
+            position: absolute; top: 40%; right: -25px; transform: translateY(-50%);
+            width: 25px; height: 60px; background: #2c3e50; border: 1px solid #444; border-left: none;
+            border-radius: 0 8px 8px 0; cursor: pointer; display: flex; justify-content: center; align-items: center;
+            color: #f1c40f; font-size: 16px; z-index: 9020;
         }
 
-        /* 右侧标签页 */
-        .right-tabs { display: flex; background: #111; border-bottom: 1px solid #333; }
-        .rt-tab { flex: 1; text-align: center; padding: 15px 0; cursor: pointer; font-weight: bold; color: #888; font-size: 16px;}
-        .rt-tab.active { color: #f1c40f; border-bottom: 2px solid #f1c40f; background: #1a1c29; }
+        /* ================= 右侧区域 ================= */
+        #right-panel {
+            flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 20px;
+        }
+        
+        .right-tabs { display: flex; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; gap: 10px;}
+        .rt-tab { flex: 1; text-align: center; padding: 10px; background: #1a1c29; border-radius: 6px; cursor: pointer; font-weight: bold; color: #888; transition: all 0.2s;}
+        .rt-tab.active { color: #fff; background: #3498db; }
 
-        /* 背包网格区 */
-        #inventory-tab {
-            flex: 1; padding: 20px; overflow-y: auto;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
-            gap: 10px;
-            align-content: start;
+        /* 背包区 */
+        #inv-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;}
+        .filter-btn { padding: 6px 15px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 13px; color: #aaa; }
+        .filter-btn.active { background: #e67e22; border-color: #e67e22; color: #fff; font-weight: bold;}
+
+        #inventory-grid {
+            flex: 1; overflow-y: auto;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 10px; align-content: start;
+            padding-bottom: 20px;
         }
 
         .inv-slot {
-            aspect-ratio: 1;
-            background: #1a1c29;
-            border: 2px solid #333;
-            border-radius: 8px;
+            aspect-ratio: 1; background: #1a1c29; border: 2px solid #333; border-radius: 8px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            cursor: pointer; position: relative;
-            transition: all 0.2s;
+            cursor: pointer; position: relative; transition: border-color 0.2s;
         }
-        .inv-slot:hover { border-color: #f1c40f; transform: scale(1.05); z-index: 10;}
+        .inv-slot:hover { border-color: #f1c40f; }
         .inv-slot .item-icon { font-size: 28px; margin-bottom: 4px; }
-        .inv-slot .item-name { font-size: 11px; color: #aaa; text-align: center; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px; }
+        .inv-slot .item-name { font-size: 11px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px;}
+
+        /* 技能区 */
+        #skill-container { flex: 1; display: none; flex-direction: column; overflow-y: auto; gap: 10px; padding-bottom: 20px;}
+        .skill-card { background: #1a1c29; border: 1px solid #333; border-radius: 8px; padding: 15px; }
+        .skill-header { display: flex; justify-content: space-between; font-weight: bold; color: #f1c40f; margin-bottom: 8px; font-size: 16px;}
+        .skill-desc { font-size: 13px; color: #bbb; line-height: 1.5; }
+
+        /* ================= 弹窗 ================= */
+        .overlay-card {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #0f0f15; border: 2px solid #f1c40f; border-radius: 8px;
+            padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.8); z-index: 9600; width: 340px; max-height: 80vh; overflow-y: auto;
+        }
+        .card-close { position: absolute; top: 10px; right: 15px; cursor: pointer; color: #aaa; font-size: 18px; }
+        .card-close:hover { color: #fff; }
         
-        /* 详细属性区 (隐藏) */
-        #detail-tab { display: none; flex: 1; padding: 30px; overflow-y: auto; }
-        .detail-section { margin-bottom: 30px; }
-        .detail-title { font-size: 18px; color: #f1c40f; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
-        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 40px; font-size: 15px; }
-        .detail-item { display: flex; justify-content: space-between; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; }
+        .tt-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; text-align: center;}
+        .tt-sub { font-size: 12px; color: #888; text-align: center; margin-bottom: 15px;}
+        .tt-stats { font-size: 14px; margin-top: 10px; }
+        .tt-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .tt-diff-up { color: #2ecc71; font-weight: bold;} 
+        .tt-diff-down { color: #e74c3c; font-weight: bold;} 
+        .tt-base { color: #fff; }
+        .btn-equip { display: block; width: 100%; padding: 12px; margin-top: 15px; background: #e67e22; color: #fff; text-align: center; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; font-size: 16px;}
+        .btn-equip:hover { background: #d35400; }
+
+        .detail-title { font-size: 16px; color: #f1c40f; border-bottom: 1px solid #333; margin: 15px 0 10px 0; padding-bottom:5px;}
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; }
+        .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 4px; }
         .detail-item span { color: #888; }
         .detail-item b { color: #fff; }
-
-        /* ================= 详情卡片 ================= */
-        #item-tooltip {
-            display: none;
-            position: fixed; z-index: 9600;
-            width: 260px; background: #0f0f15; border: 2px solid #f1c40f; border-radius: 8px;
-            padding: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.8);
-            pointer-events: none; /* 鼠标穿透 */
-        }
-        .tt-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; }
-        .tt-stats { font-size: 13px; margin-top: 10px; }
-        .tt-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
-        .tt-diff-up { color: #2ecc71; } 
-        .tt-diff-down { color: #e74c3c; } 
-        .tt-base { color: #fff; }
 
         /* 移动端适配 */
         @media (max-width: 768px) {
             #fullscreen-ui { flex-direction: column; }
-            #left-panel { width: 100%; height: 40%; border-right: none; border-bottom: 2px solid #333; flex-direction: row; }
+            #left-panel { width: 100%; height: 45%; border-right: none; border-bottom: 2px solid #333; flex-direction: row; flex-wrap: wrap; }
             .char-portrait { width: 35%; height: 100%; }
             .char-info-area { width: 65%; padding: 10px; }
-            .stat-grid { gap: 5px; font-size: 12px; margin-bottom: 10px;}
-            .core-four { gap: 10px; margin-bottom: 10px; }
-            .core-four div { padding: 5px; }
-            .core-four div b { font-size: 14px; }
-            #right-panel { height: 60%; }
-            #inventory-tab { grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); padding: 10px;}
-            #detail-tab { padding: 15px; }
-            .detail-grid { grid-template-columns: 1fr 1fr; gap: 5px 15px; font-size: 13px;}
+            .char-list-area { width: 100%; height: 60px; position: absolute; bottom: 0; background: rgba(0,0,0,0.8); padding: 5px;}
+            .char-avatar-btn { width: 40px; height: 40px; font-size: 20px;}
+            #right-panel { height: 55%; padding: 10px; }
+            .filter-bar { gap: 5px; }
+            .filter-btn { padding: 4px 10px; font-size: 12px; }
+            #inventory-grid { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 8px; }
+            .inv-slot .item-icon { font-size: 24px; }
+            .inv-slot .item-name { font-size: 10px; }
+            .expand-btn { top: 15%; right: 10px; transform: none; width: 40px; height: 30px; border-radius: 8px 8px 0 0; border-bottom: none; border-left: 1px solid #444;}
         }
     </style>
 </head>
 <body>
-
-    <!-- 游戏引擎挂载点 -->
     <div id="game"></div>
 
-    <div id="test-ui-btn" onclick="openCharacterUI()">📊 人物与背包</div>
-
-    <!-- ================= 全屏 UI 区域 ================= -->
     <div id="fullscreen-ui">
         <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
 
-        <!-- 左半屏：基础面板 -->
+        <!-- 左侧 -->
         <div id="left-panel">
             <div class="char-portrait"></div>
-            
             <div class="char-info-area">
                 <div class="char-name-level">
                     <h2 id="ui-char-name">战士</h2>
-                    <span>Lv. 44</span>
+                    <span id="ui-char-level">Lv. 44</span>
                 </div>
                 <div class="exp-bar-bg"><div class="exp-bar-fill"></div></div>
-
-                <!-- 6大意境 -->
                 <div class="stat-grid" id="ui-stats-grid"></div>
-
-                <!-- 核心四维 -->
                 <div class="core-four" id="ui-core-four">
                     <div>气血(HP)<b id="ui-hp">3000</b></div>
                     <div>攻击(ATK)<b id="ui-atk">400</b></div>
@@ -181,40 +175,50 @@
                     <div>速度(SPD)<b id="ui-spd">10</b></div>
                 </div>
             </div>
+            <div class="char-list-area" id="ui-char-list"></div>
+            <div class="expand-btn" onclick="showDetailCard()">▶</div>
         </div>
 
-        <!-- 右半屏：背包与详细属性 -->
+        <!-- 右侧 -->
         <div id="right-panel">
-            <!-- 标签切换 -->
             <div class="right-tabs">
-                <div class="rt-tab active" id="tab-btn-inv" onclick="switchRightTab('inv')">🎒 背包 (200格)</div>
-                <div class="rt-tab" id="tab-btn-detail" onclick="switchRightTab('detail')">📊 详细属性</div>
+                <div class="rt-tab active" id="rt-btn-inv" onclick="switchRightTab('inv')">🎒 背包</div>
+                <div class="rt-tab" id="rt-btn-skill" onclick="switchRightTab('skill')">📖 技能</div>
             </div>
 
-            <!-- 1. 背包网格 -->
-            <div id="inventory-tab">
-                <!-- 动态生成格子 -->
+            <!-- 背包区 -->
+            <div id="inv-container">
+                <div class="filter-bar">
+                    <div class="filter-btn active" onclick="setFilter('all', this)">全部</div>
+                    <div class="filter-btn" onclick="setFilter('equip', this)">装备</div>
+                    <div class="filter-btn" onclick="setFilter('consumable', this)">消耗品</div>
+                    <div class="filter-btn" onclick="setFilter('material', this)">材料</div>
+                    <div class="filter-btn" onclick="setFilter('quest', this)">任务</div>
+                </div>
+                <div id="inventory-grid"></div>
             </div>
 
-            <!-- 2. 详细属性 -->
-            <div id="detail-tab">
-                <div class="detail-section">
-                    <div class="detail-title">【攻伐】</div>
-                    <div class="detail-grid" id="detail-atk"></div>
-                </div>
-                <div class="detail-section">
-                    <div class="detail-title">【守御】</div>
-                    <div class="detail-grid" id="detail-def"></div>
-                </div>
-                <div class="detail-section">
-                    <div class="detail-title">【克制与特殊】</div>
-                    <div class="detail-grid" id="detail-special"></div>
-                </div>
-            </div>
+            <!-- 技能区 -->
+            <div id="skill-container"></div>
         </div>
 
-        <!-- 悬浮详情卡 -->
-        <div id="item-tooltip"></div>
+        <!-- 弹窗 -->
+        <div id="item-tooltip" class="overlay-card">
+            <div class="card-close" onclick="hideTooltip()">✖</div>
+            <div id="tooltip-content"></div>
+            <button class="btn-equip" id="btn-equip-action">穿戴</button>
+        </div>
+
+        <div id="detail-card" class="overlay-card">
+            <div class="card-close" onclick="hideDetailCard()">✖</div>
+            <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px;">详细属性</h2>
+            <div class="detail-title">【攻伐】</div>
+            <div class="detail-grid" id="detail-atk"></div>
+            <div class="detail-title">【守御】</div>
+            <div class="detail-grid" id="detail-def"></div>
+            <div class="detail-title">【克制与特殊】</div>
+            <div class="detail-grid" id="detail-special"></div>
+        </div>
     </div>
 
     <!-- 引入 Phaser 引擎 -->
@@ -225,26 +229,71 @@
     <script src="team.js"></script>
     <script src="battle.js"></script>
 
-    <!-- 新版全屏 UI 逻辑 -->
     <script>
-        let currentChar = null;
+        let selectedChar = null;
         let currentUnit = null;
+        let currentTab = 'inv';
+        let currentFilter = 'all';
+        let pendingEquipInst = null;
 
-        // 1. 打开主界面
-        function openCharacterUI() {
-            currentChar = CHARACTERS.find(c => c.side === 'player') || CHARACTERS[0];
-            if (!currentChar) return alert("编辑器里没有角色！");
-            currentUnit = new Unit(currentChar);
+        // 全局暴露给 Phaser 呼叫
+        window.openCharacterUI = function() {
+            renderCharList();
+            const players = CHARACTERS.filter(c => c.side === 'player');
+            if(players.length > 0) {
+                selectCharacter(players[0]);
+            } else {
+                document.getElementById('ui-char-name').innerText = "暂无角色";
+            }
+            document.getElementById('fullscreen-ui').style.display = 'flex';
+        }
 
-            // 渲染左侧数值
-            document.getElementById('ui-char-name').innerText = currentChar.name;
+        window.closeCharacterUI = function() {
+            document.getElementById('fullscreen-ui').style.display = 'none';
+            hideTooltip();
+            hideDetailCard();
+        }
+
+        // 渲染底部头像
+        function renderCharList() {
+            const box = document.getElementById('ui-char-list');
+            box.innerHTML = '';
+            const players = CHARACTERS.filter(c => c.side === 'player');
+            
+            players.forEach(p => {
+                const btn = document.createElement('div');
+                btn.className = 'char-avatar-btn';
+                btn.innerHTML = p.emoji || '👤';
+                btn.onclick = () => selectCharacter(p);
+                if (selectedChar && selectedChar.id === p.id) btn.classList.add('active');
+                box.appendChild(btn);
+            });
+        }
+
+        // 切换角色
+        function selectCharacter(charData) {
+            selectedChar = charData;
+            currentUnit = new Unit(selectedChar); // 底层计算最新属性
+            
+            // 刷新头像高亮
+            document.querySelectorAll('.char-avatar-btn').forEach(b => b.classList.remove('active'));
+            const idx = CHARACTERS.filter(c=>c.side==='player').findIndex(c=>c.id === charData.id);
+            if(idx !== -1 && document.getElementById('ui-char-list').children[idx]) {
+                document.getElementById('ui-char-list').children[idx].classList.add('active');
+            }
+
+            refreshLeftPanel();
+            refreshRightPanel();
+        }
+
+        function refreshLeftPanel() {
+            document.getElementById('ui-char-name').innerText = selectedChar.name;
             document.getElementById('ui-hp').innerText = currentUnit.maxHp;
             document.getElementById('ui-atk').innerText = currentUnit.atk;
             document.getElementById('ui-def').innerText = currentUnit.def;
             document.getElementById('ui-spd').innerText = currentUnit.speed.toFixed(1);
 
-            // 意境
-            const stats = currentChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+            const stats = selectedChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
             document.getElementById('ui-stats-grid').innerHTML = `
                 <div class="stat-item"><span>锋锐</span> <b>${stats.fengRui}</b></div>
                 <div class="stat-item"><span>浑厚</span> <b>${stats.hunHou}</b></div>
@@ -254,9 +303,7 @@
                 <div class="stat-item"><span>绝情</span> <b>${stats.jueQing}</b></div>
             `;
 
-            // 渲染右侧详细属性（剔除基础四维，只留进阶）
             document.getElementById('detail-atk').innerHTML = `
-                <div class="detail-item"><span>破甲</span> <b>0%</b></div>
                 <div class="detail-item"><span>暴击率</span> <b>${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>暴击伤害</span> <b>${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>命中率</span> <b>${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
@@ -264,79 +311,71 @@
             document.getElementById('detail-def').innerHTML = `
                 <div class="detail-item"><span>闪避率</span> <b>${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>韧性(抗暴)</span> <b>${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
-                <div class="detail-item"><span>格挡率</span> <b>0%</b></div>
-                <div class="detail-item"><span>受疗加成</span> <b>0%</b></div>
             `;
             document.getElementById('detail-special').innerHTML = `
                 <div class="detail-item"><span>吸血</span> <b>${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>内力恢复</span> <b>+10% / 回合</b></div>
-                <div class="detail-item"><span>火抗性</span> <b>0%</b></div>
-                <div class="detail-item"><span>冰抗性</span> <b>0%</b></div>
             `;
-
-            // 渲染背包网格
-            renderInventoryGrid();
-
-            // 默认显示背包Tab
-            switchRightTab('inv');
-            document.getElementById('fullscreen-ui').style.display = 'flex';
         }
 
-        // 2. 关闭
-        function closeCharacterUI() {
-            document.getElementById('fullscreen-ui').style.display = 'none';
-            document.getElementById('item-tooltip').style.display = 'none';
-        }
-
-        // 3. 切换右侧标签
-        function switchRightTab(tab) {
-            document.getElementById('tab-btn-inv').classList.remove('active');
-            document.getElementById('tab-btn-detail').classList.remove('active');
-            document.getElementById('inventory-tab').style.display = 'none';
-            document.getElementById('detail-tab').style.display = 'none';
-            document.getElementById('item-tooltip').style.display = 'none';
-
-            if (tab === 'inv') {
-                document.getElementById('tab-btn-inv').classList.add('active');
-                document.getElementById('inventory-tab').style.display = 'grid';
+        function refreshRightPanel() {
+            if (currentTab === 'inv') {
+                document.getElementById('inv-container').style.display = 'flex';
+                document.getElementById('skill-container').style.display = 'none';
+                renderInventory();
             } else {
-                document.getElementById('tab-btn-detail').classList.add('active');
-                document.getElementById('detail-tab').style.display = 'block';
+                document.getElementById('inv-container').style.display = 'none';
+                document.getElementById('skill-container').style.display = 'flex';
+                renderSkills();
             }
         }
 
-        // 4. 渲染 200 格背包
-        function renderInventoryGrid() {
-            const grid = document.getElementById('inventory-tab');
+        function switchRightTab(tab) {
+            currentTab = tab;
+            document.getElementById('rt-btn-inv').classList.remove('active');
+            document.getElementById('rt-btn-skill').classList.remove('active');
+            if(tab === 'inv') document.getElementById('rt-btn-inv').classList.add('active');
+            else document.getElementById('rt-btn-skill').classList.add('active');
+            refreshRightPanel();
+        }
+
+        function setFilter(type, btn) {
+            currentFilter = type;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderInventory();
+        }
+
+        // 渲染背包
+        function renderInventory() {
+            const grid = document.getElementById('inventory-grid');
             grid.innerHTML = '';
             
-            const TOTAL_SLOTS = 200;
-            const playerItems = INVENTORY.filter(i => !i.equippedBy || i.equippedBy === '');
+            const allItems = INVENTORY.filter(i => !i.equippedBy || i.equippedBy === '');
+            
+            const filteredItems = allItems.filter(inst => {
+                const tpl = ITEMS[inst.itemId];
+                if(!tpl) return false;
+                if(currentFilter === 'all') return true;
+                if(currentFilter === 'equip') return ['weapon', 'armor', 'accessory'].includes(tpl.category);
+                return tpl.category === currentFilter;
+            });
+
             const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
 
-            for (let i = 0; i < TOTAL_SLOTS; i++) {
+            for (let i = 0; i < 200; i++) {
                 const slot = document.createElement('div');
                 slot.className = 'inv-slot';
 
-                if (playerItems[i]) {
-                    const inst = playerItems[i];
+                if (filteredItems[i]) {
+                    const inst = filteredItems[i];
                     const itemTpl = ITEMS[inst.itemId];
                     if (itemTpl) {
                         slot.innerHTML = `
                             <div class="item-icon" style="border-bottom: 2px solid ${qColors[inst.quality]}">${itemTpl.icon || '📦'}</div>
                             <div class="item-name" style="color:${qColors[inst.quality]}">${itemTpl.name}</div>
                         `;
-                        
-                        // 手机端点击/PC端悬停显示详情
-                        slot.onmouseenter = (e) => showTooltip(e, inst, itemTpl);
-                        slot.onclick = (e) => {
-                            e.stopPropagation();
-                            showTooltip(e, inst, itemTpl);
-                        };
-                        // 点击空白处关闭卡片
-                        document.getElementById('inventory-tab').onclick = () => {
-                            document.getElementById('item-tooltip').style.display = 'none';
-                        };
+                        slot.onclick = (e) => { e.stopPropagation(); showTooltip(inst, itemTpl); };
                     }
                 } else {
                     slot.innerHTML = `<div style="color:#222; font-size:12px;">空</div>`;
@@ -345,27 +384,87 @@
             }
         }
 
-        // 5. 悬浮详情与对比
-        function showTooltip(event, inst, itemTpl) {
+        // 渲染技能
+        function renderSkills() {
+            const box = document.getElementById('skill-container');
+            box.innerHTML = '';
+            
+            const slots = selectedChar.skillSlots || {};
+            const slotNames = { normal: '普攻', skill: '招式', ultimate: '绝技', followup: '追打', learned: '学习' };
+            
+            let hasSkill = false;
+            for (let key in slots) {
+                if (!slots[key]) continue;
+                const sk = SKILLS[slots[key]];
+                if (!sk) continue;
+                hasSkill = true;
+
+                const div = document.createElement('div');
+                div.className = 'skill-card';
+                
+                let desc = '';
+                if (sk.multiplier > 0) desc += `造成 ${(sk.multiplier * 100).toFixed(0)}% 攻击力伤害。 `;
+                if (sk.healMultiplier > 0) desc += `恢复 ${(sk.healMultiplier * 100).toFixed(0)}% 攻击力的生命。 `;
+                if (sk.mpCost > 0) desc += `消耗内力: ${sk.mpCost}%。 `;
+                if (sk.cooldown > 0) desc += `冷却: ${sk.cooldown} 回合。 `;
+                
+                let effectsStr = '';
+                if (sk.effects && sk.effects.length > 0) {
+                    sk.effects.forEach(e => {
+                        if (e.type === 'status') {
+                            effectsStr += `附加[${STATUSES[e.value]?.name || e.value}] `;
+                        }
+                    });
+                }
+
+                div.innerHTML = `
+                    <div class="skill-header">
+                        <span>[${slotNames[key] || key}] ${sk.name}</span>
+                        <span style="color:#888; font-size:13px;">${sk.element ? sk.element : ''}</span>
+                    </div>
+                    <div class="skill-desc">
+                        ${desc}<br>
+                        ${effectsStr}
+                    </div>
+                `;
+                box.appendChild(div);
+            }
+            
+            if (!hasSkill) {
+                box.innerHTML = '<div style="color:#888; text-align:center; margin-top:50px;">该角色尚未装备技能</div>';
+            }
+        }
+
+        // 装备弹窗
+        function showTooltip(inst, itemTpl) {
+            pendingEquipInst = inst;
             const tooltip = document.getElementById('item-tooltip');
+            const content = document.getElementById('tooltip-content');
+            const btn = document.getElementById('btn-equip-action');
+            
+            let slotKey = itemTpl.equipSlot;
+            if (!slotKey) {
+                if (itemTpl.category === 'weapon') slotKey = 'weapon';
+                else if (itemTpl.category === 'armor') slotKey = 'body';
+                else if (itemTpl.category === 'accessory') slotKey = 'ring';
+            }
+
+            let equippedInst = null;
+            if (selectedChar.equipment && selectedChar.equipment[slotKey]) {
+                equippedInst = INVENTORY.find(i => i.uid === selectedChar.equipment[slotKey]);
+            }
+
             let html = `
                 <div class="tt-title" style="color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
-                <div style="font-size:12px; color:#888;">${itemTpl.category === 'weapon' ? '武器' : itemTpl.category === 'armor' ? '防具' : '饰品'}</div>
+                <div class="tt-sub">${itemTpl.category} / ${slotKey}</div>
                 <div class="tt-stats">
             `;
 
-            let equippedInst = null;
-            if (currentChar && currentChar.equipment && currentChar.equipment[itemTpl.category]) {
-                const eqUid = currentChar.equipment[itemTpl.category];
-                equippedInst = INVENTORY.find(i => i.uid === eqUid);
-            }
-
             const compareStats = (statName, currentVal, newVal, isPercent = false) => {
                 let diff = newVal - currentVal;
-                let diffStr = '';
-                // 如果穿的就是这件，不显示差值
                 if (inst.uid === equippedInst?.uid) diff = 0;
                 
+                let diffStr = '';
                 if (diff > 0) diffStr = ` <span class="tt-diff-up">(▲ +${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
                 else if (diff < 0) diffStr = ` <span class="tt-diff-down">(▼ ${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
                 
@@ -373,21 +472,13 @@
                 return `<div class="tt-row"><span>${statName}</span> <span class="tt-base">${newValStr}${diffStr}</span></div>`;
             };
 
-            let eqAtk = equippedInst ? equippedInst.baseAtk || 0 : 0;
-            let eqDef = equippedInst ? equippedInst.baseDef || 0 : 0;
-            let eqHp = equippedInst ? equippedInst.baseHp || 0 : 0;
-
-            if (inst.baseAtk || eqAtk) html += compareStats('攻击力', eqAtk, inst.baseAtk || 0);
-            if (inst.baseDef || eqDef) html += compareStats('防御力', eqDef, inst.baseDef || 0);
-            if (inst.baseHp || eqHp) html += compareStats('生命值', eqHp, inst.baseHp || 0);
+            if (inst.baseAtk || equippedInst?.baseAtk) html += compareStats('攻击力', equippedInst?.baseAtk || 0, inst.baseAtk || 0);
+            if (inst.baseDef || equippedInst?.baseDef) html += compareStats('防御力', equippedInst?.baseDef || 0, inst.baseDef || 0);
+            if (inst.baseHp || equippedInst?.baseHp) html += compareStats('生命值', equippedInst?.baseHp || 0, inst.baseHp || 0);
 
             if (inst.extras && inst.extras.length > 0) {
-                html += `<div style="border-top:1px dashed #444; margin:5px 0;"></div>`;
-                const statNames = { 
-                    atkPercent: '攻击力', defPercent: '防御力', hpPercent: '生命值', 
-                    critRate: '暴击率', critDmg: '暴击伤害', critResist: '抗暴率', 
-                    hitRate: '命中率', dodgeRate: '闪避率', lifesteal: '吸血', speed: '速度' 
-                };
+                html += `<div style="border-top:1px dashed #444; margin:10px 0;"></div>`;
+                const statNames = { atkPercent: '攻击力', defPercent: '防御力', hpPercent: '生命值', critRate: '暴击率', critDmg: '暴击伤害', critResist: '抗暴率', hitRate: '命中率', dodgeRate: '闪避率', lifesteal: '吸血', speed: '速度' };
                 inst.extras.forEach(ex => {
                     let eqVal = 0;
                     if (equippedInst && equippedInst.extras) {
@@ -399,30 +490,36 @@
                 });
             }
             html += `</div>`;
-            tooltip.innerHTML = html;
+            content.innerHTML = html;
+            
+            btn.innerText = equippedInst ? '替换' : '穿戴';
+            btn.onclick = () => {
+                if (equippedInst) equippedInst.equippedBy = ''; 
+                inst.equippedBy = selectedChar.id;
+                if(!selectedChar.equipment) selectedChar.equipment = {};
+                selectedChar.equipment[slotKey] = inst.uid;
+
+                saveGameData();
+                hideTooltip();
+                selectCharacter(selectedChar); // 重新计算属性
+            };
+
             tooltip.style.display = 'block';
-
-            // 判断位置：手机端固定在屏幕中间，PC跟随鼠标
-            let x, y;
-            if (window.innerWidth < 768) {
-                x = window.innerWidth / 2 - 130;
-                y = window.innerHeight / 2 - 100;
-            } else {
-                let clientX = event.clientX;
-                let clientY = event.clientY;
-                x = clientX + 15;
-                y = clientY + 15;
-                if (x + 260 > window.innerWidth) x = clientX - 275;
-                if (y + 200 > window.innerHeight) y = window.innerHeight - 210;
-            }
-
-            tooltip.style.left = x + 'px';
-            tooltip.style.top = y + 'px';
         }
 
+        function hideTooltip() { document.getElementById('item-tooltip').style.display = 'none'; }
+        function showDetailCard() { document.getElementById('detail-card').style.display = 'block'; }
+        function hideDetailCard() { document.getElementById('detail-card').style.display = 'none'; }
+        
         function getQualityColor(q) {
             const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
             return qc[q] || '#fff';
+        }
+
+        // 将穿戴结果保存到 localStorage，让 Phaser 下一场战斗读取
+        function saveGameData() {
+            localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
+            localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
         }
     </script>
 </body>
