@@ -20,6 +20,8 @@
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .card-header h3 { color: #3498db; }
     .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer;}
+    .btn-grant { background: #e67e22; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer; margin-right:10px;}
+    .btn-grant:hover { background: #d35400; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 2; }
@@ -73,7 +75,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v14.0 意境版)</h1>
+  <h1>⚙️ 配置中心 (v15.0 六槽位版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -122,10 +124,12 @@
       <div class="sub-tab active" id="tab-item-weapon" onclick="switchSubTab('item', 'weapon')">武器</div>
       <div class="sub-tab" id="tab-item-armor" onclick="switchSubTab('item', 'armor')">防具</div>
       <div class="sub-tab" id="tab-item-accessory" onclick="switchSubTab('item', 'accessory')">饰品</div>
+      <div class="sub-tab" id="tab-item-consumable" onclick="switchSubTab('item', 'consumable')">消耗品</div>
+      <div class="sub-tab" id="tab-item-material" onclick="switchSubTab('item', 'material')">材料</div>
+      <div class="sub-tab" id="tab-item-quest" onclick="switchSubTab('item', 'quest')">任务</div>
     </div>
     <div id="item-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addItem()">➕ 新增物品模板</button>
-    <button class="btn" style="background:#e67e22; width:100%; margin-bottom:20px;" onclick="grantItem()">🎁 发放随机实例物品</button>
   </div>
 
   <!-- 关卡 -->
@@ -143,35 +147,27 @@
 
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">📊 词条数值波动池</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">这里配置所有词条的基础随机范围。无论什么品质，都从这里抽取。固定值为整数，百分比填入数值即可(如 4.0 代表 4%)。</p>
-      
       <div class="sub-title">固定数值类</div>
       <div class="form-grid" id="affix-vals-flat"></div>
-      
       <div class="sub-title">基础百分比类</div>
       <div class="form-grid" id="affix-vals-basic"></div>
-      
       <div class="sub-title">高级属性类</div>
       <div class="form-grid" id="affix-vals-advanced"></div>
     </div>
 
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 装备掉落配置</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">调整各品质的掉落区间。实际概率 = 上限 - 下限。区间需首尾相连。</p>
       <div id="drop-rate-fields"></div>
       <button class="btn" style="background:#e74c3c; width:100%; margin-top:15px;" onclick="resetDropRates()">恢复掉落默认值</button>
     </div>
 
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎲 随机词条池配置</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">配置不同部位装备可以刷出哪些词条（勾选即生效）。</p>
-      
       <div class="affix-pool-tabs">
         <div class="affix-pool-tab active" id="affix-tab-weapon" onclick="switchAffixTab('weapon')">武器</div>
         <div class="affix-pool-tab" id="affix-tab-armor" onclick="switchAffixTab('armor')">防具</div>
         <div class="affix-pool-tab" id="affix-tab-accessory" onclick="switchAffixTab('accessory')">饰品</div>
       </div>
-      
       <div id="affix-pool-box" class="checkbox-group"></div>
     </div>
 
@@ -179,15 +175,7 @@
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎨 元素管理</h3>
       <div style="overflow-x:auto;">
         <table>
-          <thead>
-            <tr>
-              <th>ID (新增后可改)</th>
-              <th>显示名</th>
-              <th>图标</th>
-              <th>颜色</th>
-              <th>操作</th>
-            </tr>
-          </thead>
+          <thead><tr><th>ID</th><th>显示名</th><th>图标</th><th>颜色</th><th>操作</th></tr></thead>
           <tbody id="global-elements-body"></tbody>
         </table>
       </div>
@@ -196,7 +184,6 @@
 
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 元素克制矩阵</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">行=攻击方，列=防守方。空白代表无克制(倍率1.0)。对角格固定。</p>
       <div style="overflow-x:auto;">
         <table id="global-matrix-table" style="text-align:center;"></table>
       </div>
@@ -212,25 +199,11 @@
   <div id="ui-section" style="display:none;">
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎨 角色属性面板外观</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在这里修改后，点击保存，去游戏里点开面板就能看到变化。</p>
-      
       <div class="form-grid">
-        <div class="form-item full">
-          <label>背景图片网址 (留空则使用背景色)</label>
-          <input type="text" id="ui-bg-image" placeholder="例如: https://你的图床链接.jpg">
-        </div>
-        
-        <div class="form-item">
-          <label>背景颜色 (十六进制或英文)</label>
-          <input type="text" id="ui-bg-color" value="#1e2028" placeholder="#1e2028">
-        </div>
-        
-        <div class="form-item">
-          <label>边框颜色</label>
-          <input type="text" id="ui-border-color" value="#4a4a4a" placeholder="#4a4a4a">
-        </div>
+        <div class="form-item full"><label>背景图片网址</label><input type="text" id="ui-bg-image"></div>
+        <div class="form-item"><label>背景颜色</label><input type="text" id="ui-bg-color" value="#1e2028"></div>
+        <div class="form-item"><label>边框颜色</label><input type="text" id="ui-border-color" value="#4a4a4a"></div>
       </div>
-
       <button class="btn btn-play" style="width:100%; margin-top:20px;" onclick="saveUIConfig()">💾 保存 UI 设置</button>
     </div>
   </div>
@@ -242,10 +215,10 @@
 
   <script>
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 5, hunHou: 15, lingDong: 10, jianRen: 5, guiMi: 5, jueQing: 5 }, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'e_boss', name: '骷髅王', side: 'enemy', emoji: '👑', element: 'dark', maxHp: 8000, atk: 400, def: 300, speed: 6, sizeX: 2, sizeY: 2, critRate: 0.1, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.2, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 1, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
+      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 5, hunHou: 15, lingDong: 10, jianRen: 5, guiMi: 5, jueQing: 5 }, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
+      { id: 'e_boss', name: '骷髅王', side: 'enemy', emoji: '👑', element: 'dark', maxHp: 8000, atk: 400, def: 300, speed: 6, sizeX: 2, sizeY: 2, critRate: 0.1, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.2, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 1, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
     ];
 
     const DEFAULT_SKILLS = [
@@ -263,14 +236,15 @@
     ];
 
     const DEFAULT_ITEMS = [
-      { id: 'item_sword', name: '铁剑', category: 'weapon', icon: '🗡️', desc: '', atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
-      { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }
+      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
+      { id: 'item_helmet', name: '皮帽', category: 'armor', equipSlot: 'head', icon: '🪖', desc: '', atkMin: 0, atkMax: 0, defMin: 10, defMax: 20, hpMin: 50, hpMax: 100, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
+      { id: 'item_armor', name: '布衣', category: 'armor', equipSlot: 'body', icon: '🥋', desc: '', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
+      { id: 'item_ring', name: '铜戒', category: 'accessory', equipSlot: 'ring', icon: '💍', desc: '', atkMin: 5, atkMax: 10, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 1, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 1 },
+      { id: 'item_hp_potion', name: '金创药', category: 'consumable', icon: '🧪', desc: '恢复100点气血' },
+      { id: 'item_iron', name: '玄铁', category: 'material', icon: '🪨', desc: '打造武器的高级材料' }
     ];
 
-    const DEFAULT_LEVELS = [ 
-      { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '' } 
-    ];
-
+    const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '' } ];
     const DEFAULT_DROP_RATES = [
       { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
       { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
@@ -306,19 +280,8 @@
         WIDTH: 1280, HEIGHT: 720, MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
         START_MP_RATIO: 0.3, MP_REGEN_PER_ROUND: 0.1, DEF_CONSTANT: 1000,
         MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0, HIT_RATE_MIN: 0.2, HIT_RATE_MAX: 1.0,
-        
-        // ===== 新增：6大意境转化系数与上限 =====
-        fengRuiToAtk: 3.0,       
-        hunHouToHp: 20.0,        
-        lingDongToSpd: 1.5,      
-        lingDongToEva: 0.1,      
-        maxEvaFromStats: 20.0,   
-        jianRenToDef: 2.0,       
-        jianRenToRes: 0.1,       
-        guiMiToHit: 0.15,        
-        guiMiToCritDmg: 1.0,     
-        jueQingToCrit: 0.2,      
-        maxCritFromStats: 30.0   
+        fengRuiToAtk: 3.0, hunHouToHp: 20.0, lingDongToSpd: 1.5, lingDongToEva: 0.1, maxEvaFromStats: 20.0,
+        jianRenToDef: 2.0, jianRenToRes: 0.1, guiMiToHit: 0.15, guiMiToCritDmg: 1.0, jueQingToCrit: 0.2, maxCritFromStats: 30.0
       },
       dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
       affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
@@ -360,11 +323,9 @@
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
-    // 兼容旧数据：为没有 stats 的角色补上默认意境值
     gameChars.forEach(c => {
-      if (!c.stats) {
-        c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
-      }
+      if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
+      if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
     });
 
     let globalData;
@@ -374,7 +335,6 @@
       globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
     }
     if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
-    // 兼容旧全局配置：补全新增加的意境系数
     Object.keys(DEFAULT_GLOBAL_CONFIG.config).forEach(k => {
       if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
     });
@@ -387,18 +347,7 @@
     let editingElementIds = new Set();
 
     gameLevels.forEach(lv => {
-      if (!lv.enemyList) {
-        lv.enemyList = [];
-        if (lv.enemyGrid) {
-          for(let i=0; i<16; i++) {
-            let cell = lv.enemyGrid[i];
-            if (cell && (cell.isMain || typeof cell === 'string')) {
-               const id = typeof cell === 'string' ? cell : cell.id;
-               lv.enemyList.push({ uid: 'u_' + Date.now() + i, id: id, x: i % 4, y: Math.floor(i / 4) });
-            }
-          }
-        }
-      }
+      if (!lv.enemyList) lv.enemyList = [];
     });
 
     setTimeout(() => { saveData(); }, 100);
@@ -435,11 +384,8 @@
           val = cfg.min;
         }
 
-        if (intTypes.includes(stat)) {
-          val = Math.round(val);
-        } else {
-          val = Math.round((val / 100) * 100) / 100;
-        }
+        if (intTypes.includes(stat)) val = Math.round(val);
+        else val = Math.round((val / 100) * 100) / 100;
 
         extras.push({ stat, value: val });
       }
@@ -459,7 +405,7 @@
     const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
     const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '随机目标' }, { val: 'all', label: '群体(全体)' }];
     const passiveTypes = [{ val: 'atkAdd', label: '攻击力(%)' }, { val: 'hpAdd', label: '生命值(%)' }, { val: 'defAdd', label: '防御力(%)' }, { val: 'speedAdd', label: '速度(%)' }];
-    const itemCategories = [{ val: 'weapon', label: '武器' }, { val: 'armor', label: '防具' }, { val: 'accessory', label: '饰品' }];
+    
     const statusTypes = [{ val: 'buff', label: '增益' }, { val: 'debuff', label: '减益' }, { val: 'control', label: '控制' }];
     const statusMods = [{ val: 'none', label: '无属性变化' }, { val: 'atk', label: '攻击力' }, { val: 'def', label: '防御力' }, { val: 'speed', label: '速度' }];
 
@@ -480,10 +426,14 @@
 
     function switchSubTab(tab, sub) {
       subTab[tab] = sub;
-      const ids = { char: ['player', 'enemy'], skill: ['active', 'followup', 'passive'], item: ['weapon', 'armor', 'accessory'] };
+      const ids = { char: ['player', 'enemy'], skill: ['active', 'followup', 'passive'], item: ['weapon', 'armor', 'accessory', 'consumable', 'material', 'quest'] };
       if (ids[tab]) {
-        ids[tab].forEach(s => { document.getElementById(`tab-${tab}-${s}`).classList.remove('active'); });
-        document.getElementById(`tab-${tab}-${sub}`).classList.add('active');
+        ids[tab].forEach(s => { 
+          const el = document.getElementById(`tab-${tab}-${s}`);
+          if (el) el.classList.remove('active'); 
+        });
+        const target = document.getElementById(`tab-${tab}-${sub}`);
+        if (target) target.classList.add('active');
       }
       render();
     }
@@ -491,7 +441,8 @@
     function switchAffixTab(poolType) {
       affixPoolTab = poolType;
       document.querySelectorAll('.affix-pool-tab').forEach(t => t.classList.remove('active'));
-      document.getElementById(`affix-tab-${poolType}`).classList.add('active');
+      const el = document.getElementById(`affix-tab-${poolType}`);
+      if(el) el.classList.add('active');
       renderGlobal();
     }
 
@@ -525,7 +476,7 @@
         if (char.side !== subTab.char) return;
         if (keyword && !char.name.toLowerCase().includes(keyword)) return;
         if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-        if (!char.equipment) char.equipment = { weapon: '', armor: '', accessory: '' };
+        if (!char.equipment) char.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
         if (!char.stats) char.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
 
         const div = document.createElement('div'); div.className = 'card';
@@ -550,7 +501,6 @@
             <div class="form-item"><label style="color:#f1c40f;">占格宽</label><input type="number" min="1" max="4" value="${char.sizeX}" onchange="updateChar(${index}, 'sizeX', parseInt(this.value))"></div>
             <div class="form-item"><label style="color:#f1c40f;">占格高</label><input type="number" min="1" max="4" value="${char.sizeY}" onchange="updateChar(${index}, 'sizeY', parseInt(this.value))"></div>
 
-            <!-- ===== 新增：六大意境 (主属性) ===== -->
             <div class="sub-title">六大意境 (主属性)</div>
             <div class="form-item"><label style="color:#e67e22;">锋锐 (攻击)</label><input type="number" value="${char.stats.fengRui || 0}" onchange="updateCharStat(${index}, 'fengRui', parseInt(this.value))"></div>
             <div class="form-item"><label style="color:#e74c3c;">浑厚 (气血)</label><input type="number" value="${char.stats.hunHou || 0}" onchange="updateCharStat(${index}, 'hunHou', parseInt(this.value))"></div>
@@ -764,17 +714,38 @@
     function renderItems() {
       const list = document.getElementById('item-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-item').value.toLowerCase();
+      
       gameItems.forEach((item, index) => {
         if (item.category !== subTab.item) return;
         if (keyword && !item.name.toLowerCase().includes(keyword)) return;
-        const div = document.createElement('div'); div.className = 'card';
-        div.innerHTML = `
-          <div class="card-header"><h3>${item.icon} ${item.name} 模板</h3><button class="btn-del" onclick="deleteItem(${index})">删除</button></div>
-          <div class="form-grid">
-            <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)"></div>
-            <div class="form-item"><label>分类</label><select onchange="updateItem(${index}, 'category', this.value)">${itemCategories.map(c => `<option value="${c.val}" ${item.category === c.val ? 'selected' : ''}>${c.label}</option>`).join('')}</select></div>
-            
-            <div class="sub-title">基础属性范围 (Min - Max)</div>
+        
+        const isEquip = ['weapon', 'armor', 'accessory'].includes(item.category);
+        let slotSelector = '';
+        if (item.category === 'armor') {
+          slotSelector = `
+            <div class="form-item">
+              <label>装备部位</label>
+              <select onchange="updateItem(${index}, 'equipSlot', this.value)">
+                <option value="head" ${item.equipSlot === 'head' ? 'selected' : ''}>头部</option>
+                <option value="body" ${item.equipSlot === 'body' ? 'selected' : ''}>衣服</option>
+                <option value="legs" ${item.equipSlot === 'legs' ? 'selected' : ''}>腿部</option>
+              </select>
+            </div>`;
+        } else if (item.category === 'accessory') {
+          slotSelector = `
+            <div class="form-item">
+              <label>装备部位</label>
+              <select onchange="updateItem(${index}, 'equipSlot', this.value)">
+                <option value="ring" ${item.equipSlot === 'ring' ? 'selected' : ''}>戒指</option>
+                <option value="necklace" ${item.equipSlot === 'necklace' ? 'selected' : ''}>项链</option>
+              </select>
+            </div>`;
+        }
+
+        let equipStatsHtml = '';
+        if (isEquip) {
+          equipStatsHtml = `
+            <div class="sub-title">基础属性范围</div>
             <div class="form-item"><label>攻击力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.atkMin||0}" onchange="updateItem(${index}, 'atkMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.atkMax||0}" onchange="updateItem(${index}, 'atkMax', parseInt(this.value))" placeholder="Max"></div></div>
             <div class="form-item"><label>防御力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.defMin||0}" onchange="updateItem(${index}, 'defMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.defMax||0}" onchange="updateItem(${index}, 'defMax', parseInt(this.value))" placeholder="Max"></div></div>
             <div class="form-item"><label>生命值</label><div style="display:flex;gap:2px;"><input type="number" value="${item.hpMin||0}" onchange="updateItem(${index}, 'hpMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.hpMax||0}" onchange="updateItem(${index}, 'hpMax', parseInt(this.value))" placeholder="Max"></div></div>
@@ -790,9 +761,50 @@
             <div class="form-item"><label>闪避率(%)</label><input type="number" step="0.1" value="${(item.dodgeRate||0)*100}" onchange="updateItemPct(${index}, 'dodgeRate', this.value)"></div>
             <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(item.lifesteal||0)*100}" onchange="updateItemPct(${index}, 'lifesteal', this.value)"></div>
             <div class="form-item"><label>速度</label><input type="number" value="${item.speed||0}" onchange="updateItem(${index}, 'speed', parseInt(this.value))"></div>
+          `;
+        }
+
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `
+          <div class="card-header">
+            <h3>${item.icon || '📦'} ${item.name}</h3>
+            <div>
+              <button class="btn-grant" onclick="grantTestItem('${item.id}')">🎁 发放测试</button>
+              <button class="btn-del" onclick="deleteItem(${index})">删除</button>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>图标</label><input type="text" value="${item.icon || ''}" onchange="updateItem(${index}, 'icon', this.value)"></div>
+            ${slotSelector}
+            <div class="form-item full"><label>描述</label><input type="text" value="${item.desc || ''}" onchange="updateItem(${index}, 'desc', this.value)"></div>
+            ${equipStatsHtml}
           </div>`;
         list.appendChild(div);
       });
+    }
+
+    function grantTestItem(itemId) {
+      const tpl = gameItems.find(i => i.id === itemId);
+      if (!tpl) return;
+      
+      const isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
+      if (isEquip) {
+        const inst = generateRandomInstance(tpl.id);
+        if(inst) inventory.push(inst);
+      } else {
+        const newInst = {
+          uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
+          itemId: tpl.id,
+          quality: 'white',
+          count: 1,
+          equippedBy: ''
+        };
+        inventory.push(newInst);
+      }
+      
+      saveData();
+      alert(`已成功发放：${tpl.name} (请在游戏内背包查看)`);
     }
 
     const genUid = () => 'u_' + Date.now() + Math.floor(Math.random()*1000);
@@ -992,7 +1004,6 @@
       const fieldsBox = document.getElementById('global-config-fields');
       if (!fieldsBox) return;
       
-      // 加入了新配置项
       const fieldSchema = [
         { key: 'WIDTH', label: '游戏宽(px)', step: 10, min: 400 },
         { key: 'HEIGHT', label: '游戏高(px)', step: 10, min: 400 },
@@ -1008,7 +1019,6 @@
         { key: 'HIT_RATE_MIN', label: '命中率下限', step: 0.1, min: 0, max: 1 },
         { key: 'HIT_RATE_MAX', label: '命中率上限', step: 0.1, min: 0, max: 1 },
         
-        // ===== 新增：六大意境系数 =====
         { key: 'fengRuiToAtk', label: '锋锐转化攻击', step: 0.1 },
         { key: 'hunHouToHp', label: '浑厚转化气血', step: 1 },
         { key: 'lingDongToSpd', label: '灵动转化速度', step: 0.1 },
@@ -1300,9 +1310,9 @@
       });
 
       if (hasGap) {
-        alert(`⚠️ 警告：您的掉落概率区间没有首尾相连（有断裂或重叠）。\n请检查：每一档的“下限”必须等于上一档的“上限”。`);
+        alert(`⚠️ 警告：您的掉落概率区间没有首尾相连（有断裂或重叠）。`);
       } else if (Math.abs(totalProb - 100) > 0.1 || Math.abs(lastMax - 100) > 0.1) {
-        alert(`⚠️ 警告：您的总概率为 ${totalProb}%，且最后一档上限为 ${lastMax}。\n请确保总概率加起来等于 100%。`);
+        alert(`⚠️ 警告：您的总概率为 ${totalProb}%，且最后一档上限为 ${lastMax}。请确保总概率等于 100%。`);
       }
       
       localStorage.setItem('my_game_config', JSON.stringify(globalData));
@@ -1342,14 +1352,11 @@
       if (key === 'element') render();
     }
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
-    
-    // ===== 新增：保存角色意境属性 =====
     function updateCharStat(index, statKey, value) {
       if (!gameChars[index].stats) gameChars[index].stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
       gameChars[index].stats[statKey] = isNaN(value) ? 0 : value;
       saveData();
     }
-
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
     
@@ -1397,7 +1404,7 @@
     function updateItem(index, key, value) { gameItems[index][key] = value; saveData(); }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
 
-    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',armor:'',accessory:''} }); saveData(); render(); }
+    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); saveData(); render(); }
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     
     function addSkill() { 
@@ -1410,21 +1417,21 @@
     function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0, isStun:false }); saveData(); render(); }
     function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); render(); } }
     
-    function addItem() { gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:subTab.item, icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 }); saveData(); render(); }
+    function addItem() { 
+      gameItems.push({ 
+        id:'item_'+Date.now(), 
+        name:'新物品', 
+        category:subTab.item, 
+        equipSlot: subTab.item === 'weapon' ? 'weapon' : (subTab.item === 'armor' ? 'body' : (subTab.item === 'accessory' ? 'ring' : '')), 
+        icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 
+      }); 
+      saveData(); render(); 
+    }
     function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); render(); } }
     
     function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '' }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
     
-    function grantItem() {
-      if (gameItems.length === 0) return alert('请先新建物品模板');
-      const itemId = prompt("输入要发放的物品模板ID (如: item_sword)");
-      if (itemId && gameItems.find(e => e.id === itemId)) {
-        const inst = generateRandomInstance(itemId);
-        if(inst) { inventory.push(inst); saveData(); alert('发放成功！'); }
-      } else { alert('ID不存在'); }
-    }
-
     function resetData() { localStorage.clear(); location.href = location.href + '?t=' + Date.now(); }
     render();
   </script>
