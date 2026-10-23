@@ -13,7 +13,6 @@ if (localStorage.getItem('my_game_items_sync')) { try { const d = JSON.parse(loc
 if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length = 0; LEVELS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_inventory_sync')); if (Array.isArray(d)) { INVENTORY.length = 0; INVENTORY.push(...d); } } catch(e){} }
 
-// 读取全局装备配置并挂载
 try {
   const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
   window.DROP_RATES = gc.dropRates;
@@ -32,7 +31,6 @@ class Unit {
     if (!this.sizeX) this.sizeX = 1;
     if (!this.sizeY) this.sizeY = 1;
 
-    // 兼容旧版直接传入的这些值
     this.hitRate = this.hitRate || 0; 
     this.dodgeRate = this.dodgeRate || 0;
     this.critRate = this.critRate || 0;
@@ -49,29 +47,26 @@ class Unit {
     // ==========================================
     const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     
-    // 1. 基础白字转化 (气血、攻击、防御、速度)
+    // 1. 基础白字转化
     this.maxHp = (this.maxHp || 0) + stats.hunHou * CONFIG.hunHouToHp;
     this.atk = (this.atk || 0) + stats.fengRui * CONFIG.fengRuiToAtk;
     this.def = (this.def || 0) + stats.jianRen * CONFIG.jianRenToDef;
     this.speed = (this.speed || 0) + stats.lingDong * CONFIG.lingDongToSpd;
 
-    // 2. 百分比转化 (暴击、闪避、命中、暴伤、韧性)
-    // 注意：配置里填的是 30.0，代表30%，这里要除以100变成 0.3。
-    // 升级赋予的暴击/闪避有严格上限，所以用 Math.min 锁死。
-    let statCrit = this.critRate + (stats.jueQing * CONFIG.jueQingToCrit / 100);
-    this.critRate = Math.min(statCrit, CONFIG.maxCritFromStats / 100);
+    // 2. 百分比转化
+    // 【修复】上限只限制意境转化的部分，基础属性和装备加成不受限制
+    let critGain = (stats.jueQing * CONFIG.jueQingToCrit / 100);
+    this.critRate = this.critRate + Math.min(critGain, CONFIG.maxCritFromStats / 100);
     
-    let statEva = this.dodgeRate + (stats.lingDong * CONFIG.lingDongToEva / 100);
-    this.dodgeRate = Math.min(statEva, CONFIG.maxEvaFromStats / 100);
+    let evaGain = (stats.lingDong * CONFIG.lingDongToEva / 100);
+    this.dodgeRate = this.dodgeRate + Math.min(evaGain, CONFIG.maxEvaFromStats / 100);
     
     this.hitRate = this.hitRate + (stats.guiMi * CONFIG.guiMiToHit / 100);
     this.critResist = this.critResist + (stats.jianRen * CONFIG.jianRenToRes / 100);
     this.critDmg = this.critDmg + (stats.guiMi * CONFIG.guiMiToCritDmg / 100);
     // ==========================================
 
-    // ==========================================
-    // 计算装备加成（原有逻辑）
-    // ==========================================
+    // 计算装备加成
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
     Object.values(this.equipment).forEach(uid => {
@@ -88,7 +83,7 @@ class Unit {
             else if (ex.stat === 'atkPercent') eqAtkPct += val;
             else if (ex.stat === 'defPercent') eqDefPct += val;
             else if (ex.stat === 'hpPercent') eqHpPct += val;
-            else if (this[ex.stat] !== undefined) this[ex.stat] += val; // 装备直接加百分比，不吃升级上限
+            else if (this[ex.stat] !== undefined) this[ex.stat] += val;
           });
         }
       }
@@ -99,7 +94,6 @@ class Unit {
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
-    // 被动技能计算
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
     this.passives.forEach(sk => {
       if (sk.isAura) return;
@@ -171,7 +165,7 @@ class Unit {
 }
 
 // ==========================================
-// BattleLogic 及相关代码完全保留
+// BattleLogic
 // ==========================================
 const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
@@ -229,6 +223,9 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
+// ==========================================
+// 随机掉落
+// ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   
@@ -318,7 +315,7 @@ function generateRandomInstance(templateId) {
 }
 
 // ==========================================
-// 其余所有场景的代码保留（不一一列出，因为和原本的一样）
+// 场景
 // ==========================================
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
