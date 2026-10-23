@@ -27,7 +27,14 @@ class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-    if (!this.equipment) this.equipment = { weapon: '', armor: '', accessory: '' };
+    
+    // 【升级】装备槽扩展为6个，兼容旧数据
+    if (!this.equipment) this.equipment = {};
+    if (this.equipment.armor && !this.equipment.body) { this.equipment.body = this.equipment.armor; delete this.equipment.armor; }
+    if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
+    const defaultSlots = ['weapon', 'head', 'body', 'legs', 'ring', 'necklace'];
+    defaultSlots.forEach(s => { if (!this.equipment[s]) this.equipment[s] = ''; });
+
     if (!this.sizeX) this.sizeX = 1;
     if (!this.sizeY) this.sizeY = 1;
 
@@ -42,19 +49,14 @@ class Unit {
     this.critDmg = this.critDmg || 1.5;
     this.lifesteal = this.lifesteal || 0;
 
-    // ==========================================
-    // ★ 新增：6大意境数值转化阶段
-    // ==========================================
+    // 1. 6大意境数值转化
     const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     
-    // 1. 基础白字转化
     this.maxHp = (this.maxHp || 0) + stats.hunHou * CONFIG.hunHouToHp;
     this.atk = (this.atk || 0) + stats.fengRui * CONFIG.fengRuiToAtk;
     this.def = (this.def || 0) + stats.jianRen * CONFIG.jianRenToDef;
     this.speed = (this.speed || 0) + stats.lingDong * CONFIG.lingDongToSpd;
 
-    // 2. 百分比转化
-    // 【修复】上限只限制意境转化的部分，基础属性和装备加成不受限制
     let critGain = (stats.jueQing * CONFIG.jueQingToCrit / 100);
     this.critRate = this.critRate + Math.min(critGain, CONFIG.maxCritFromStats / 100);
     
@@ -64,16 +66,18 @@ class Unit {
     this.hitRate = this.hitRate + (stats.guiMi * CONFIG.guiMiToHit / 100);
     this.critResist = this.critResist + (stats.jianRen * CONFIG.jianRenToRes / 100);
     this.critDmg = this.critDmg + (stats.guiMi * CONFIG.guiMiToCritDmg / 100);
-    // ==========================================
 
-    // 计算装备加成
+    // 2. 计算装备加成（遍历新的6个槽位）
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
+    
     Object.values(this.equipment).forEach(uid => {
       if (!uid) return;
       const inst = INVENTORY.find(i => i.uid === uid);
       if (inst) {
-        eqAtkAdd += (inst.baseAtk || 0); eqDefAdd += (inst.baseDef || 0); eqHpAdd += (inst.baseHp || 0);
+        eqAtkAdd += (inst.baseAtk || 0); 
+        eqDefAdd += (inst.baseDef || 0); 
+        eqHpAdd += (inst.baseHp || 0);
         if (inst.extras) {
           inst.extras.forEach(ex => {
             let val = ex.value;
@@ -94,6 +98,7 @@ class Unit {
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
+    // 被动技能计算
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
     this.passives.forEach(sk => {
       if (sk.isAura) return;
@@ -315,7 +320,7 @@ function generateRandomInstance(templateId) {
 }
 
 // ==========================================
-// 场景
+// 主菜单
 // ==========================================
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
@@ -323,13 +328,22 @@ class MainMenuScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.add.text(CONFIG.WIDTH / 2, 200, '中大型策略战棋', { fontSize: '64px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 280, 'Main Menu', { fontSize: '24px', color: '#aaa' }).setOrigin(0.5);
+    
     const b = this.add.text(CONFIG.WIDTH / 2, 500, '⚔️ 开始推图', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
     b.on('pointerdown', () => this.scene.start('FormationScene', { levelIndex: 0 }));
+    
     const e = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '20px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     e.on('pointerdown', () => { window.location.href = 'editor.html'; });
+
+    // 左下角呼出面板
+    const invBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
+    invBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
   }
 }
 
+// ==========================================
+// 战前布阵
+// ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
@@ -348,8 +362,9 @@ class FormationScene extends Phaser.Scene {
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
 
-    const teamBtn = this.add.text(CONFIG.WIDTH - 20, 65, '👥 队伍与装备', { fontSize: '18px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
-    teamBtn.on('pointerdown', () => this.scene.start('TeamScene', { levelIndex: this.currentLevelIndex }));
+    // 左下角呼出面板（替换原队伍按钮）
+    const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
+    teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
 
     this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
@@ -468,7 +483,7 @@ class BattleScene extends Phaser.Scene {
     }
 
     if (fighters.filter(f => f.side === 'enemy').length === 0) {
-      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } });
     }
 
     fighters.forEach(d => { const u = new Unit(d); this.allUnits.push(u); });
