@@ -32,31 +32,28 @@
     .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
     .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
 
-    /* ★ 新增：4x4 关卡可视化网格 */
-    .level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; background: #0f0f1a; padding: 10px; border-radius: 8px; }
-    .level-cell { background: #1a1a2e; border: 1px solid #444; border-radius: 4px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; position: relative; }
-    .level-cell:hover { background: #0f3460; }
-    .level-cell .cell-pos { position: absolute; top: 2px; left: 2px; font-size: 10px; color: #666; }
-    .level-cell .cell-emoji { font-size: 28px; }
-    .level-cell .cell-name { font-size: 10px; color: #aaa; margin-top: 2px; }
-
+    /* ★ 核心重构：左右分栏的关卡编辑器 */
+    .level-editor-layout { display: flex; gap: 15px; }
+    @media (max-width: 768px) { .level-editor-layout { flex-direction: column; } }
+    .enemy-pool { flex: 1; background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
+    .enemy-pool-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #222; cursor: pointer; }
+    .enemy-pool-item:hover { background: #16213e; }
+    .grid-container { flex: 1; display: flex; flex-direction: column; align-items: center; }
+    
+    .level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; background: #1a1a2e; padding: 10px; border-radius: 8px; width: 100%; max-width: 400px; aspect-ratio: 1; }
+    .level-cell { background: #0f0f1a; border: 1px solid #444; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; position: relative; }
+    .level-cell:hover { border-color: #f1c40f; }
+    .level-cell.active { border-color: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
+    
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
-    
-    /* 弹窗样式 */
-    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
-    .modal-content { background: #16213e; width: 90%; max-width: 400px; border-radius: 8px; border: 1px solid #3498db; padding: 20px; max-height: 80vh; overflow-y: auto; }
-    .modal-title { font-size: 18px; color: #f1c40f; margin-bottom: 15px; text-align: center; }
-    .modal-btn { background: #0f3460; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 4px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-    .modal-btn:hover { background: #3498db; border-color: #3498db; }
-    .modal-close { background: #e74c3c; color: #fff; border: none; padding: 10px; border-radius: 4px; margin-top: 15px; width: 100%; cursor: pointer; font-weight: bold;}
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v10.0 战棋空间版)</h1>
+  <h1>⚙️ 配置中心 (v11.0 横屏适配)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -115,15 +112,6 @@
     <button class="btn btn-reset" onclick="resetData()">⚠️ 重置数据</button>
   </div>
 
-  <!-- 关卡网格选择弹窗 -->
-  <div class="modal-overlay" id="level-modal">
-    <div class="modal-content">
-      <div class="modal-title">选择要放置的敌人 (点击后方格)</div>
-      <div id="level-modal-list"></div>
-      <button class="modal-close" onclick="document.getElementById('level-modal').style.display='none'">取消 / 关闭</button>
-    </div>
-  </div>
-
   <script>
     // 兜底默认数据
     const DEFAULT_CHARS = [
@@ -165,15 +153,15 @@
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v18')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v18')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v18')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v18')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v18')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v18')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v19')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v19')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v19')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v19')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v19')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v19')) || [];
     } catch(e) { resetData(); }
 
-    // ★ 数据兜底与平滑升级
+    // 数据兜底与平滑升级
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
@@ -195,11 +183,10 @@
       if (sk.auraRange === undefined) sk.auraRange = 0;
     });
 
-    // 关卡旧数据升级
     gameLevels.forEach(lv => {
       if (!lv.enemyGrid) {
         lv.enemyGrid = Array(16).fill(null);
-        if (lv.enemyIds) { // 旧版转新版
+        if (lv.enemyIds) { 
            let idx = 0;
            lv.enemyIds.forEach(eid => { if(eid) { lv.enemyGrid[idx] = eid; idx++; } });
         }
@@ -288,7 +275,6 @@
       return html;
     }
 
-    // 增加体积配置
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-char').value.toLowerCase();
@@ -307,7 +293,6 @@
             <div class="form-item"><label>防御</label><input type="number" value="${char.def}" onchange="updateChar(${index}, 'def', parseInt(this.value))"></div>
             <div class="form-item"><label>速度</label><input type="number" value="${char.speed}" onchange="updateChar(${index}, 'speed', parseInt(this.value))"></div>
             
-            <!-- ★ 占格体积 -->
             <div class="form-item"><label style="color:#f1c40f;">占格宽 (1~4)</label><input type="number" min="1" max="4" value="${char.sizeX}" onchange="updateChar(${index}, 'sizeX', parseInt(this.value))"></div>
             <div class="form-item"><label style="color:#f1c40f;">占格高 (1~4)</label><input type="number" min="1" max="4" value="${char.sizeY}" onchange="updateChar(${index}, 'sizeY', parseInt(this.value))"></div>
 
@@ -333,7 +318,6 @@
       });
     }
 
-    // 增加光环配置
     function renderSkills() {
       const list = document.getElementById('skill-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-skill').value.toLowerCase();
@@ -431,7 +415,6 @@
             <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>耗蓝(%)</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
             <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>冷却</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
             
-            <!-- 被动 & 光环配置区 -->
             <div class="form-item full" style="display: ${isPassive ? 'block' : 'none'}; background:#1e1e2e; border:1px solid #e67e22; padding:10px; border-radius:4px; margin-top:10px;">
               <label style="color:#e67e22;">被动效果</label>
               <div style="display:flex; gap:10px; margin-top:5px;">
@@ -541,13 +524,26 @@
       });
     }
 
-    // ★ 关卡编辑器彻底重写：4x4 网格
+    // ★ 重写关卡渲染：左侧列表 + 右侧网格
     let currentEditingLevelIdx = -1;
-    let currentEditingCellIdx = -1;
+    let selectedEnemyIdForPlacement = null;
 
     function renderLevels() {
       const list = document.getElementById('level-list'); list.innerHTML = '';
       gameLevels.forEach((lv, index) => {
+        const enemyTypes = gameChars.filter(c => c.side === 'enemy');
+        
+        let poolHtml = '';
+        enemyTypes.forEach(enemy => {
+          poolHtml += `
+            <div class="enemy-pool-item" onclick="selectEnemyForPlacement('${enemy.id}', this)">
+              <span style="font-size:20px;">${enemy.emoji}</span>
+              <span style="flex:1;">${enemy.name}</span>
+              <span style="font-size:10px; color:#666;">${enemy.sizeX}x${enemy.sizeY}格</span>
+            </div>
+          `;
+        });
+
         let gridHtml = '';
         for (let i = 0; i < 16; i++) {
           const enemyId = lv.enemyGrid[i];
@@ -555,73 +551,62 @@
           if (enemyId) {
             const cData = gameChars.find(c => c.id === enemyId);
             if (cData) {
-              cellContent = `
-                <div class="cell-emoji">${cData.emoji}</div>
-                <div class="cell-name">${cData.name}</div>
-              `;
+              cellContent = `<span style="font-size:24px;">${cData.emoji}</span>`;
             }
           }
-          gridHtml += `<div class="level-cell" onclick="openLevelCellModal(${index}, ${i})">
-            <div class="cell-pos">${i+1}</div>
-            ${cellContent}
-          </div>`;
+          gridHtml += `<div class="level-cell" onclick="placeEnemyOnGrid(${index}, ${i})">${cellContent}</div>`;
         }
 
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">删除</button></div>
-          <div class="form-grid">
+          <div class="form-grid" style="margin-bottom:15px;">
             <div class="form-item full"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
           </div>
-          <div class="sub-title">敌方 4x4 阵型 (点击格子放置)</div>
-          <div class="level-grid">
-            ${gridHtml}
+          
+          <div class="level-editor-layout">
+            <div class="enemy-pool">
+              <div style="font-size:12px; color:#f1c40f; margin-bottom:5px;">点击选择敌人，然后点右侧网格放置</div>
+              ${poolHtml}
+              <div class="enemy-pool-item" style="border:none; margin-top:10px;" onclick="selectedEnemyIdForPlacement = null; document.querySelectorAll('.enemy-pool-item').forEach(el => el.style.background = '');">
+                <span style="color:#e74c3c;">✖ 取消选择 / 点击格子清空</span>
+              </div>
+            </div>
+            
+            <div class="grid-container">
+              <div class="level-grid">
+                ${gridHtml}
+              </div>
+            </div>
           </div>`;
         list.appendChild(div);
       });
     }
 
-    function openLevelCellModal(lvIdx, cellIdx) {
-      currentEditingLevelIdx = lvIdx;
-      currentEditingCellIdx = cellIdx;
-      
-      const listDiv = document.getElementById('level-modal-list');
-      listDiv.innerHTML = '';
-      
-      // 清空选项
-      const emptyBtn = document.createElement('div');
-      emptyBtn.className = 'modal-btn';
-      emptyBtn.style.borderColor = '#e74c3c';
-      emptyBtn.innerHTML = `<span style="color:#e74c3c;">✖ 清空该格子</span>`;
-      emptyBtn.onclick = () => setLevelCell(null);
-      listDiv.appendChild(emptyBtn);
-
-      // 敌人列表
-      gameChars.filter(c => c.side === 'enemy').forEach(enemy => {
-        const btn = document.createElement('div');
-        btn.className = 'modal-btn';
-        btn.innerHTML = `<span>${enemy.emoji} ${enemy.name}</span>`;
-        btn.onclick = () => setLevelCell(enemy.id);
-        listDiv.appendChild(btn);
-      });
-
-      document.getElementById('level-modal').style.display = 'flex';
+    function selectEnemyForPlacement(enemyId, element) {
+      selectedEnemyIdForPlacement = enemyId;
+      document.querySelectorAll('.enemy-pool-item').forEach(el => el.style.background = '');
+      element.style.background = '#3498db';
     }
 
-    function setLevelCell(enemyId) {
-      gameLevels[currentEditingLevelIdx].enemyGrid[currentEditingCellIdx] = enemyId;
+    function placeEnemyOnGrid(lvIdx, cellIdx) {
+      if (selectedEnemyIdForPlacement === null) {
+        // 如果没选敌人，点击格子就是清空
+        gameLevels[lvIdx].enemyGrid[cellIdx] = null;
+      } else {
+        gameLevels[lvIdx].enemyGrid[cellIdx] = selectedEnemyIdForPlacement;
+      }
       saveData();
-      document.getElementById('level-modal').style.display = 'none';
       renderLevels();
     }
 
     function saveData() {
-      localStorage.setItem('my_game_data_v18', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v18', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v18', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v18', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v18', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v18', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v19', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v19', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v19', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v19', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v19', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v19', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
