@@ -149,7 +149,15 @@ const BattleLogic = {
     else pool = allUnits.filter(u => u.side !== actor.side && u.isAlive());
     if (pool.length === 0) return [];
     if (skill.targetRule === 'all') return pool;
-    if (skill.targetRule === 'frontRow') { const m = Math.min(...pool.map(u => u.gridY)); return pool.filter(u => u.gridY === m); }
+    if (skill.targetRule === 'frontRow') {
+      // 横屏：前排靠近战场中间
+      // 目标是敌方（画面左侧）时，gridX 最大 = 靠右 = 前排
+      // 目标是我方（画面右侧）时，gridX 最小 = 靠左 = 前排
+      const xs = pool.map(u => u.gridX);
+      const isEnemyTarget = pool[0].side === 'enemy';
+      const m = isEnemyTarget ? Math.max(...xs) : Math.min(...xs);
+      return pool.filter(u => u.gridX === m);
+    }
     if (skill.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); return pool.filter(u => u.hp === m); }
     if (skill.targetRule === 'highestHp') { const m = Math.max(...pool.map(u => u.hp)); return pool.filter(u => u.hp === m); }
     if (skill.targetRule === 'random') return [pool[Math.floor(Math.random() * pool.length)]];
