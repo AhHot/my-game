@@ -1,9 +1,7 @@
 // ==========================================
 // 全局配置（横屏）
 // ==========================================
-if (typeof CONFIG === 'object') {
-  CONFIG.WIDTH = 1280; CONFIG.HEIGHT = 720; CONFIG.CELL_SIZE = 110;
-}
+
 
 // ==========================================
 // 读取同步数据
@@ -136,13 +134,7 @@ class Unit {
 // BattleLogic
 // ==========================================
 const BattleLogic = {
-  getElementMultiplier(a, d) {
-    const atk = ELEMENTS[a]; if (!atk) return 1.0;
-    if (atk.beats === d) return CONFIG.ADVANTAGE_MULT;
-    if (atk.weak === d) return CONFIG.DISADVANTAGE_MULT;
-    return 1.0;
-  },
-  selectTargets(actor, skill, allUnits) {
+   selectTargets(actor, skill, allUnits) {
     let pool = [];
     if (skill.targetSide === 'self') return [actor];
     if (skill.targetSide === 'player') pool = allUnits.filter(u => u.side === actor.side && u.isAlive());
@@ -165,16 +157,16 @@ const BattleLogic = {
   },
   computeDamage(actor, target, skill) {
     if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, lifestealAmount: 0 };
-    let hit = Math.max(0.2, Math.min(1.0, 1 + actor.hitRate - target.dodgeRate));
+    let hit = Math.max(CONFIG.HIT_RATE_MIN, Math.min(CONFIG.HIT_RATE_MAX, 1 + actor.hitRate - target.dodgeRate));
     if (Math.random() > hit) return { damage: 0, isCrit: false, isMiss: true, lifestealAmount: 0 };
     let base = actor.atk * skill.multiplier;
-    let def = target.def / (target.def + 1000);
-    let dmg = Math.max(base * (1 - def), base * 0.1);
-    let cr = Math.max(0, Math.min(1, actor.critRate - target.critResist));
+    let def = target.def / (target.def + CONFIG.DEF_CONSTANT);
+    let dmg = Math.max(base * (1 - def), base * CONFIG.MIN_DAMAGE_RATIO);
+    let cr = Math.max(0, Math.min(CONFIG.CRIT_RATE_CAP, actor.critRate - target.critResist));
     const isCrit = Math.random() < cr; if (isCrit) dmg *= actor.critDmg;
     dmg *= Math.max(0.1, 1 + actor.dmgIncrease - actor.dmgReduction);
     dmg *= Math.max(0.1, 1 + target.dmgTakenIncrease - target.dmgReduction);
-    dmg *= this.getElementMultiplier(skill.element, target.element);
+    dmg *= getElementMultiplier(skill.element, target.element);
     dmg += actor.trueDmg;
     const d = Math.round(dmg);
     return { damage: d, isCrit, isMiss: false, lifestealAmount: Math.round(d * actor.lifesteal) };
@@ -302,7 +294,7 @@ class FormationScene extends Phaser.Scene {
     this.unitContainers = [];
     playerChars.forEach(data => {
       const c = this.add.container(0, 0);
-      const circle = this.add.circle(0, 0, 42, ELEMENTS[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+      const circle = this.add.circle(0, 0, 42, getElementInfo[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
       const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
       const nameText = this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
       c.add([circle, emoji, nameText]); c.setSize(80, 80);
@@ -441,7 +433,7 @@ class BattleScene extends Phaser.Scene {
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = (cell / 2) * 0.85 * scale;
-    const circle = this.add.circle(0, 0, r, ELEMENTS[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+    const circle = this.add.circle(0, 0, r, getElementInfo[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, unit.name, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     const bw = cell * scale * 0.85;
@@ -558,7 +550,7 @@ class BattleScene extends Phaser.Scene {
         });
       }
       if (heal > 0) { actor.heal(heal); this.showFloat(actor, `+${heal}`, '#2ecc71'); this.updateUnitView(actor); }
-      if (actor.isAlive()) actor.gainMp(10);
+      if (actor.isAlive()) actor.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
       actor.reduceCooldowns(); this.updateUnitView(actor);
       if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
       this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
@@ -654,7 +646,7 @@ class BattleScene extends Phaser.Scene {
           else if (sk.shieldMultiplier > 0) x.addShield(Math.round(a.atk * sk.shieldMultiplier));
           else { const res = BattleLogic.computeDamage(a, x, sk); if (!res.isMiss) x.takeDamage(res.damage); }
         });
-        if (a.isAlive()) a.gainMp(10);
+        if (a.isAlive()) a.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
       }
       r++;
     }
