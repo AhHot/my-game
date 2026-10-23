@@ -185,20 +185,33 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 随机掉落
+// 随机掉落（★ 已更新：读取全局配置）
 // ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
+  
+  // 读取全局配置，没有就用默认的兜底
+  const dropRates = window.DROP_RATES || [
+    { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
+    { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
+    { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
+    { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
+    { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
+    { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
+  ];
+
   const r = Math.random() * 100;
-  let q = 'white', m = 1.0, n = 0, tier = 1;
-  if (r > 99) { q = 'red'; m = 1.8; n = 5; tier = 3; }
-  else if (r > 95) { q = 'orange'; m = 1.5; n = 4; tier = 3; }
-  else if (r > 85) { q = 'purple'; m = 1.3; n = 3; tier = 2; }
-  else if (r > 60) { q = 'blue'; m = 1.15; n = 2; tier = 2; }
-  else if (r > 30) { q = 'green'; m = 1.05; n = 1; tier = 1; }
+  let config = dropRates.find(d => r >= d.min && r < d.max) || dropRates[0];
+
+  const q = config.q;
+  const m = config.m;
+  const n = config.n;
+  const tier = config.tier;
+
   const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
+  
   const W = ['atkPercent','critRate','critDmg','lifesteal','hitRate','speed'];
   const A = ['hpPercent','defPercent','critResist','dodgeRate','speed'];
   const pool = t.category === 'armor' ? A : W;
@@ -286,7 +299,6 @@ class FormationScene extends Phaser.Scene {
     this.unitContainers = [];
     playerChars.forEach(data => {
       const c = this.add.container(0, 0);
-      // ★ 修改：使用 getElementInfo 安全获取颜色
       const circle = this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
       const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
       const nameText = this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
@@ -424,7 +436,6 @@ class BattleScene extends Phaser.Scene {
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = (cell / 2) * 0.85 * scale;
-    // ★ 修改：使用 getElementInfo 安全获取颜色
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, unit.name, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
