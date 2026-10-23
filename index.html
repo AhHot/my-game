@@ -1,21 +1,181 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>回合制RPG</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #0f0f1a; }
-    #game { width: 100%; height: 100%; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中大型策略战棋</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background-color: #0f0f1a; }
+        #game { width: 100vw; height: 100vh; }
+        
+        /* ================= 角色面板样式 ================= */
+        #char-panel-overlay {
+            display: none; /* 默认隐藏 */
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7); /* 背景遮罩 */
+            z-index: 9999; justify-content: center; align-items: center;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+
+        .char-panel-box {
+            width: 95%; max-width: 600px;
+            background-color: #1e2028; /* 默认深色背景 */
+            border: 2px solid #4a4a4a; /* 边框颜色，可改 */
+            border-radius: 8px;
+            color: #ddd; padding: 15px;
+            position: relative;
+            background-size: cover; background-position: center;
+        }
+
+        /* 顶部信息 */
+        .cp-header { display: flex; gap: 15px; margin-bottom: 15px; }
+        .cp-avatar { width: 80px; height: 80px; background: #333; border: 2px solid #888; display: flex; justify-content: center; align-items: center; font-size: 40px; }
+        .cp-info { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; font-size: 13px; }
+        .cp-info span { color: #aaa; }
+        .cp-info b { color: #fff; margin-left: 5px; }
+        .cp-info .highlight { color: #e74c3c; } /* 境界、战力用红色或绿色 */
+
+        /* 标签页 */
+        .cp-tabs { display: flex; background: #111; margin-bottom: 10px; border-bottom: 2px solid #333; }
+        .cp-tab { flex: 1; text-align: center; padding: 8px 0; cursor: pointer; font-weight: bold; color: #888; }
+        .cp-tab.active { background: #d48b21; color: #fff; } /* 当前选中的橙色高亮 */
+
+        /* 属性网格 */
+        .cp-attr-section { margin-bottom: 15px; }
+        .cp-attr-title { font-size: 14px; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold; }
+        .cp-attr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 13px; }
+        .cp-attr-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 2px; }
+        .cp-attr-item span { color: #aaa; }
+        .cp-attr-item b { color: #fff; }
+
+        /* 关闭按钮 */
+        .cp-close-btn {
+            position: absolute; top: 10px; right: 15px; font-size: 20px; color: #aaa; cursor: pointer;
+        }
+        .cp-close-btn:hover { color: #fff; }
+
+        /* 左下角测试按钮 */
+        #test-ui-btn {
+            position: fixed; bottom: 20px; left: 20px; z-index: 9998;
+            background: #3498db; color: white; padding: 10px 15px; border-radius: 5px;
+            cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+    </style>
 </head>
 <body>
-  <div id="game"></div>
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-  <!-- 版本号改为 v=999，以后如果代码没更新，改这个数字即可 -->
-  <script src="data.js?v=9"></script>
-  <script src="team.js?v=9"></script>
-  <script src="battle.js?v=9"></script>
+
+    <!-- 游戏引擎挂载点 -->
+    <div id="game"></div>
+
+    <!-- 测试面板的按钮 -->
+    <div id="test-ui-btn" onclick="openCharPanel()">📊 查看角色面板</div>
+
+    <!-- 角色面板 DOM 结构 -->
+    <div id="char-panel-overlay" onclick="closeCharPanel(event)">
+        <div class="char-panel-box" id="char-panel-box" onclick="event.stopPropagation()">
+            <div class="cp-close-btn" onclick="closeCharPanel(event)">✖</div>
+            
+            <!-- 顶部信息 -->
+            <div class="cp-header">
+                <div class="cp-avatar">👩</div>
+                <div class="cp-info">
+                    <div><span>[姓名]</span> <b>殷悠悠</b></div>
+                    <div><span>[年龄]</span> <b>24岁</b></div>
+                    <div><span>[师门]</span> <b>明教</b></div>
+                    <div><span>[境界]</span> <b class="highlight" style="color:#f1c40f;">神乎其技</b></div>
+                    <div><span>[武功]</span> <b>太一</b></div>
+                    <div><span>[兵器]</span> <b>五尊爪</b></div>
+                    <div><span>[战力]</span> <b style="color:#2ecc71;">133368</b></div>
+                </div>
+            </div>
+
+            <!-- 标签页 -->
+            <div class="cp-tabs">
+                <div class="cp-tab active">人物</div>
+                <div class="cp-tab">装备</div>
+                <div class="cp-tab">武学</div>
+                <div class="cp-tab">经脉</div>
+            </div>
+
+            <!-- 属性区 -->
+            <div class="cp-attr-section">
+                <div class="cp-attr-title">基础属性</div>
+                <div class="cp-attr-grid">
+                    <div class="cp-attr-item"><span>体魄</span> <b>195</b></div>
+                    <div class="cp-attr-item"><span>臂力</span> <b>137</b></div>
+                    <div class="cp-attr-item"><span>根骨</span> <b>200</b></div>
+                    <div class="cp-attr-item"><span>定力</span> <b>127</b></div>
+                    <div class="cp-attr-item"><span>机敏</span> <b>153</b></div>
+                    <div class="cp-attr-item"><span>胆识</span> <b>179</b></div>
+                    <div class="cp-attr-item"><span>灵巧</span> <b>136</b></div>
+                    <div class="cp-attr-item"><span>福缘</span> <b>120</b></div>
+                </div>
+            </div>
+
+            <div class="cp-attr-section">
+                <div class="cp-attr-title">显示属性</div>
+                <div class="cp-attr-grid">
+                    <div class="cp-attr-item"><span>气血</span> <b>51628</b></div>
+                    <div class="cp-attr-item"><span>内力</span> <b>100</b></div>
+                    <div class="cp-attr-item"><span>攻击</span> <b>4477</b></div>
+                    <div class="cp-attr-item"><span>防御</span> <b>1157</b></div>
+                    <div class="cp-attr-item"><span>命中</span> <b>1022</b></div>
+                    <div class="cp-attr-item"><span>闪避</span> <b>1007</b></div>
+                    <div class="cp-attr-item"><span>暴击</span> <b>938</b></div>
+                    <div class="cp-attr-item"><span>暴伤</span> <b>250%</b></div>
+                    <div class="cp-attr-item"><span>速度</span> <b>2083</b></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 这里是你原本的脚本 -->
+    <script src="data.js"></script>
+    <script src="team.js"></script>
+    <script src="battle.js"></script>
+
+    <!-- 面板控制逻辑 -->
+    <script>
+        // 读取全局UI配置并应用
+        function applyUIConfig() {
+            try {
+                const configStr = localStorage.getItem('my_game_ui_config');
+                if (configStr) {
+                    const config = JSON.parse(configStr);
+                    const box = document.getElementById('char-panel-box');
+                    
+                    // 换背景图
+                    if (config.bgImage && config.bgImage.trim() !== '') {
+                        box.style.backgroundImage = `url('${config.bgImage}')`;
+                    } else {
+                        box.style.backgroundImage = 'none';
+                    }
+                    
+                    // 换背景色 (如果没背景图，就显示颜色)
+                    if (config.bgColor) {
+                        box.style.backgroundColor = config.bgColor;
+                    }
+                    
+                    // 换边框颜色
+                    if (config.borderColor) {
+                        box.style.borderColor = config.borderColor;
+                    }
+                }
+            } catch (e) {
+                console.error("读取UI配置失败", e);
+            }
+        }
+
+        function openCharPanel() {
+            applyUIConfig(); // 每次打开前读取最新配置
+            document.getElementById('char-panel-overlay').style.display = 'flex';
+        }
+
+        function closeCharPanel(e) {
+            // 只有点遮罩层或关闭按钮才关
+            if (e && e.target.id === 'char-panel-box') return;
+            document.getElementById('char-panel-overlay').style.display = 'none';
+        }
+    </script>
 </body>
 </html>
