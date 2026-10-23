@@ -75,7 +75,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v15.1 六槽位版)</h1>
+  <h1>⚙️ 配置中心 (v16.0 道具使用版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -236,12 +236,11 @@
     ];
 
     const DEFAULT_ITEMS = [
-      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
-      { id: 'item_helmet', name: '皮帽', category: 'armor', equipSlot: 'head', icon: '🪖', desc: '', atkMin: 0, atkMax: 0, defMin: 10, defMax: 20, hpMin: 50, hpMax: 100, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
-      { id: 'item_armor', name: '布衣', category: 'armor', equipSlot: 'body', icon: '🥋', desc: '', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
-      { id: 'item_ring', name: '铜戒', category: 'accessory', equipSlot: 'ring', icon: '💍', desc: '', atkMin: 5, atkMax: 10, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 1, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 1 },
-      { id: 'item_hp_potion', name: '金创药', category: 'consumable', icon: '🧪', desc: '恢复100点气血' },
-      { id: 'item_iron', name: '玄铁', category: 'material', icon: '🪨', desc: '打造武器的高级材料' }
+      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
+      { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' },
+      { id: 'item_stat_pill', name: '淬体丹', category: 'consumable', icon: '🔴', desc: '使用后永久增加1点浑厚', maxStack: 99, useEffect: 'AddStat', useValue: 1, useStatKey: 'hunHou' },
+      { id: 'item_pack_equip', name: '装备自选包', category: 'consumable', icon: '🎁', desc: '打开后可以选择一件装备', maxStack: 99, useEffect: 'PackageEquip', useValue: 0, useStatKey: '' },
+      { id: 'item_iron', name: '玄铁', category: 'material', icon: '🪨', desc: '打造武器的高级材料', maxStack: 999, useEffect: 'None', useValue: 0, useStatKey: '' }
     ];
 
     const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '' } ];
@@ -399,7 +398,7 @@
         }
       });
 
-      return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
+      return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '', count: 1 };
     }
 
     const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
@@ -764,6 +763,39 @@
           `;
         }
 
+        // 消耗品特殊表单
+        let consumableHtml = '';
+        if (item.category === 'consumable') {
+          consumableHtml = `
+            <div class="sub-title" style="color:#2ecc71;">养成与效果设定</div>
+            <div class="form-item">
+              <label>使用效果</label>
+              <select onchange="updateItem(${index}, 'useEffect', this.value)">
+                <option value="None" ${item.useEffect === 'None' ? 'selected' : ''}>无效果</option>
+                <option value="AddExp" ${item.useEffect === 'AddExp' ? 'selected' : ''}>增加经验</option>
+                <option value="AddStat" ${item.useEffect === 'AddStat' ? 'selected' : ''}>永久增加意境</option>
+                <option value="PackageEquip" ${item.useEffect === 'PackageEquip' ? 'selected' : ''}>自选装备包(预留)</option>
+                <option value="RandomEquip" ${item.useEffect === 'RandomEquip' ? 'selected' : ''}>随机装备包(预留)</option>
+              </select>
+            </div>
+            <div class="form-item">
+              <label>效果数值</label>
+              <input type="number" value="${item.useValue || 0}" onchange="updateItem(${index}, 'useValue', parseFloat(this.value))">
+            </div>
+            <div class="form-item full" style="display:${item.useEffect === 'AddStat' ? 'flex' : 'none'};">
+              <label>增加哪种意境</label>
+              <select onchange="updateItem(${index}, 'useStatKey', this.value)">
+                <option value="fengRui" ${item.useStatKey === 'fengRui' ? 'selected' : ''}>锋锐</option>
+                <option value="hunHou" ${item.useStatKey === 'hunHou' ? 'selected' : ''}>浑厚</option>
+                <option value="lingDong" ${item.useStatKey === 'lingDong' ? 'selected' : ''}>灵动</option>
+                <option value="jianRen" ${item.useStatKey === 'jianRen' ? 'selected' : ''}>坚韧</option>
+                <option value="guiMi" ${item.useStatKey === 'guiMi' ? 'selected' : ''}>诡秘</option>
+                <option value="jueQing" ${item.useStatKey === 'jueQing' ? 'selected' : ''}>绝情</option>
+              </select>
+            </div>
+          `;
+        }
+
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header">
@@ -776,9 +808,11 @@
           <div class="form-grid">
             <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="updateItem(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>图标</label><input type="text" value="${item.icon || ''}" onchange="updateItem(${index}, 'icon', this.value)"></div>
+            <div class="form-item"><label>最大堆叠数</label><input type="number" value="${item.maxStack || 1}" onchange="updateItem(${index}, 'maxStack', parseInt(this.value))"></div>
             ${slotSelector}
             <div class="form-item full"><label>描述</label><input type="text" value="${item.desc || ''}" onchange="updateItem(${index}, 'desc', this.value)"></div>
             ${equipStatsHtml}
+            ${consumableHtml}
           </div>`;
         list.appendChild(div);
       });
@@ -793,14 +827,20 @@
         const inst = generateRandomInstance(tpl.id);
         if(inst) inventory.push(inst);
       } else {
-        const newInst = {
-          uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
-          itemId: tpl.id,
-          quality: 'white',
-          count: 1,
-          equippedBy: ''
-        };
-        inventory.push(newInst);
+        // 非装备（消耗品、材料）：先查背包里有没有同样的东西，有就加数量
+        const existing = inventory.find(i => i.itemId === tpl.id && !i.equippedBy);
+        if (existing && existing.count < (tpl.maxStack || 1)) {
+          existing.count = (existing.count || 1) + 1;
+        } else {
+          const newInst = {
+            uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
+            itemId: tpl.id,
+            quality: 'white',
+            count: 1,
+            equippedBy: ''
+          };
+          inventory.push(newInst);
+        }
       }
       
       saveData();
@@ -1401,7 +1441,11 @@
     }
 
     function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); }
-    function updateItem(index, key, value) { gameItems[index][key] = value; saveData(); }
+    function updateItem(index, key, value) { 
+      gameItems[index][key] = value; 
+      saveData(); 
+      if (['category', 'useEffect'].includes(key)) render(); 
+    }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
 
     function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); saveData(); render(); }
@@ -1418,12 +1462,20 @@
     function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); render(); } }
     
     function addItem() { 
+      const isEquip = ['weapon', 'armor', 'accessory'].includes(subTab.item);
       gameItems.push({ 
         id:'item_'+Date.now(), 
         name:'新物品', 
         category:subTab.item, 
         equipSlot: subTab.item === 'weapon' ? 'weapon' : (subTab.item === 'armor' ? 'body' : (subTab.item === 'accessory' ? 'ring' : '')), 
-        icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 
+        icon:'📦', 
+        desc:'', 
+        maxStack: isEquip ? 1 : 99,
+        useEffect: 'None',
+        useValue: 0,
+        useStatKey: 'fengRui',
+        atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, 
+        atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 
       }); 
       saveData(); render(); 
     }
