@@ -261,7 +261,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v9.2.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v9.4.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -353,15 +353,15 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
-    // 顶层 UI
-    const speedBtn = this.add.text(CONFIG.WIDTH - 120, 10, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
+    // ★ 修复：按钮绝对安全坐标（左边靠中，绝对不会被吃）
+    const speedBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     speedBtn.on('pointerdown', () => {
       this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
       speedBtn.setText(`⏩ ${this.speedMultiplier}x 速度`);
       speedBtn.setBackgroundColor(this.speedMultiplier === 2 ? '#e67e22' : '#2980b9');
     });
 
-    const skipBtn = this.add.text(CONFIG.WIDTH - 10, 10, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive().setDepth(200);
+    const skipBtn = this.add.text(150, 20, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     skipBtn.on('pointerdown', () => { 
       if (this.isSkipping || this.battleEnded) return; 
       this.isSkipping = true; 
@@ -391,10 +391,10 @@ class BattleScene extends Phaser.Scene {
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
     
-    // ★ 战报框（固定在中间，不再使用 Tween，防止错位）
-    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 560, 600, 120, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
-    this.logHistory = []; // 存放 { text, color }
-    this.logTexts = [];   // 存放 Phaser Text 对象
+    // ★ 战报框位置：绝对在空白区，不碰棋子
+    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 620, 640, 80, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
+    this.logHistory = []; 
+    this.logTexts = [];   
 
     this.time.delayedCall(800, () => this.startBattle());
   }
@@ -403,7 +403,7 @@ class BattleScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE, gridLeft = (CONFIG.WIDTH - gridW) / 2;
     this.drawGrid(gridLeft, 70, cell, 0xE74C3C, 0.2); this.drawGrid(gridLeft, 700, cell, 0x3498DB, 0.2);
-    this.add.rectangle(CONFIG.WIDTH / 2, 640, CONFIG.WIDTH - 100, 2, 0xffffff, 0.15);
+    this.add.rectangle(CONFIG.WIDTH / 2, 660, CONFIG.WIDTH - 100, 2, 0xffffff, 0.15);
     this.add.text(gridLeft + gridW + 10, 74, '敌方', { fontSize: '20px', color: '#E74C3C' });
     this.add.text(gridLeft + gridW + 10, 704, '我方', { fontSize: '20px', color: '#3498DB' });
   }
@@ -434,7 +434,6 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
     
     container.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    // 把盾牌条提到最上层
     container.bringToTop(shieldBar);
     container.bringToTop(shieldText);
     container.bringToTop(hpText);
@@ -713,21 +712,17 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => txt.destroy() });
   }
 
-  // ★ 重写战报系统：绝对坐标计算，清空重绘，不可能错位
   addLog(text, color = '#ffffff') {
     this.logHistory.unshift({ text, color });
-    if (this.logHistory.length > 5) this.logHistory.pop(); // 保留最新 5 条
+    if (this.logHistory.length > 4) this.logHistory.pop(); 
 
-    // 销毁旧文字对象
     this.logTexts.forEach(t => t.destroy());
     this.logTexts = [];
 
-    // 重新渲染
     this.logHistory.forEach((log, index) => {
-      // 从下往上排，最新的在最下面 (Y 从 600 开始往上)
-      const yPos = 605 - (index * 24); 
-      const txt = this.add.text(70, yPos, log.text, { fontSize: '16px', color: log.color, stroke: '#000', strokeThickness: 2 });
-      txt.setDepth(51); // 在底板之上
+      const yPos = 645 - (index * 20); 
+      const txt = this.add.text(50, yPos, log.text, { fontSize: '16px', color: log.color, stroke: '#000', strokeThickness: 2 });
+      txt.setDepth(51); 
       this.logTexts.push(txt);
     });
   }
@@ -736,15 +731,12 @@ class BattleScene extends Phaser.Scene {
     const view = this.unitViews.get(unit);
     if (!view) return;
     
-    // 更新红血条和数值
     this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 / this.speedMultiplier });
     view.hpText.setText(`${unit.hp}/${unit.maxHp}`);
 
-    // 更新蓝条和数值
     this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 / this.speedMultiplier });
     view.mpText.setText(`${unit.mp}%`);
 
-    // 更新灰白护盾
     if (unit.shield > 0) {
       view.shieldBar.setVisible(true);
       const shieldRatio = Math.min(1, unit.shield / unit.maxHp);
@@ -795,19 +787,19 @@ class BattleScene extends Phaser.Scene {
     this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
   }
 
+  // ★ 终极修复：不覆盖全屏，只在敌方中间出按钮
   endBattle(type) {
     this.battleEnded = true;
     
-    // 1. 冻结画面全屏遮罩
-    const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.6).setDepth(500);
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     
-    // 2. 状态大字
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 200, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(501);
-    
-    // 3. 继续按钮 (放在敌方区域中间位置)
-    const contBtn = this.add.text(CONFIG.WIDTH / 2, 300, '👉 点击继续查看结算', { fontSize: '32px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive().setDepth(502);
+    // 屏幕正上方显示结果，完全不碰战报框
+    const titleObj = this.add.text(CONFIG.WIDTH / 2, 250, texts[type], { fontSize: '60px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
+    this.tweens.add({ targets: titleObj, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 800 });
+
+    // 继续按钮放在敌方棋盘和战报框之间的空隙
+    const contBtn = this.add.text(CONFIG.WIDTH / 2, 450, '👉 点击继续', { fontSize: '28px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive().setDepth(201);
     contBtn.on('pointerdown', () => {
       this.scene.start('ResultScene', { type: type, levelIndex: this.currentLevelIndex });
     });
