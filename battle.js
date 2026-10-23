@@ -48,15 +48,12 @@ class Unit {
         if (inst.extras) {
           inst.extras.forEach(ex => {
             let val = ex.value;
-            // 固定数值
             if (ex.stat === 'atkFlat') eqAtkAdd += val;
             else if (ex.stat === 'defFlat') eqDefAdd += val;
             else if (ex.stat === 'hpFlat') eqHpAdd += val;
-            // 百分比数值 (底层生成时已经是小数，如 0.05)
             else if (ex.stat === 'atkPercent') eqAtkPct += val;
             else if (ex.stat === 'defPercent') eqDefPct += val;
             else if (ex.stat === 'hpPercent') eqHpPct += val;
-            // 其他
             else if (this[ex.stat] !== undefined) this[ex.stat] += val;
           });
         }
@@ -197,7 +194,7 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 随机掉落（★ 支持固定数值词条 + 独立三个池子 + 严格区间抽取）
+// 随机掉落（★ 修复卡死，严格校验空数组和缺失池）
 // ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
@@ -230,6 +227,16 @@ function generateRandomInstance(templateId) {
   };
   const pools = window.GLOBAL_AFFIX_POOLS || defaultPools;
 
+  // 防止数据缺失或为空导致报错中断
+  let pool = [];
+  if (t.category === 'armor') {
+    pool = Array.isArray(pools.armor) && pools.armor.length > 0 ? [...pools.armor] : [...defaultPools.armor];
+  } else if (t.category === 'weapon') {
+    pool = Array.isArray(pools.weapon) && pools.weapon.length > 0 ? [...pools.weapon] : [...defaultPools.weapon];
+  } else {
+    pool = Array.isArray(pools.accessory) && pools.accessory.length > 0 ? [...pools.accessory] : [...defaultPools.accessory];
+  }
+
   const defaultVals = {
     atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
     atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
@@ -239,11 +246,8 @@ function generateRandomInstance(templateId) {
   };
   const affixValues = window.GLOBAL_AFFIX_VALUES || defaultVals;
 
-  let pool = t.category === 'armor' ? [...pools.armor] : (t.category === 'weapon' ? [...pools.weapon] : [...pools.accessory]);
   let tp = [...pool];
   const ex = [];
-  
-  // 固定类和需要取整的类
   const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
 
   for (let i = 0; i < n; i++) {
@@ -251,7 +255,7 @@ function generateRandomInstance(templateId) {
     const idx = Math.floor(Math.random() * tp.length);
     const s = tp.splice(idx, 1)[0]; 
     
-    const cfg = affixValues[s] || { min: 0, max: 0 };
+    const cfg = affixValues[s] || defaultVals[s] || { min: 0, max: 0 };
     let v = 0;
     
     if (cfg.max >= cfg.min) {
@@ -263,14 +267,12 @@ function generateRandomInstance(templateId) {
     if (intTypes.includes(s)) {
       v = Math.round(v);
     } else {
-      // 百分比除以100，保留两位小数防浮点误差
       v = Math.round((v / 100) * 100) / 100;
     }
     
     ex.push({ stat: s, value: v });
   }
 
-  // 模板固定自带属性
   const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
   extraKeys.forEach(k => { 
     if (t[k] && t[k] !== 0) {
@@ -719,7 +721,7 @@ class BattleScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 结算场景
+// 结算场景（★ 增加 try-catch 防止崩溃）
 // ==========================================
 class ResultScene extends Phaser.Scene {
   constructor() { super('ResultScene'); }
@@ -728,19 +730,25 @@ class ResultScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType], { fontSize: '80px', color: col[this.resultType], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
     let label = '🔄 重新挑战';
     let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex });
+    
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex];
       if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
-        const inst = generateRandomInstance(lv.rewardItemId);
-        if (inst) {
-          INVENTORY.push(inst);
-          localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
-          const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
-          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
-          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+        try {
+          const inst = generateRandomInstance(lv.rewardItemId);
+          if (inst) {
+            INVENTORY.push(inst);
+            localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
+            const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
+            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+          }
+        } catch (err) {
+          console.error("生成掉落物报错，已跳过：", err);
+          // 即使报错，也不会卡死，直接进入下一步
         }
       }
       if (this.currentLevelIndex < LEVELS.length - 1) { label = '➡️ 进入下一关'; action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); }
