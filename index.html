@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>中大型策略战棋</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background-color: #0f0f1a; }
-        #game { width: 100vw; height: 100vh; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; }
+        #game { width: 100%; height: 100%; }
         
         /* ================= 角色面板样式 ================= */
         #char-panel-overlay {
@@ -25,6 +26,7 @@
             color: #ddd; padding: 15px;
             position: relative;
             background-size: cover; background-position: center;
+            max-height: 90vh; overflow-y: auto; /* 防止内容过长超出屏幕 */
         }
 
         /* 顶部信息 */
@@ -129,7 +131,10 @@
         </div>
     </div>
 
-    <!-- 这里是你原本的脚本 -->
+    <!-- ★★★ 关键修复：加上 Phaser 引擎的引入 ★★★ -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    
+    <!-- 你的游戏脚本 -->
     <script src="data.js"></script>
     <script src="team.js"></script>
     <script src="battle.js"></script>
