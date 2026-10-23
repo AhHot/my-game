@@ -40,7 +40,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v9.1 终极完善版)</h1>
+  <h1>⚙️ 配置中心 (v9.2 稳定版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -107,27 +107,10 @@
     ];
 
     const DEFAULT_SKILLS = [
-      { 
-        id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', 
-        multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1,
-        passiveType: 'atkAdd', passiveValue: 0, effects: [] 
-      },
-      { 
-        id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', 
-        multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1,
-        passiveType: 'atkAdd', passiveValue: 0,
-        effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ]
-      },
-      { 
-        id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', 
-        multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1,
-        passiveType: 'atkAdd', passiveValue: 0, effects: [] 
-      },
-      { 
-        id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', 
-        multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1,
-        passiveType: 'atkAdd', passiveValue: 0, effects: []
-      }
+      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [] },
+      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
+      { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [] },
+      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [] }
     ];
 
     const DEFAULT_STATUS = [ 
@@ -156,7 +139,6 @@
       inventory = JSON.parse(localStorage.getItem('my_game_inventory_v17')) || [];
     } catch(e) { resetData(); }
 
-    // ★ 数据兜底与平滑升级
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
@@ -164,19 +146,11 @@
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
-    gameSkills.forEach(sk => {
-      if (!sk.effects) sk.effects = [];
-      if (sk.targetSide === undefined) sk.targetSide = 'enemy';
-      if (sk.passiveType === undefined) sk.passiveType = 'atkAdd';
-      if (sk.passiveValue === undefined) sk.passiveValue = 0;
-    });
-
     setTimeout(() => { saveData(); }, 100);
 
     function generateRandomInstance(templateId) {
       const template = gameItems.find(t => t.id === templateId);
       if (!template) return null;
-
       const rand = Math.random() * 100;
       let quality = 'white', qMult = 1.0, extraCount = 0, tier = 1;
       if (rand > 99) { quality = 'red'; qMult = 1.8; extraCount = 5; tier = 3; }
@@ -419,14 +393,11 @@
       });
     }
 
-    // ★ 核心修复：增益减益自动正负号
     function renderStatuses() {
       const list = document.getElementById('status-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-status').value.toLowerCase();
       gameStatuses.forEach((st, index) => {
         if (keyword && !st.name.toLowerCase().includes(keyword)) return;
-        
-        // 显示时永远取绝对值，让配置者只填正数
         const displayStatValue = Math.abs((st.statValue || 0) * 100);
 
         const div = document.createElement('div'); div.className = 'card';
@@ -456,7 +427,6 @@
       });
     }
 
-    // ★ 完全恢复物品模板的所有额外属性
     function renderItems() {
       const list = document.getElementById('item-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-item').value.toLowerCase();
@@ -532,18 +502,15 @@
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
     
-    // ★ 状态数值处理：根据类型自动加正负号
     function updateStatusPct(index, key, value) {
       const st = gameStatuses[index];
       let val = parseFloat(value) / 100;
-      // 如果是减益，强制为负；如果是增益，强制为正
       if (st.type === 'debuff' || st.type === 'control') val = -Math.abs(val);
       else val = Math.abs(val);
       st[key] = val;
       saveData();
     }
 
-    // ★ 切换增益/减益时，立即同步修正当前数值的正负号
     function updateStatusType(index, newType) {
       const st = gameStatuses[index];
       st.type = newType;
