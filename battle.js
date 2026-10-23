@@ -953,4 +953,29 @@ class ResultScene extends Phaser.Scene {
           localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
           const qColors = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
           this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, `获得掉落：`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
-          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, `${ITEMS[inst.itemId].name
+          this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, `${ITEMS[inst.itemId].name}`, { fontSize: '36px', color: qColors[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+        }
+      }
+      if (this.currentLevelIndex < LEVELS.length - 1) {
+        btnText = '➡️ 进入下一关';
+        btnAction = () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); };
+      }
+    }
+
+    const btn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 150, btnText, { fontSize: '36px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+    btn.on('pointerdown', btnAction);
+  }
+}
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'my_game_data_v20') {
+    const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
+    if (confirmReload) window.location.reload();
+  }
+});
+
+new Phaser.Game({
+  type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
+  scene: [MainMenuScene, FormationScene, BattleScene, TeamScene, ResultScene],
+});
