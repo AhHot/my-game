@@ -61,7 +61,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v12.4 安全版)</h1>
+  <h1>⚙️ 配置中心 (v12.5 元素测试版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -353,6 +353,15 @@
       return html;
     }
 
+    // 新增：获取元素下拉框
+    function getElementOptions(selectedId) {
+      let html = '';
+      globalData.elements.forEach(el => {
+        html += `<option value="${el.id}" ${selectedId === el.id ? 'selected' : ''}>${el.icon || ''} ${el.name || el.id}</option>`;
+      });
+      return html;
+    }
+
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-char').value.toLowerCase();
@@ -368,6 +377,15 @@
           <div class="form-grid">
             <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateChar(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>图标</label><input type="text" value="${char.emoji}" onchange="updateChar(${index}, 'emoji', this.value)"></div>
+            
+            <!-- 这里增加了元素属性 -->
+            <div class="form-item" style="grid-column: span 2;">
+              <label style="color:#f1c40f; font-weight:bold;">元素属性</label>
+              <select onchange="updateChar(${index}, 'element', this.value)">
+                ${getElementOptions(char.element)}
+              </select>
+            </div>
+
             <div class="form-item"><label>生命</label><input type="number" value="${char.maxHp}" onchange="updateChar(${index}, 'maxHp', parseInt(this.value))"></div>
             <div class="form-item"><label>攻击</label><input type="number" value="${char.atk}" onchange="updateChar(${index}, 'atk', parseInt(this.value))"></div>
             <div class="form-item"><label>防御</label><input type="number" value="${char.def}" onchange="updateChar(${index}, 'def', parseInt(this.value))"></div>
@@ -476,6 +494,14 @@
             <div class="form-item"><label>名称</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateSkill(${index}, 'type', this.value)">${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             
+            <!-- 这里增加了技能的元素属性 -->
+            <div class="form-item" style="grid-column: span 2;">
+              <label style="color:#f1c40f; font-weight:bold;">技能元素属性</label>
+              <select onchange="updateSkill(${index}, 'element', this.value)">
+                ${getElementOptions(skill.element)}
+              </select>
+            </div>
+
             <div class="form-item" style="display:${isPassive?'none':'flex'};">
               <label>施法对象</label>
               <select onchange="updateSkill(${index}, 'targetSide', this.value)">
@@ -786,9 +812,6 @@
       });
     }
 
-    // ============================================================
-    // 6. 全局设置渲染 (增加安全拦截)
-    // ============================================================
     function renderGlobal() {
       const fieldsBox = document.getElementById('global-config-fields');
       if (!fieldsBox) return;
@@ -935,7 +958,6 @@
     }
 
     function saveGlobalConfig() {
-      // 清理可能在输入框里产生的 NaN
       Object.keys(globalData.config).forEach(k => {
         if (isNaN(globalData.config[k])) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
       });
@@ -955,7 +977,6 @@
       alert('已恢复默认。');
     }
 
-    // ====== 核心数据修改与保存 ======
     function saveData() {
       localStorage.setItem('my_game_data_v22', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_v22', JSON.stringify(gameSkills));
@@ -972,7 +993,12 @@
       localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
     }
 
-    function updateChar(index, key, value) { gameChars[index][key] = value; saveData(); }
+    function updateChar(index, key, value) { 
+      gameChars[index][key] = value; 
+      saveData(); 
+      // 如果修改的是元素，界面可能要刷新选项
+      if (key === 'element') render();
+    }
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
@@ -999,7 +1025,7 @@
     function updateSkill(index, key, value) { 
       gameSkills[index][key] = value; 
       saveData(); 
-      if (['name', 'type', 'isAura'].includes(key)) render(); 
+      if (['name', 'type', 'isAura', 'element'].includes(key)) render(); 
     }
 
     function addSkillEffect(skillIdx) {
