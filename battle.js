@@ -68,13 +68,12 @@ class Unit {
     });
 
     this.hp = this.maxHp; 
-    this.maxMp = 100; this.mp = 100; // 统一 100%
+    this.maxMp = 100; this.mp = 100;
     this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; 
     this.shield = 0; 
     this.skipTurn = false; 
   }
   isAlive() { return this.hp > 0; }
-  
   gainMp(amount) { this.mp = Math.min(100, this.mp + amount); }
   
   takeDamage(dmg) { 
@@ -262,7 +261,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v9.1.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v9.2.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -354,14 +353,15 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
-    const speedBtn = this.add.text(CONFIG.WIDTH - 120, 10, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    // 顶层 UI
+    const speedBtn = this.add.text(CONFIG.WIDTH - 120, 10, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     speedBtn.on('pointerdown', () => {
       this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
       speedBtn.setText(`⏩ ${this.speedMultiplier}x 速度`);
       speedBtn.setBackgroundColor(this.speedMultiplier === 2 ? '#e67e22' : '#2980b9');
     });
 
-    const skipBtn = this.add.text(CONFIG.WIDTH - 10, 10, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    const skipBtn = this.add.text(CONFIG.WIDTH - 10, 10, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive().setDepth(200);
     skipBtn.on('pointerdown', () => { 
       if (this.isSkipping || this.battleEnded) return; 
       this.isSkipping = true; 
@@ -391,17 +391,10 @@ class BattleScene extends Phaser.Scene {
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
     
-    // ★ 战报框 UI
-    const logBg = this.add.rectangle(CONFIG.WIDTH / 2, 580, 600, 120, 0x000000, 0.6).setStrokeStyle(1, 0x3498db);
-    this.logContainer = this.add.container(CONFIG.WIDTH / 2, 560);
-    
-    // 遮罩，防止文字超出框外
-    const maskShape = this.make.graphics();
-    maskShape.fillRect(CONFIG.WIDTH / 2 - 300, 520, 600, 120);
-    const mask = maskShape.createGeometryMask();
-    this.logContainer.setMask(mask);
-
-    this.logTexts = [];
+    // ★ 战报框（固定在中间，不再使用 Tween，防止错位）
+    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 560, 600, 120, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
+    this.logHistory = []; // 存放 { text, color }
+    this.logTexts = [];   // 存放 Phaser Text 对象
 
     this.time.delayedCall(800, () => this.startBattle());
   }
@@ -426,24 +419,26 @@ class BattleScene extends Phaser.Scene {
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: '48px' }).setOrigin(0.5);
     const nameText = this.add.text(0, 50, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    // HP 红色
-    const hpBg = this.add.rectangle(0, 72, 90, 10, 0x000000, 0.8).setStrokeStyle(1, 0xffffff, 0.4);
-    const hpBar = this.add.rectangle(-45, 72, 90, 8, 0xff4444).setOrigin(0, 0.5);
-    const hpText = this.add.text(0, 72, '', { fontSize: '10px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+    const hpBg = this.add.rectangle(0, 74, 94, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
+    const hpBar = this.add.rectangle(-45, 74, 90, 8, 0xff4444).setOrigin(0, 0.5);
+    const hpText = this.add.text(0, 74, '', { fontSize: '11px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
     
-    // 护盾条 (灰白半透明覆盖)
-    const shieldBar = this.add.rectangle(-45, 72, 90, 8, 0xdddddd, 0.7).setOrigin(0, 0.5);
+    const shieldBar = this.add.rectangle(-45, 74, 90, 8, 0xcccccc, 0.8).setOrigin(0, 0.5);
     shieldBar.setVisible(false);
-    const shieldText = this.add.text(0, 72, '', { fontSize: '9px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+    const shieldText = this.add.text(0, 60, '', { fontSize: '10px', color: '#ffffff', fontStyle: 'bold', backgroundColor: '#555', padding: {x:2, y:1} }).setOrigin(0.5);
 
-    // MP 蓝色
-    const mpBg = this.add.rectangle(0, 82, 90, 5, 0x000000, 0.8);
-    const mpBar = this.add.rectangle(-45, 82, 90, 4, 0x3498DB).setOrigin(0, 0.5);
-    const mpText = this.add.text(45, 82, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
+    const mpBg = this.add.rectangle(0, 85, 94, 7, 0x000000);
+    const mpBar = this.add.rectangle(-45, 85, 90, 5, 0x3498DB).setOrigin(0, 0.5);
+    const mpText = this.add.text(45, 85, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
 
     const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
     
     container.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    // 把盾牌条提到最上层
+    container.bringToTop(shieldBar);
+    container.bringToTop(shieldText);
+    container.bringToTop(hpText);
+
     this.unitViews.set(unit, { container, circle, emoji, hpBar, shieldBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
@@ -534,7 +529,7 @@ class BattleScene extends Phaser.Scene {
         } else if (skill.shieldMultiplier > 0) {
           const shieldVal = Math.round(actor.atk * skill.shieldMultiplier);
           t.addShield(shieldVal);
-          this.showFloatText(t, `护盾 +${shieldVal}`, '#dddddd');
+          this.showFloatText(t, `盾+${shieldVal}`, '#dddddd');
           this.addLog(`${actor.name} 为 ${t.name} 提供了 ${shieldVal} 点护盾。`, '#dddddd');
         } else {
           const result = BattleLogic.computeDamage(actor, t, skill);
@@ -707,52 +702,54 @@ class BattleScene extends Phaser.Scene {
     const color = customColor || (result.isCrit ? '#ffcc00' : '#ff5555');
     const size = result.isCrit ? '38px' : '26px';
     const label = result.isCrit ? `-${result.damage} 暴击!` : `-${result.damage}`;
-    const txt = this.add.text(view.container.x, view.container.y - 70, label, { fontSize: size, color: color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5);
+    const txt = this.add.text(view.container.x, view.container.y - 70, label, { fontSize: size, color: color, fontStyle: 'bold', stroke: '#000000', strokeThickness: 5 }).setOrigin(0.5).setDepth(100);
     this.tweens.add({ targets: txt, y: txt.y - 90, alpha: 0, duration: 900 / this.speedMultiplier, ease: 'Cubic.easeOut', onComplete: () => txt.destroy() });
   }
 
   showFloatText(unit, text, color) {
     const view = this.unitViews.get(unit);
     if (!view) return;
-    const txt = this.add.text(view.container.x, view.container.y - 30, text, { fontSize: '24px', color: color, fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+    const txt = this.add.text(view.container.x, view.container.y - 30, text, { fontSize: '24px', color: color, fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(100);
     this.tweens.add({ targets: txt, y: txt.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => txt.destroy() });
   }
 
+  // ★ 重写战报系统：绝对坐标计算，清空重绘，不可能错位
   addLog(text, color = '#ffffff') {
-    const newTxt = this.add.text(-280, 40, text, { fontSize: '16px', color: color, stroke: '#000', strokeThickness: 2, wordWrap: { width: 560 } });
-    this.logContainer.add(newTxt);
-    this.logTexts.push(newTxt);
+    this.logHistory.unshift({ text, color });
+    if (this.logHistory.length > 5) this.logHistory.pop(); // 保留最新 5 条
 
-    // 所有旧文字向上推
-    this.logTexts.forEach((t, i) => {
-      if (t !== newTxt) {
-        this.tweens.add({ targets: t, y: t.y - 24, duration: 200 });
-      }
+    // 销毁旧文字对象
+    this.logTexts.forEach(t => t.destroy());
+    this.logTexts = [];
+
+    // 重新渲染
+    this.logHistory.forEach((log, index) => {
+      // 从下往上排，最新的在最下面 (Y 从 600 开始往上)
+      const yPos = 605 - (index * 24); 
+      const txt = this.add.text(70, yPos, log.text, { fontSize: '16px', color: log.color, stroke: '#000', strokeThickness: 2 });
+      txt.setDepth(51); // 在底板之上
+      this.logTexts.push(txt);
     });
-
-    // 超过 4 条，移除最老的
-    if (this.logTexts.length > 4) {
-      const oldTxt = this.logTexts.shift();
-      oldTxt.destroy();
-    }
   }
 
   updateUnitView(unit) {
     const view = this.unitViews.get(unit);
     if (!view) return;
-    this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 / this.speedMultiplier });
-    this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 / this.speedMultiplier });
     
+    // 更新红血条和数值
+    this.tweens.add({ targets: view.hpBar, scaleX: Math.max(0, unit.hp / unit.maxHp), duration: 300 / this.speedMultiplier });
     view.hpText.setText(`${unit.hp}/${unit.maxHp}`);
+
+    // 更新蓝条和数值
+    this.tweens.add({ targets: view.mpBar, scaleX: Math.max(0, unit.mp / unit.maxMp), duration: 300 / this.speedMultiplier });
     view.mpText.setText(`${unit.mp}%`);
 
+    // 更新灰白护盾
     if (unit.shield > 0) {
       view.shieldBar.setVisible(true);
       const shieldRatio = Math.min(1, unit.shield / unit.maxHp);
       this.tweens.add({ targets: view.shieldBar, scaleX: shieldRatio, duration: 300 / this.speedMultiplier });
       view.shieldText.setText(`${unit.shield}`);
-      view.shieldBar.setDepth(10); // 覆盖在血条上
-      view.shieldText.setDepth(11);
     } else { 
       view.shieldBar.setVisible(false); 
       view.shieldText.setText('');
@@ -762,6 +759,7 @@ class BattleScene extends Phaser.Scene {
       const stNames = unit.statuses.map(s => STATUSES[s.id] ? STATUSES[s.id].name.substring(0,1) : '?').join('');
       view.statusText.setText(`[${stNames}]`);
     } else { view.statusText.setText(''); }
+    
     if (!unit.isAlive()) { view.emoji.setAlpha(0.25); view.circle.setAlpha(0.25); }
   }
   
@@ -800,13 +798,16 @@ class BattleScene extends Phaser.Scene {
   endBattle(type) {
     this.battleEnded = true;
     
-    // 冻结画面，显示继续按钮
-    const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.4).setDepth(100);
+    // 1. 冻结画面全屏遮罩
+    const overlay = this.add.rectangle(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, CONFIG.WIDTH, CONFIG.HEIGHT, 0x000000, 0.6).setDepth(500);
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 100, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(101);
     
-    const contBtn = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 100, '👉 点击继续查看结算', { fontSize: '32px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive().setDepth(102);
+    // 2. 状态大字
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 200, texts[type], { fontSize: '80px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(501);
+    
+    // 3. 继续按钮 (放在敌方区域中间位置)
+    const contBtn = this.add.text(CONFIG.WIDTH / 2, 300, '👉 点击继续查看结算', { fontSize: '32px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive().setDepth(502);
     contBtn.on('pointerdown', () => {
       this.scene.start('ResultScene', { type: type, levelIndex: this.currentLevelIndex });
     });
