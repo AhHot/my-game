@@ -9,7 +9,7 @@
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; }
         #game { width: 100%; height: 100%; }
         
-        /* ================= 游戏内测试按钮 ================= */
+        /* ================= 触发按钮 ================= */
         #test-ui-btn {
             position: fixed; bottom: 20px; left: 20px; z-index: 999;
             background: #3498db; color: white; padding: 10px 15px; border-radius: 5px;
@@ -20,38 +20,30 @@
         #fullscreen-ui {
             display: none; /* 默认隐藏 */
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(10, 10, 15, 0.95); /* 极深的半透明背景，覆盖游戏 */
+            background: rgba(10, 10, 15, 0.95);
             z-index: 9000;
             color: #ddd;
-            display: flex; /* 弹性布局：左面板 + 右面板 */
-            overflow: hidden;
-            transition: all 0.3s ease;
+            display: flex;
         }
 
-        /* 顶部关闭按钮 */
         .close-ui-btn {
-            position: absolute; top: 20px; right: 30px; font-size: 30px; color: #aaa; cursor: pointer; z-index: 9100;
+            position: absolute; top: 15px; right: 20px; font-size: 30px; color: #aaa; cursor: pointer; z-index: 9100;
         }
         .close-ui-btn:hover { color: #fff; }
 
         /* ================= 左侧基础面板 ================= */
         #left-panel {
-            width: 420px; /* 固定宽度 */
+            width: 350px;
             height: 100%;
             background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
             border-right: 2px solid #333;
-            position: relative;
             display: flex; flex-direction: column;
-            box-shadow: 5px 0 20px rgba(0,0,0,0.5);
-            z-index: 9010;
-            transition: transform 0.3s ease;
             flex-shrink: 0;
         }
 
-        /* 立绘占位（以后可以替换成真实的 img 标签） */
         .char-portrait {
-            flex: 1;
-            background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; /* 临时网络图 */
+            height: 40%; /* 占左侧高度40% */
+            background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover;
             position: relative;
         }
         .char-portrait::after {
@@ -59,11 +51,11 @@
             background: linear-gradient(to top, #1a1c29, transparent);
         }
 
-        /* 角色信息与数值区 */
         .char-info-area {
+            flex: 1;
             padding: 20px;
-            background: rgba(15, 15, 21, 0.9);
-            border-top: 1px solid #333;
+            display: flex; flex-direction: column;
+            overflow-y: auto;
         }
         .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
         .char-name-level h2 { color: #f1c40f; font-size: 24px; }
@@ -72,58 +64,36 @@
         .exp-bar-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
         .exp-bar-fill { width: 45%; height: 100%; background: #3498db; }
 
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px; margin-bottom: 20px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 14px; margin-bottom: 25px; }
         .stat-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 4px; }
         .stat-item span { color: #888; }
         .stat-item b { color: #fff; }
 
-        .core-four { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 10px; }
-        .core-four div { text-align: center; }
-        .core-four div b { display: block; color: #e74c3c; margin-top: 4px; font-size: 18px;}
+        .core-four { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 15px; font-weight: bold; margin-bottom: 20px;}
+        .core-four div { background: #1e2028; padding: 10px; border-radius: 6px; border: 1px solid #333; text-align: center;}
+        .core-four div b { display: block; color: #e74c3c; margin-top: 5px; font-size: 18px;}
 
-        /* 展开按钮（贴在左面板右侧中间） */
-        .expand-btn {
-            position: absolute; top: 50%; right: -30px; transform: translateY(-50%);
-            width: 30px; height: 80px; background: #2c3e50; border: 1px solid #444; border-left: none;
-            border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center;
-            color: #f1c40f; font-size: 20px; z-index: 9020;
-        }
-        .expand-btn:hover { background: #34495e; }
-
-        /* ================= 右侧详细面板 ================= */
+        /* ================= 右侧内容区 ================= */
         #right-panel {
             flex: 1;
-            padding: 40px 30px;
-            overflow-y: auto;
-            display: none; /* 默认隐藏，点击展开后显示 */
+            display: flex; flex-direction: column;
             background: rgba(20, 22, 30, 0.8);
         }
 
-        .detail-section { margin-bottom: 30px; }
-        .detail-title { font-size: 18px; color: #f1c40f; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
-        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 40px; font-size: 15px; }
-        .detail-item { display: flex; justify-content: space-between; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; }
-        .detail-item span { color: #888; }
-        .detail-item b { color: #fff; }
+        /* 右侧标签页 */
+        .right-tabs { display: flex; background: #111; border-bottom: 1px solid #333; }
+        .rt-tab { flex: 1; text-align: center; padding: 15px 0; cursor: pointer; font-weight: bold; color: #888; font-size: 16px;}
+        .rt-tab.active { color: #f1c40f; border-bottom: 2px solid #f1c40f; background: #1a1c29; }
 
-        /* ================= 全屏背包网格 ================= */
-        #inventory-view {
-            display: none; /* 默认隐藏 */
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(10, 10, 15, 0.98); z-index: 9500;
-            padding: 30px; flex-direction: column;
-        }
-        .inv-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .inv-header h2 { color: #f1c40f; }
-        .inv-header .back-btn { background: #e74c3c; color: #fff; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-
-        .inv-grid {
+        /* 背包网格区 */
+        #inventory-tab {
+            flex: 1; padding: 20px; overflow-y: auto;
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* 自适应网格 */
+            grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
             gap: 10px;
-            overflow-y: auto;
-            padding-bottom: 50px;
+            align-content: start;
         }
+
         .inv-slot {
             aspect-ratio: 1;
             background: #1a1c29;
@@ -133,25 +103,49 @@
             cursor: pointer; position: relative;
             transition: all 0.2s;
         }
-        .inv-slot:hover { border-color: #f1c40f; transform: scale(1.05); }
-        .inv-slot .item-icon { font-size: 32px; }
-        .inv-slot .item-name { font-size: 12px; color: #aaa; margin-top: 5px; text-align: center; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 5px; }
+        .inv-slot:hover { border-color: #f1c40f; transform: scale(1.05); z-index: 10;}
+        .inv-slot .item-icon { font-size: 28px; margin-bottom: 4px; }
+        .inv-slot .item-name { font-size: 11px; color: #aaa; text-align: center; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 4px; }
         
-        /* 装备详情对比悬浮卡 */
+        /* 详细属性区 (隐藏) */
+        #detail-tab { display: none; flex: 1; padding: 30px; overflow-y: auto; }
+        .detail-section { margin-bottom: 30px; }
+        .detail-title { font-size: 18px; color: #f1c40f; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 40px; font-size: 15px; }
+        .detail-item { display: flex; justify-content: space-between; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; }
+        .detail-item span { color: #888; }
+        .detail-item b { color: #fff; }
+
+        /* ================= 详情卡片 ================= */
         #item-tooltip {
             display: none;
             position: fixed; z-index: 9600;
-            width: 280px; background: #0f0f15; border: 2px solid #f1c40f; border-radius: 8px;
+            width: 260px; background: #0f0f15; border: 2px solid #f1c40f; border-radius: 8px;
             padding: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.8);
-            pointer-events: none; /* 穿透鼠标事件，防止遮挡点击 */
+            pointer-events: none; /* 鼠标穿透 */
         }
         .tt-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; }
         .tt-stats { font-size: 13px; margin-top: 10px; }
-        .tt-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-        .tt-diff-up { color: #2ecc71; } /* 绿字提升 */
-        .tt-diff-down { color: #e74c3c; } /* 红字下降 */
+        .tt-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .tt-diff-up { color: #2ecc71; } 
+        .tt-diff-down { color: #e74c3c; } 
         .tt-base { color: #fff; }
 
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            #fullscreen-ui { flex-direction: column; }
+            #left-panel { width: 100%; height: 40%; border-right: none; border-bottom: 2px solid #333; flex-direction: row; }
+            .char-portrait { width: 35%; height: 100%; }
+            .char-info-area { width: 65%; padding: 10px; }
+            .stat-grid { gap: 5px; font-size: 12px; margin-bottom: 10px;}
+            .core-four { gap: 10px; margin-bottom: 10px; }
+            .core-four div { padding: 5px; }
+            .core-four div b { font-size: 14px; }
+            #right-panel { height: 60%; }
+            #inventory-tab { grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); padding: 10px;}
+            #detail-tab { padding: 15px; }
+            .detail-grid { grid-template-columns: 1fr 1fr; gap: 5px 15px; font-size: 13px;}
+        }
     </style>
 </head>
 <body>
@@ -159,14 +153,13 @@
     <!-- 游戏引擎挂载点 -->
     <div id="game"></div>
 
-    <!-- 左下角测试按钮 -->
-    <div id="test-ui-btn" onclick="openCharacterUI()">📊 打开全屏属性与背包</div>
+    <div id="test-ui-btn" onclick="openCharacterUI()">📊 人物与背包</div>
 
     <!-- ================= 全屏 UI 区域 ================= -->
     <div id="fullscreen-ui">
         <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
 
-        <!-- 左侧：基础面板 -->
+        <!-- 左半屏：基础面板 -->
         <div id="left-panel">
             <div class="char-portrait"></div>
             
@@ -178,67 +171,51 @@
                 <div class="exp-bar-bg"><div class="exp-bar-fill"></div></div>
 
                 <!-- 6大意境 -->
-                <div class="stat-grid" id="ui-stats-grid">
-                    <!-- JS动态填充 -->
-                </div>
+                <div class="stat-grid" id="ui-stats-grid"></div>
 
                 <!-- 核心四维 -->
                 <div class="core-four" id="ui-core-four">
-                    <div>气血<span style="color:#aaa;font-size:12px;font-weight:normal;">(HP)</span><b id="ui-hp">3000</b></div>
-                    <div>攻击<span style="color:#aaa;font-size:12px;font-weight:normal;">(ATK)</span><b id="ui-atk">400</b></div>
-                    <div>防御<span style="color:#aaa;font-size:12px;font-weight:normal;">(DEF)</span><b id="ui-def">200</b></div>
-                    <div>速度<span style="color:#aaa;font-size:12px;font-weight:normal;">(SPD)</span><b id="ui-spd">10</b></div>
-                </div>
-
-                <div style="display:flex; gap:10px; margin-top:15px;">
-                    <div class="inv-header" style="margin:0; width:100%;">
-                        <div class="back-btn" style="background:#3498db; text-align:center; width:100%;" onclick="openInventory()">🎒 打开全屏背包</div>
-                    </div>
+                    <div>气血(HP)<b id="ui-hp">3000</b></div>
+                    <div>攻击(ATK)<b id="ui-atk">400</b></div>
+                    <div>防御(DEF)<b id="ui-def">200</b></div>
+                    <div>速度(SPD)<b id="ui-spd">10</b></div>
                 </div>
             </div>
-
-            <!-- 展开右侧详细属性的按钮 -->
-            <div class="expand-btn" id="expand-btn" onclick="toggleDetailPanel()">▶</div>
         </div>
 
-        <!-- 右侧：详细属性（默认隐藏） -->
+        <!-- 右半屏：背包与详细属性 -->
         <div id="right-panel">
-            <div class="detail-section">
-                <div class="detail-title">【攻伐】</div>
-                <div class="detail-grid" id="detail-atk">
-                    <!-- 动态填充 -->
-                </div>
+            <!-- 标签切换 -->
+            <div class="right-tabs">
+                <div class="rt-tab active" id="tab-btn-inv" onclick="switchRightTab('inv')">🎒 背包 (200格)</div>
+                <div class="rt-tab" id="tab-btn-detail" onclick="switchRightTab('detail')">📊 详细属性</div>
             </div>
-            <div class="detail-section">
-                <div class="detail-title">【守御】</div>
-                <div class="detail-grid" id="detail-def">
-                    <!-- 动态填充 -->
-                </div>
+
+            <!-- 1. 背包网格 -->
+            <div id="inventory-tab">
+                <!-- 动态生成格子 -->
             </div>
-            <div class="detail-section">
-                <div class="detail-title">【克制与特殊】</div>
-                <div class="detail-grid" id="detail-special">
-                    <!-- 动态填充 -->
+
+            <!-- 2. 详细属性 -->
+            <div id="detail-tab">
+                <div class="detail-section">
+                    <div class="detail-title">【攻伐】</div>
+                    <div class="detail-grid" id="detail-atk"></div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-title">【守御】</div>
+                    <div class="detail-grid" id="detail-def"></div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-title">【克制与特殊】</div>
+                    <div class="detail-grid" id="detail-special"></div>
                 </div>
             </div>
         </div>
 
-        <!-- ================= 全屏背包层（覆盖在最上方） ================= -->
-        <div id="inventory-view">
-            <div class="inv-header">
-                <h2>🎒 背包 (200格上限)</h2>
-                <div class="back-btn" onclick="closeInventory()">关闭返回</div>
-            </div>
-            
-            <div class="inv-grid" id="inv-grid-container">
-                <!-- JS动态生成200个格子 -->
-            </div>
-
-            <!-- 装备详情悬浮卡 -->
-            <div id="item-tooltip"></div>
-        </div>
+        <!-- 悬浮详情卡 -->
+        <div id="item-tooltip"></div>
     </div>
-
 
     <!-- 引入 Phaser 引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
@@ -248,29 +225,25 @@
     <script src="team.js"></script>
     <script src="battle.js"></script>
 
-    <!-- 新版全屏 UI 控制逻辑 -->
+    <!-- 新版全屏 UI 逻辑 -->
     <script>
         let currentChar = null;
         let currentUnit = null;
-        let isDetailExpanded = false;
 
         // 1. 打开主界面
         function openCharacterUI() {
-            // 默认取第一个玩家角色
             currentChar = CHARACTERS.find(c => c.side === 'player') || CHARACTERS[0];
             if (!currentChar) return alert("编辑器里没有角色！");
-            
-            // 实例化 Unit 获取计算后的最终属性
             currentUnit = new Unit(currentChar);
 
-            // 填充左侧基础信息
+            // 渲染左侧数值
             document.getElementById('ui-char-name').innerText = currentChar.name;
             document.getElementById('ui-hp').innerText = currentUnit.maxHp;
             document.getElementById('ui-atk').innerText = currentUnit.atk;
             document.getElementById('ui-def').innerText = currentUnit.def;
             document.getElementById('ui-spd').innerText = currentUnit.speed.toFixed(1);
 
-            // 填充意境数值
+            // 意境
             const stats = currentChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
             document.getElementById('ui-stats-grid').innerHTML = `
                 <div class="stat-item"><span>锋锐</span> <b>${stats.fengRui}</b></div>
@@ -281,19 +254,18 @@
                 <div class="stat-item"><span>绝情</span> <b>${stats.jueQing}</b></div>
             `;
 
-            // 填充右侧详细属性
+            // 渲染右侧详细属性（剔除基础四维，只留进阶）
             document.getElementById('detail-atk').innerHTML = `
-                <div class="detail-item"><span>攻击力</span> <b>${currentUnit.atk}</b></div>
                 <div class="detail-item"><span>破甲</span> <b>0%</b></div>
                 <div class="detail-item"><span>暴击率</span> <b>${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>暴击伤害</span> <b>${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>命中率</span> <b>${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
             `;
             document.getElementById('detail-def').innerHTML = `
-                <div class="detail-item"><span>气血上限</span> <b>${currentUnit.maxHp}</b></div>
-                <div class="detail-item"><span>防御力</span> <b>${currentUnit.def}</b></div>
                 <div class="detail-item"><span>闪避率</span> <b>${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>韧性(抗暴)</span> <b>${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
+                <div class="detail-item"><span>格挡率</span> <b>0%</b></div>
+                <div class="detail-item"><span>受疗加成</span> <b>0%</b></div>
             `;
             document.getElementById('detail-special').innerHTML = `
                 <div class="detail-item"><span>吸血</span> <b>${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
@@ -302,58 +274,50 @@
                 <div class="detail-item"><span>冰抗性</span> <b>0%</b></div>
             `;
 
-            // 显示全屏 UI
+            // 渲染背包网格
+            renderInventoryGrid();
+
+            // 默认显示背包Tab
+            switchRightTab('inv');
             document.getElementById('fullscreen-ui').style.display = 'flex';
         }
 
-        // 2. 关闭主界面
+        // 2. 关闭
         function closeCharacterUI() {
             document.getElementById('fullscreen-ui').style.display = 'none';
-            document.getElementById('inventory-view').style.display = 'none';
             document.getElementById('item-tooltip').style.display = 'none';
         }
 
-        // 3. 展开/折叠右侧详细属性
-        function toggleDetailPanel() {
-            isDetailExpanded = !isDetailExpanded;
-            const rightPanel = document.getElementById('right-panel');
-            const btn = document.getElementById('expand-btn');
-            
-            if (isDetailExpanded) {
-                rightPanel.style.display = 'block';
-                btn.innerText = '◀';
+        // 3. 切换右侧标签
+        function switchRightTab(tab) {
+            document.getElementById('tab-btn-inv').classList.remove('active');
+            document.getElementById('tab-btn-detail').classList.remove('active');
+            document.getElementById('inventory-tab').style.display = 'none';
+            document.getElementById('detail-tab').style.display = 'none';
+            document.getElementById('item-tooltip').style.display = 'none';
+
+            if (tab === 'inv') {
+                document.getElementById('tab-btn-inv').classList.add('active');
+                document.getElementById('inventory-tab').style.display = 'grid';
             } else {
-                rightPanel.style.display = 'none';
-                btn.innerText = '▶';
+                document.getElementById('tab-btn-detail').classList.add('active');
+                document.getElementById('detail-tab').style.display = 'block';
             }
         }
 
-        // 4. 打开/关闭全屏背包
-        function openInventory() {
-            renderInventoryGrid();
-            document.getElementById('inventory-view').style.display = 'flex';
-        }
-        function closeInventory() {
-            document.getElementById('inventory-view').style.display = 'none';
-            document.getElementById('item-tooltip').style.display = 'none';
-        }
-
-        // 5. 渲染200格背包网格
+        // 4. 渲染 200 格背包
         function renderInventoryGrid() {
-            const grid = document.getElementById('inv-grid-container');
+            const grid = document.getElementById('inventory-tab');
             grid.innerHTML = '';
             
             const TOTAL_SLOTS = 200;
-            // 获取玩家背包里的物品
             const playerItems = INVENTORY.filter(i => !i.equippedBy || i.equippedBy === '');
-
             const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
 
             for (let i = 0; i < TOTAL_SLOTS; i++) {
                 const slot = document.createElement('div');
                 slot.className = 'inv-slot';
 
-                // 如果这个格子有道具
                 if (playerItems[i]) {
                     const inst = playerItems[i];
                     const itemTpl = ITEMS[inst.itemId];
@@ -363,42 +327,45 @@
                             <div class="item-name" style="color:${qColors[inst.quality]}">${itemTpl.name}</div>
                         `;
                         
-                        // 悬停/点击 显示详情
+                        // 手机端点击/PC端悬停显示详情
                         slot.onmouseenter = (e) => showTooltip(e, inst, itemTpl);
-                        slot.onmouseleave = () => { document.getElementById('item-tooltip').style.display = 'none'; };
-                        slot.onclick = (e) => showTooltip(e, inst, itemTpl); // 手机端点击看详情
+                        slot.onclick = (e) => {
+                            e.stopPropagation();
+                            showTooltip(e, inst, itemTpl);
+                        };
+                        // 点击空白处关闭卡片
+                        document.getElementById('inventory-tab').onclick = () => {
+                            document.getElementById('item-tooltip').style.display = 'none';
+                        };
                     }
                 } else {
-                    // 空格子
-                    slot.innerHTML = `<div style="color:#333;">空</div>`;
+                    slot.innerHTML = `<div style="color:#222; font-size:12px;">空</div>`;
                 }
                 grid.appendChild(slot);
             }
         }
 
-        // 6. 装备详情悬浮卡（带红绿字对比）
+        // 5. 悬浮详情与对比
         function showTooltip(event, inst, itemTpl) {
             const tooltip = document.getElementById('item-tooltip');
-            
-            // 基础信息
             let html = `
                 <div class="tt-title" style="color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
                 <div style="font-size:12px; color:#888;">${itemTpl.category === 'weapon' ? '武器' : itemTpl.category === 'armor' ? '防具' : '饰品'}</div>
                 <div class="tt-stats">
             `;
 
-            // 对比逻辑
-            // 找出当前角色身上同部位穿着的装备
             let equippedInst = null;
             if (currentChar && currentChar.equipment && currentChar.equipment[itemTpl.category]) {
                 const eqUid = currentChar.equipment[itemTpl.category];
                 equippedInst = INVENTORY.find(i => i.uid === eqUid);
             }
 
-            // 收集对比数值
             const compareStats = (statName, currentVal, newVal, isPercent = false) => {
                 let diff = newVal - currentVal;
                 let diffStr = '';
+                // 如果穿的就是这件，不显示差值
+                if (inst.uid === equippedInst?.uid) diff = 0;
+                
                 if (diff > 0) diffStr = ` <span class="tt-diff-up">(▲ +${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
                 else if (diff < 0) diffStr = ` <span class="tt-diff-down">(▼ ${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
                 
@@ -406,7 +373,6 @@
                 return `<div class="tt-row"><span>${statName}</span> <span class="tt-base">${newValStr}${diffStr}</span></div>`;
             };
 
-            // 基础三围对比
             let eqAtk = equippedInst ? equippedInst.baseAtk || 0 : 0;
             let eqDef = equippedInst ? equippedInst.baseDef || 0 : 0;
             let eqHp = equippedInst ? equippedInst.baseHp || 0 : 0;
@@ -415,7 +381,6 @@
             if (inst.baseDef || eqDef) html += compareStats('防御力', eqDef, inst.baseDef || 0);
             if (inst.baseHp || eqHp) html += compareStats('生命值', eqHp, inst.baseHp || 0);
 
-            // 词条对比
             if (inst.extras && inst.extras.length > 0) {
                 html += `<div style="border-top:1px dashed #444; margin:5px 0;"></div>`;
                 const statNames = { 
@@ -433,19 +398,23 @@
                     html += compareStats(statNames[ex.stat] || ex.stat, eqVal, ex.value, isPct);
                 });
             }
-
             html += `</div>`;
             tooltip.innerHTML = html;
             tooltip.style.display = 'block';
 
-            // 计算位置（防止超出屏幕）
-            let clientX = event.clientX || event.touches[0].clientX;
-            let clientY = event.clientY || event.touches[0].clientY;
-            
-            let x = clientX + 15;
-            let y = clientY + 15;
-            if (x + 280 > window.innerWidth) x = clientX - 290;
-            if (y + 200 > window.innerHeight) y = clientY - 200;
+            // 判断位置：手机端固定在屏幕中间，PC跟随鼠标
+            let x, y;
+            if (window.innerWidth < 768) {
+                x = window.innerWidth / 2 - 130;
+                y = window.innerHeight / 2 - 100;
+            } else {
+                let clientX = event.clientX;
+                let clientY = event.clientY;
+                x = clientX + 15;
+                y = clientY + 15;
+                if (x + 260 > window.innerWidth) x = clientX - 275;
+                if (y + 200 > window.innerHeight) y = window.innerHeight - 210;
+            }
 
             tooltip.style.left = x + 'px';
             tooltip.style.top = y + 'px';
