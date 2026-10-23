@@ -16,7 +16,20 @@ const DEFAULT_CONFIG = {
   MIN_DAMAGE_RATIO: 0.1,
   CRIT_RATE_CAP: 1.0,
   HIT_RATE_MIN: 0.2,
-  HIT_RATE_MAX: 1.0
+  HIT_RATE_MAX: 1.0,
+
+  // ===== 新增：6大意境转化系数与上限 =====
+  fengRuiToAtk: 3.0,       
+  hunHouToHp: 20.0,        
+  lingDongToSpd: 1.5,      
+  lingDongToEva: 0.1,      
+  maxEvaFromStats: 20.0,   
+  jianRenToDef: 2.0,       
+  jianRenToRes: 0.1,       
+  guiMiToHit: 0.15,        
+  guiMiToCritDmg: 1.0,     
+  jueQingToCrit: 0.2,      
+  maxCritFromStats: 30.0   
 };
 
 const DEFAULT_ELEMENTS = [
@@ -74,7 +87,7 @@ function getElementMultiplier(attackerEl, defenderEl) {
 }
 
 // ============================================================
-// 你原本的兜底数据（已补齐缺失的 ITEMS 和 INVENTORY）
+// 兜底数据
 // ============================================================
 const SKILLS = {};
 const STATUSES = {};
