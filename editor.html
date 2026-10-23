@@ -65,11 +65,15 @@
     .drop-rate-row { display: flex; align-items: center; gap: 10px; background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
     .drop-rate-label { width: 80px; font-weight: bold; }
     .drop-rate-calc { width: 80px; text-align: right; font-weight: bold; }
+
+    .affix-pool-tabs { display: flex; gap: 10px; margin-bottom: 10px; }
+    .affix-pool-tab { padding: 6px 15px; background: #0f3460; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
+    .affix-pool-tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v12.8 掉落辅助版)</h1>
+  <h1>⚙️ 配置中心 (v13.0 最终数值版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -137,17 +141,37 @@
     </div>
 
     <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 装备掉落与词条池</h3>
+      <h3 style="color:#f1c40f; margin-bottom:15px;">📊 词条数值波动池</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">这里配置所有词条的基础随机范围。无论什么品质，都从这里抽取。固定值为整数，百分比填入数值即可(如 4.0 代表 4%)。</p>
+      
+      <div class="sub-title">固定数值类</div>
+      <div class="form-grid" id="affix-vals-flat"></div>
+      
+      <div class="sub-title">基础百分比类</div>
+      <div class="form-grid" id="affix-vals-basic"></div>
+      
+      <div class="sub-title">高级属性类</div>
+      <div class="form-grid" id="affix-vals-advanced"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 装备掉落配置</h3>
       <p style="color:#aaa; font-size:12px; margin-bottom:10px;">调整各品质的掉落区间。实际概率 = 上限 - 下限。区间需首尾相连。</p>
       <div id="drop-rate-fields"></div>
-      
-      <div class="sub-title" style="margin-top:20px;">防具可随机出的词条</div>
-      <div id="affix-pool-armor" class="checkbox-group"></div>
-
-      <div class="sub-title" style="margin-top:20px;">武器/饰品 可随机出的词条</div>
-      <div id="affix-pool-weapon" class="checkbox-group"></div>
-
       <button class="btn" style="background:#e74c3c; width:100%; margin-top:15px;" onclick="resetDropRates()">恢复掉落默认值</button>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">🎲 随机词条池配置</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">配置不同部位装备可以刷出哪些词条（勾选即生效）。</p>
+      
+      <div class="affix-pool-tabs">
+        <div class="affix-pool-tab active" id="affix-tab-weapon" onclick="switchAffixTab('weapon')">武器</div>
+        <div class="affix-pool-tab" id="affix-tab-armor" onclick="switchAffixTab('armor')">防具</div>
+        <div class="affix-pool-tab" id="affix-tab-accessory" onclick="switchAffixTab('accessory')">饰品</div>
+      </div>
+      
+      <div id="affix-pool-box" class="checkbox-group"></div>
     </div>
 
     <div class="card">
@@ -229,22 +253,25 @@
     ];
 
     const DEFAULT_AFFIX_POOLS = {
-      weapon: ['atkPercent','critRate','critDmg','lifesteal','hitRate','speed'],
-      armor: ['hpPercent','defPercent','critResist','dodgeRate','speed']
+      weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
+      armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
+      accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
     };
 
-    const ALL_AFFIX_STATS = [
-      { id: 'atkPercent', name: '攻击力%' },
-      { id: 'defPercent', name: '防御力%' },
-      { id: 'hpPercent', name: '生命值%' },
-      { id: 'critRate', name: '暴击率' },
-      { id: 'critDmg', name: '暴击伤害' },
-      { id: 'critResist', name: '抗暴率' },
-      { id: 'hitRate', name: '命中率' },
-      { id: 'dodgeRate', name: '闪避率' },
-      { id: 'lifesteal', name: '吸血' },
-      { id: 'speed', name: '速度' }
-    ];
+    const DEFAULT_AFFIX_VALUES = {
+      atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
+      atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
+      critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
+      dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
+      speed: { min: 1, max: 4 }
+    };
+
+    const AFFIX_NAMES = {
+      atkFlat: '攻击力(固定)', defFlat: '防御力(固定)', hpFlat: '生命值(固定)',
+      atkPercent: '攻击力(%)', defPercent: '防御力(%)', hpPercent: '生命值(%)',
+      critRate: '暴击率(%)', critDmg: '暴击伤害(%)', critResist: '抗暴率(%)',
+      dodgeRate: '闪避率(%)', hitRate: '命中率(%)', lifesteal: '吸血(%)', speed: '速度(固定)'
+    };
 
     const DEFAULT_GLOBAL_CONFIG = {
       config: {
@@ -254,6 +281,7 @@
       },
       dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
       affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
+      affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
       elements: [
         { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
         { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
@@ -272,6 +300,7 @@
 
     let currentTab = 'char';
     let subTab = { char: 'player', skill: 'active', item: 'weapon' };
+    let affixPoolTab = 'weapon';
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
@@ -299,6 +328,7 @@
     if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
     if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
     if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
+    if (!globalData.affixValues) globalData.affixValues = JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES));
     if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
     if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
     let editingElementIds = new Set();
@@ -329,26 +359,35 @@
       const quality = config.q;
       const qMult = config.m;
       const extraCount = config.n;
-      const tier = config.tier;
 
       const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
       const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
       const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
 
-      let pool = template.category === 'armor' ? [...globalData.affixPools.armor] : [...globalData.affixPools.weapon];
+      let pool = template.category === 'armor' ? [...globalData.affixPools.armor] : (template.category === 'weapon' ? [...globalData.affixPools.weapon] : [...globalData.affixPools.accessory]);
       
       const extras = [];
+      const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
+
       for (let i = 0; i < extraCount; i++) {
         if(pool.length === 0) break;
         const idx = Math.floor(Math.random() * pool.length);
         const stat = pool.splice(idx, 1)[0];
         
+        const cfg = globalData.affixValues[stat] || { min: 0, max: 0 };
         let val = 0;
-        if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
-        else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
-        else if (stat === 'atkPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
-        else if (stat === 'defPercent') val = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
-        else val = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
+        if (cfg.max >= cfg.min) {
+          val = Math.random() * (cfg.max - cfg.min) + cfg.min;
+        } else {
+          val = cfg.min;
+        }
+
+        if (intTypes.includes(stat)) {
+          val = Math.round(val);
+        } else {
+          val = Math.round((val / 100) * 100) / 100;
+        }
+
         extras.push({ stat, value: val });
       }
 
@@ -392,6 +431,13 @@
         document.getElementById(`tab-${tab}-${sub}`).classList.add('active');
       }
       render();
+    }
+
+    function switchAffixTab(poolType) {
+      affixPoolTab = poolType;
+      document.querySelectorAll('.affix-pool-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(`affix-tab-${poolType}`).classList.add('active');
+      renderGlobal();
     }
 
     function render() {
@@ -906,6 +952,24 @@
         `;
       }).join('');
 
+      // 渲染词条数值波动池
+      const flatBox = document.getElementById('affix-vals-flat');
+      const basicBox = document.getElementById('affix-vals-basic');
+      const advBox = document.getElementById('affix-vals-advanced');
+      
+      if (flatBox) {
+        const flatKeys = ['atkFlat', 'defFlat', 'hpFlat', 'speed'];
+        flatBox.innerHTML = flatKeys.map(k => renderAffixValItem(k)).join('');
+      }
+      if (basicBox) {
+        const basicKeys = ['atkPercent', 'defPercent', 'hpPercent'];
+        basicBox.innerHTML = basicKeys.map(k => renderAffixValItem(k)).join('');
+      }
+      if (advBox) {
+        const advKeys = ['critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal'];
+        advBox.innerHTML = advKeys.map(k => renderAffixValItem(k)).join('');
+      }
+
       // 渲染掉落配置
       const dropBox = document.getElementById('drop-rate-fields');
       if (dropBox) {
@@ -926,7 +990,7 @@
               <input type="number" step="1" value="${d.max}" onchange="updateDropMax(${i}, this.value)">
             </div>
             <div class="form-item" style="flex:1;">
-              <label>属性倍率</label>
+              <label>基础属性倍率</label>
               <input type="number" step="0.1" value="${d.m}" onchange="globalData.dropRates[${i}].m = parseFloat(this.value)">
             </div>
             <div class="form-item" style="flex:1;">
@@ -941,20 +1005,19 @@
       }
 
       // 渲染词条池
-      ['armor', 'weapon'].forEach(poolType => {
-        const box = document.getElementById(`affix-pool-${poolType}`);
-        if (!box) return;
-        
-        box.innerHTML = ALL_AFFIX_STATS.map(stat => {
-          const checked = globalData.affixPools[poolType].includes(stat.id) ? 'checked' : '';
+      const poolBox = document.getElementById('affix-pool-box');
+      if (poolBox) {
+        const currentPool = globalData.affixPools[affixPoolTab] || [];
+        poolBox.innerHTML = Object.keys(AFFIX_NAMES).map(k => {
+          const checked = currentPool.includes(k) ? 'checked' : '';
           return `
             <label class="checkbox-item">
-              <input type="checkbox" ${checked} onchange="toggleAffixPool('${poolType}', '${stat.id}', this.checked)">
-              ${stat.name}
+              <input type="checkbox" ${checked} onchange="toggleAffixPool('${affixPoolTab}', '${k}', this.checked)">
+              ${AFFIX_NAMES[k]}
             </label>
           `;
         }).join('');
-      });
+      }
 
       const elBody = document.getElementById('global-elements-body');
       elBody.innerHTML = globalData.elements.map((el, idx) => {
@@ -1011,11 +1074,32 @@
       matrixTable.innerHTML = mHtml;
     }
 
+    function renderAffixValItem(k) {
+      const cfg = globalData.affixValues[k] || DEFAULT_AFFIX_VALUES[k];
+      const isPct = !['speed', 'atkFlat', 'defFlat', 'hpFlat'].includes(k);
+      const step = isPct ? '0.1' : '1';
+      return `
+        <div class="form-item" style="background:#0f0f1a; border:1px solid #333; padding:8px; border-radius:4px;">
+          <label style="color:#3498db; font-weight:bold; margin-bottom:8px;">${AFFIX_NAMES[k]}</label>
+          <div style="display:flex; gap:10px;">
+            <div style="flex:1;">
+              <label>下限</label>
+              <input type="number" step="${step}" value="${cfg.min}" onchange="globalData.affixValues['${k}'].min = parseFloat(this.value)">
+            </div>
+            <div style="flex:1;">
+              <label>上限</label>
+              <input type="number" step="${step}" value="${cfg.max}" onchange="globalData.affixValues['${k}'].max = parseFloat(this.value)">
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     function updateDropMin(index, value) {
       const nv = parseFloat(value);
       if (isNaN(nv)) return;
       globalData.dropRates[index].min = nv;
-      renderGlobal(); // 重新渲染以更新计算出的百分比
+      renderGlobal();
     }
     function updateDropMax(index, value) {
       const nv = parseFloat(value);
@@ -1094,9 +1178,10 @@
     }
 
     function resetDropRates() {
-      if (!confirm('确定恢复掉率默认值吗？')) return;
+      if (!confirm('确定恢复掉落与词条默认值吗？')) return;
       globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
       globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
+      globalData.affixValues = JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES));
       renderGlobal();
     }
 
@@ -1105,7 +1190,6 @@
         if (isNaN(globalData.config[k])) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
       });
 
-      // 校验概率是否覆盖 0-100
       let totalProb = 0;
       let hasGap = false;
       let lastMax = 0;
