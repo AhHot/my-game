@@ -79,14 +79,11 @@
             
             <!-- 顶部信息 -->
             <div class="cp-header">
-                <div class="cp-avatar">👩</div>
+                <div class="cp-avatar" id="panel-emoji">👩</div>
                 <div class="cp-info">
-                    <div><span>[姓名]</span> <b>殷悠悠</b></div>
-                    <div><span>[年龄]</span> <b>24岁</b></div>
+                    <div><span>[姓名]</span> <b id="panel-name">殷悠悠</b></div>
                     <div><span>[师门]</span> <b>明教</b></div>
                     <div><span>[境界]</span> <b class="highlight" style="color:#f1c40f;">神乎其技</b></div>
-                    <div><span>[武功]</span> <b>太一</b></div>
-                    <div><span>[兵器]</span> <b>五尊爪</b></div>
                     <div><span>[战力]</span> <b style="color:#2ecc71;">133368</b></div>
                 </div>
             </div>
@@ -99,85 +96,92 @@
                 <div class="cp-tab">经脉</div>
             </div>
 
-            <!-- 属性区 -->
+            <!-- 新增：6大意境 -->
             <div class="cp-attr-section">
-                <div class="cp-attr-title">基础属性</div>
-                <div class="cp-attr-grid">
-                    <div class="cp-attr-item"><span>体魄</span> <b>195</b></div>
-                    <div class="cp-attr-item"><span>臂力</span> <b>137</b></div>
-                    <div class="cp-attr-item"><span>根骨</span> <b>200</b></div>
-                    <div class="cp-attr-item"><span>定力</span> <b>127</b></div>
-                    <div class="cp-attr-item"><span>机敏</span> <b>153</b></div>
-                    <div class="cp-attr-item"><span>胆识</span> <b>179</b></div>
-                    <div class="cp-attr-item"><span>灵巧</span> <b>136</b></div>
-                    <div class="cp-attr-item"><span>福缘</span> <b>120</b></div>
+                <div class="cp-attr-title">六大意境 (主属性)</div>
+                <div class="cp-attr-grid" id="panel-stats-grid">
+                    <!-- 动态注入 -->
                 </div>
             </div>
 
+            <!-- 计算后的显示属性 -->
             <div class="cp-attr-section">
-                <div class="cp-attr-title">显示属性</div>
-                <div class="cp-attr-grid">
-                    <div class="cp-attr-item"><span>气血</span> <b>51628</b></div>
-                    <div class="cp-attr-item"><span>内力</span> <b>100</b></div>
-                    <div class="cp-attr-item"><span>攻击</span> <b>4477</b></div>
-                    <div class="cp-attr-item"><span>防御</span> <b>1157</b></div>
-                    <div class="cp-attr-item"><span>命中</span> <b>1022</b></div>
-                    <div class="cp-attr-item"><span>闪避</span> <b>1007</b></div>
-                    <div class="cp-attr-item"><span>暴击</span> <b>938</b></div>
-                    <div class="cp-attr-item"><span>暴伤</span> <b>250%</b></div>
-                    <div class="cp-attr-item"><span>速度</span> <b>2083</b></div>
+                <div class="cp-attr-title">最终属性 (含装备加成)</div>
+                <div class="cp-attr-grid" id="panel-attrs-grid">
+                    <!-- 动态注入 -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ★★★ 关键修复：加上 Phaser 引擎的引入 ★★★ -->
+    <!-- 引入 Phaser 引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     
-    <!-- 你的游戏脚本 -->
     <script src="data.js"></script>
     <script src="team.js"></script>
     <script src="battle.js"></script>
 
-    <!-- 面板控制逻辑 -->
+    <!-- 面板控制与计算逻辑 -->
     <script>
-        // 读取全局UI配置并应用
         function applyUIConfig() {
             try {
                 const configStr = localStorage.getItem('my_game_ui_config');
                 if (configStr) {
                     const config = JSON.parse(configStr);
                     const box = document.getElementById('char-panel-box');
-                    
-                    // 换背景图
-                    if (config.bgImage && config.bgImage.trim() !== '') {
-                        box.style.backgroundImage = `url('${config.bgImage}')`;
-                    } else {
-                        box.style.backgroundImage = 'none';
-                    }
-                    
-                    // 换背景色 (如果没背景图，就显示颜色)
-                    if (config.bgColor) {
-                        box.style.backgroundColor = config.bgColor;
-                    }
-                    
-                    // 换边框颜色
-                    if (config.borderColor) {
-                        box.style.borderColor = config.borderColor;
-                    }
+                    if (config.bgImage && config.bgImage.trim() !== '') box.style.backgroundImage = `url('${config.bgImage}')`;
+                    else box.style.backgroundImage = 'none';
+                    if (config.bgColor) box.style.backgroundColor = config.bgColor;
+                    if (config.borderColor) box.style.borderColor = config.borderColor;
                 }
-            } catch (e) {
-                console.error("读取UI配置失败", e);
-            }
+            } catch (e) { console.error("读取UI配置失败", e); }
         }
 
         function openCharPanel() {
-            applyUIConfig(); // 每次打开前读取最新配置
+            applyUIConfig();
+            
+            // 获取第一个玩家角色进行展示
+            const char = CHARACTERS.find(c => c.side === 'player') || CHARACTERS[0];
+            if (!char) {
+                alert("还没有角色，请去编辑器添加！");
+                return;
+            }
+
+            document.getElementById('panel-name').innerText = char.name;
+            document.getElementById('panel-emoji').innerText = char.emoji;
+
+            // 1. 渲染6大意境
+            const stats = char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+            document.getElementById('panel-stats-grid').innerHTML = `
+                <div class="cp-attr-item"><span style="color:#e67e22;">锋锐 (攻击)</span> <b>${stats.fengRui}</b></div>
+                <div class="cp-attr-item"><span style="color:#e74c3c;">浑厚 (气血)</span> <b>${stats.hunHou}</b></div>
+                <div class="cp-attr-item"><span style="color:#2ecc71;">灵动 (速度/闪避)</span> <b>${stats.lingDong}</b></div>
+                <div class="cp-attr-item"><span style="color:#3498db;">坚韧 (防御/韧性)</span> <b>${stats.jianRen}</b></div>
+                <div class="cp-attr-item"><span style="color:#9b59b6;">诡秘 (命中/暴伤)</span> <b>${stats.guiMi}</b></div>
+                <div class="cp-attr-item"><span style="color:#f1c40f;">绝情 (暴击)</span> <b>${stats.jueQing}</b></div>
+            `;
+
+            // 2. 创建临时 Unit 实例并计算最终属性（复用 battle.js 里的计算逻辑）
+            const unit = new Unit(char);
+
+            // 3. 渲染最终属性
+            document.getElementById('panel-attrs-grid').innerHTML = `
+                <div class="cp-attr-item"><span>气血</span> <b>${unit.maxHp}</b></div>
+                <div class="cp-attr-item"><span>内力</span> <b>100%</b></div>
+                <div class="cp-attr-item"><span>攻击</span> <b>${unit.atk}</b></div>
+                <div class="cp-attr-item"><span>防御</span> <b>${unit.def}</b></div>
+                <div class="cp-attr-item"><span>速度</span> <b>${unit.speed}</b></div>
+                <div class="cp-attr-item"><span>暴击率</span> <b>${(unit.critRate * 100).toFixed(1)}%</b></div>
+                <div class="cp-attr-item"><span>暴击伤害</span> <b>${(unit.critDmg * 100).toFixed(1)}%</b></div>
+                <div class="cp-attr-item"><span>闪避率</span> <b>${(unit.dodgeRate * 100).toFixed(1)}%</b></div>
+                <div class="cp-attr-item"><span>命中率</span> <b>${(unit.hitRate * 100).toFixed(1)}%</b></div>
+                <div class="cp-attr-item"><span>抗暴率(韧性)</span> <b>${(unit.critResist * 100).toFixed(1)}%</b></div>
+            `;
+
             document.getElementById('char-panel-overlay').style.display = 'flex';
         }
 
         function closeCharPanel(e) {
-            // 只有点遮罩层或关闭按钮才关
             if (e && e.target.id === 'char-panel-box') return;
             document.getElementById('char-panel-overlay').style.display = 'none';
         }
