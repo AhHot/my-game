@@ -294,7 +294,7 @@ class MainMenuScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景 1：战前布阵（横屏重构 + 占格校验）
+// 场景 1：战前布阵（增加返回和编辑器按钮）
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
@@ -309,8 +309,14 @@ class FormationScene extends Phaser.Scene {
     const gridTop = 150;
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(20, 20, `版本: v12.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(20, 20, `版本: v12.1.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
+    const backBtn = this.add.text(20, 50, '⬅️ 返回主菜单', { fontSize: '18px', color: '#ffffff', backgroundColor: '#7f8c8d', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    backBtn.on('pointerdown', () => { this.scene.start('MainMenuScene'); });
+
+    const editBtn = this.add.text(180, 50, '⚙️ 打开编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
+
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
 
@@ -338,7 +344,6 @@ class FormationScene extends Phaser.Scene {
       this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex }); 
     });
 
-    // 网格占用矩阵：true表示该格被占用
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(false));
     const playerChars = CHARACTERS.filter(c => c.side === 'player');
     playerChars.forEach(data => { data.gridX = -1; data.gridY = -1; });
@@ -356,7 +361,6 @@ class FormationScene extends Phaser.Scene {
 
       container.on('dragstart', () => { 
         if (container.isOnGrid) {
-          // 清空原先占用的格子
           for (let y = data.gridY; y < data.gridY + data.sizeY; y++) {
             for (let x = data.gridX; x < data.gridX + data.sizeX; x++) {
               this.gridState[y][x] = false;
@@ -372,9 +376,7 @@ class FormationScene extends Phaser.Scene {
         container.setDepth(0); 
         let col = Math.floor((container.x - gridLeft) / cell), row = Math.floor((container.y - gridTop) / cell);
         
-        // 边界校验
         if (col >= 0 && col + data.sizeX <= CONFIG.GRID_SIZE && row >= 0 && row + data.sizeY <= CONFIG.GRID_SIZE) {
-          // 占用校验
           let canPlace = true;
           for (let y = row; y < row + data.sizeY; y++) {
             for (let x = col; x < col + data.sizeX; x++) {
@@ -383,7 +385,6 @@ class FormationScene extends Phaser.Scene {
           }
 
           if (canPlace) {
-            // 放置成功
             for (let y = row; y < row + data.sizeY; y++) {
               for (let x = col; x < col + data.sizeX; x++) {
                 this.gridState[y][x] = true;
@@ -392,21 +393,14 @@ class FormationScene extends Phaser.Scene {
             data.gridX = col; data.gridY = row;
             container.isOnGrid = true;
           } else {
-            // 失败退回
             data.gridX = -1; data.gridY = -1; container.isOnGrid = false;
           }
         } else {
            data.gridX = -1; data.gridY = -1; container.isOnGrid = false;
         }
 
-        // 如果成功上阵
         if (container.isOnGrid) {
           const cCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
-          // 判断上阵上限
-          if (cCount > 5) {
-             // 回退逻辑（此处略，假设不会超5个，前面限制了）
-          }
-          // 吸附并居中放大
           const scaleFactor = (data.sizeX > 1 || data.sizeY > 1) ? 1.2 : 1.0;
           container.setScale(scaleFactor);
           container.x = gridLeft + data.gridX * cell + (cell * data.sizeX) / 2;
@@ -436,7 +430,7 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景 2：战斗表现（修复坐标重叠）
+// 场景 2：战斗表现（原有代码完全不变，兼容新数据结构）
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
@@ -446,7 +440,6 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
-    // ★ 修复：把1倍速和跳过拉开距离，避免遮挡回合数
     const speedBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     speedBtn.on('pointerdown', () => {
       this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
@@ -465,11 +458,11 @@ class BattleScene extends Phaser.Scene {
     const activeFighters = [];
     CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push({...c}));
     
-    // 读关卡网格
+    // 新数据结构读取
     if (levelData.enemyGrid) {
-      levelData.enemyGrid.forEach((enemyId, idx) => {
-        if (!enemyId) return;
-        const originalEnemy = CHARACTERS.find(c => c.id === enemyId);
+      levelData.enemyGrid.forEach((cellData, idx) => {
+        if (!cellData || !cellData.isMain) return; // 只读主格
+        const originalEnemy = CHARACTERS.find(c => c.id === cellData.id);
         if (originalEnemy) {
           const enemyInstance = JSON.parse(JSON.stringify(originalEnemy));
           enemyInstance.gridX = idx % CONFIG.GRID_SIZE;
@@ -520,7 +513,6 @@ class BattleScene extends Phaser.Scene {
   }
   
   createUnitView(unit) {
-    // ★ 修复占格渲染：基于网格尺寸进行精准居中与放大
     const cell = CONFIG.CELL_SIZE;
     let x, y;
     if (unit.side === 'enemy') {
@@ -533,7 +525,6 @@ class BattleScene extends Phaser.Scene {
 
     const container = this.add.container(x, y);
     
-    // 体积越大，头像越大
     const scaleFactor = Math.max(unit.sizeX, unit.sizeY); 
     const circleRadius = (cell / 2) * 0.8 * scaleFactor; 
 
@@ -541,7 +532,6 @@ class BattleScene extends Phaser.Scene {
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (circleRadius * 1.2) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, circleRadius + 10, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    // 血条长度随体积变大
     const barWidth = cell * scaleFactor * 0.8;
     const hpBg = this.add.rectangle(0, circleRadius + 32, barWidth + 4, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
     const hpBar = this.add.rectangle(-barWidth/2, circleRadius + 32, barWidth, 8, 0xff4444).setOrigin(0, 0.5);
@@ -968,7 +958,7 @@ class ResultScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v20') {
+  if (e.key === 'my_game_data_v21') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
