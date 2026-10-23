@@ -21,6 +21,8 @@ class Unit {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     if (!this.equipment) this.equipment = { weapon: '', armor: '', accessory: '' };
+    if (!this.sizeX) this.sizeX = 1;
+    if (!this.sizeY) this.sizeY = 1;
 
     this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0;
     this.critResist = this.critResist || 0; this.dmgIncrease = this.dmgIncrease || 0;
@@ -56,15 +58,16 @@ class Unit {
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
-    Object.values(this.skillSlots).forEach(skId => {
-      if (!skId || !SKILLS[skId]) return;
-      const sk = SKILLS[skId];
-      if (sk.type === 'passive') {
-        if (sk.passiveType === 'atkAdd') { this.atk += sk.passiveValue; this.baseAtk += sk.passiveValue; }
-        if (sk.passiveType === 'hpAdd') this.maxHp += sk.passiveValue;
-        if (sk.passiveType === 'defAdd') { this.def += sk.passiveValue; this.baseDef += sk.passiveValue; }
-        if (sk.passiveType === 'speedAdd') { this.speed += sk.passiveValue; this.baseSpeed += sk.passiveValue; }
-      }
+    // 过滤出自身的被动
+    this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
+    
+    // 应用自身被动
+    this.passives.forEach(sk => {
+      if (sk.isAura) return; // 光环不在初始化时应用给自己
+      if (sk.passiveType === 'atkAdd') { this.atk += this.baseAtk * sk.passiveValue; this.baseAtk += this.baseAtk * sk.passiveValue; }
+      if (sk.passiveType === 'hpAdd') this.maxHp += this.maxHp * sk.passiveValue;
+      if (sk.passiveType === 'defAdd') { this.def += this.baseDef * sk.passiveValue; this.baseDef += this.baseDef * sk.passiveValue; }
+      if (sk.passiveType === 'speedAdd') { this.speed += this.baseSpeed * sk.passiveValue; this.baseSpeed += this.baseSpeed * sk.passiveValue; }
     });
 
     this.hp = this.maxHp; 
@@ -88,15 +91,41 @@ class Unit {
   reduceCooldowns() { for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; } }
   resetFollowups() { this.followupCounts = {}; }
 
-  refreshStats() {
+  // 重新计算所有光环（每次轮到自己行动前或者布阵完调用）
+  applyAura(allUnits) {
+    // 先把所有属性重置为基础值
     this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
+    
+    // 遍历场上所有友方单位的光环
+    allUnits.forEach(ally => {
+      if (ally.side !== this.side || !ally.isAlive()) return;
+      ally.passives.forEach(sk => {
+        if (!sk.isAura) return;
+        
+        // 计算曼哈顿距离 (忽略体积，仅按中心点算)
+        const dist = Math.abs(ally.gridX - this.gridX) + Math.abs(ally.gridY - this.gridY);
+        if (dist <= sk.auraRange) {
+          if (sk.passiveType === 'atkAdd') this.atk += this.baseAtk * sk.passiveValue;
+          if (sk.passiveType === 'hpAdd') this.maxHp += this.baseHp * sk.passiveValue; // 注意上限变化
+          if (sk.passiveType === 'defAdd') this.def += this.baseDef * sk.passiveValue;
+          if (sk.passiveType === 'speedAdd') this.speed += this.baseSpeed * sk.passiveValue;
+        }
+      });
+    });
+
+    // 应用 Debuff 修正
     this.statuses.forEach(st => {
       const config = STATUSES[st.id]; if (!config) return;
       if (config.statMod === 'atk') this.atk += this.baseAtk * config.statValue;
       if (config.statMod === 'def') this.def += this.baseDef * config.statValue;
       if (config.statMod === 'speed') this.speed += this.baseSpeed * config.statValue;
     });
-    this.atk = Math.max(1, Math.floor(this.atk)); this.def = Math.max(0, Math.floor(this.def)); this.speed = Math.max(1, Math.floor(this.speed));
+
+    this.atk = Math.max(1, Math.floor(this.atk)); 
+    this.def = Math.max(0, Math.floor(this.def)); 
+    this.speed = Math.max(1, Math.floor(this.speed));
+    // 血量上限如果变了，不能超过
+    if (this.hp > this.maxHp) this.hp = this.maxHp;
   }
   
   tickStatuses() {
@@ -105,7 +134,6 @@ class Unit {
       if (config && config.isDot && config.dotValue > 0) this.takeDamage(config.dotValue); 
       st.duration--; if (st.duration <= 0) this.statuses.splice(i, 1); 
     }
-    this.refreshStats(); 
   }
   
   addStatus(statusId) {
@@ -119,7 +147,6 @@ class Unit {
     const existing = this.statuses.find(s => s.id === statusId);
     if (existing) existing.duration = STATUSES[statusId].duration; 
     else this.statuses.push({ id: statusId, duration: STATUSES[statusId].duration });
-    this.refreshStats();
   }
 }
 
@@ -261,7 +288,7 @@ class FormationScene extends Phaser.Scene {
     const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v9.4.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(10, 10, `版本: v10.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
     const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -298,6 +325,7 @@ class FormationScene extends Phaser.Scene {
 
     this.unitContainers = [];
     playerChars.forEach(data => {
+      // 暂时玩家还是 1x1，如果有 2x2 玩家，这里的渲染和拖拽逻辑需要大幅修改
       const container = this.add.container(0, 0);
       const circle = this.add.circle(0, 0, 42, ELEMENTS[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
       const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
@@ -353,7 +381,6 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
-    // ★ 修复：按钮绝对安全坐标（左边靠中，绝对不会被吃）
     const speedBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     speedBtn.on('pointerdown', () => {
       this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
@@ -368,30 +395,36 @@ class BattleScene extends Phaser.Scene {
       this.fastForwardBattle(); 
     });
 
-    const levelData = LEVELS[this.currentLevelIndex] || { enemyIds: [] };
+    const levelData = LEVELS[this.currentLevelIndex] || { enemyGrid: [] };
     const activeFighters = [];
-    CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push(c));
+    CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push({...c}));
     
-    let enemyCount = 0;
-    (levelData.enemyIds || []).forEach(eId => {
-      if (!eId) return;
-      const originalEnemy = CHARACTERS.find(c => c.id === eId);
-      if (originalEnemy) {
-        const enemyInstance = JSON.parse(JSON.stringify(originalEnemy));
-        enemyInstance.gridX = enemyCount % CONFIG.GRID_SIZE;
-        enemyInstance.gridY = Math.floor(enemyCount / CONFIG.GRID_SIZE);
-        activeFighters.push(enemyInstance);
-        enemyCount++;
-      }
-    });
+    // ★ 读取 4x4 网格配置
+    if (levelData.enemyGrid) {
+      levelData.enemyGrid.forEach((enemyId, idx) => {
+        if (!enemyId) return;
+        const originalEnemy = CHARACTERS.find(c => c.id === enemyId);
+        if (originalEnemy) {
+          const enemyInstance = JSON.parse(JSON.stringify(originalEnemy));
+          enemyInstance.gridX = idx % CONFIG.GRID_SIZE;
+          enemyInstance.gridY = Math.floor(idx / CONFIG.GRID_SIZE);
+          activeFighters.push(enemyInstance);
+        }
+      });
+    }
 
-    if (enemyCount === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, critRate: 0, critDmg: 1, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+    if (activeFighters.filter(f => f.side === 'enemy').length === 0) activeFighters.push({ id: 'e_fallback', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX:1, sizeY:1, critRate: 0, critDmg: 1, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
 
-    activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); this.createUnitView(unit); });
+    activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); });
+    
+    // ★ 初始光环结算
+    this.allUnits.forEach(u => u.applyAura(this.allUnits));
+
+    // 渲染单位
+    this.allUnits.forEach(unit => this.createUnitView(unit));
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
     
-    // ★ 战报框位置：绝对在空白区，不碰棋子
     this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 620, 640, 80, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
     this.logHistory = []; 
     this.logTexts = [];   
@@ -415,9 +448,18 @@ class BattleScene extends Phaser.Scene {
   createUnitView(unit) {
     const pos = this.getUnitScreenPosition(unit);
     const container = this.add.container(pos.x, pos.y);
-    const circle = this.add.circle(0, 0, 42, ELEMENTS[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
-    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: '48px' }).setOrigin(0.5);
-    const nameText = this.add.text(0, 50, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    
+    // ★ 如果占格大于 1，缩放头像并居中
+    const scaleFactor = (unit.sizeX > 1 || unit.sizeY > 1) ? 1.2 : 1.0;
+    const offsetX = (unit.sizeX - 1) * CONFIG.CELL_SIZE / 2;
+    const offsetY = (unit.sizeY - 1) * CONFIG.CELL_SIZE / 2;
+    container.x += offsetX;
+    // 对于敌方，因为 Y 轴是倒序的，需要反向偏移
+    if (unit.side === 'enemy') container.y -= offsetY; else container.y += offsetY;
+
+    const circle = this.add.circle(0, 0, 42 * scaleFactor, ELEMENTS[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
+    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (48 * scaleFactor) + 'px' }).setOrigin(0.5);
+    const nameText = this.add.text(0, 50 * scaleFactor, unit.name, { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
     const hpBg = this.add.rectangle(0, 74, 94, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
     const hpBar = this.add.rectangle(-45, 74, 90, 8, 0xff4444).setOrigin(0, 0.5);
@@ -431,7 +473,7 @@ class BattleScene extends Phaser.Scene {
     const mpBar = this.add.rectangle(-45, 85, 90, 5, 0x3498DB).setOrigin(0, 0.5);
     const mpText = this.add.text(45, 85, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
 
-    const statusText = this.add.text(0, -55, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
+    const statusText = this.add.text(0, -55 * scaleFactor, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2, align: 'center' }).setOrigin(0.5);
     
     container.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
     container.bringToTop(shieldBar);
@@ -485,6 +527,11 @@ class BattleScene extends Phaser.Scene {
     }
     const actor = this.actionOrder[this.actionIndex++];
     if (!actor.isAlive()) return this.time.delayedCall(80 / this.speedMultiplier, () => this.nextAction());
+    
+    // ★ 每次行动前重新计算光环
+    this.allUnits.forEach(u => u.applyAura(this.allUnits));
+    this.allUnits.forEach(u => this.updateUnitView(u));
+
     this.executeAction(actor);
   }
   
@@ -764,6 +811,8 @@ class BattleScene extends Phaser.Scene {
       if (enemies.length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
       
       this.allUnits.forEach(u => { if (u.isAlive()) u.tickStatuses(); });
+      this.allUnits.forEach(u => u.applyAura(this.allUnits));
+      
       const actionOrder = BattleLogic.buildActionOrder(this.allUnits);
       
       for (let actor of actionOrder) {
@@ -787,18 +836,15 @@ class BattleScene extends Phaser.Scene {
     this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
   }
 
-  // ★ 终极修复：不覆盖全屏，只在敌方中间出按钮
   endBattle(type) {
     this.battleEnded = true;
     
     const texts = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
     const colors = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     
-    // 屏幕正上方显示结果，完全不碰战报框
     const titleObj = this.add.text(CONFIG.WIDTH / 2, 250, texts[type], { fontSize: '60px', color: colors[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
     this.tweens.add({ targets: titleObj, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 800 });
 
-    // 继续按钮放在敌方棋盘和战报框之间的空隙
     const contBtn = this.add.text(CONFIG.WIDTH / 2, 450, '👉 点击继续', { fontSize: '28px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive().setDepth(201);
     contBtn.on('pointerdown', () => {
       this.scene.start('ResultScene', { type: type, levelIndex: this.currentLevelIndex });
@@ -847,7 +893,7 @@ class ResultScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v17') {
+  if (e.key === 'my_game_data_v18') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
