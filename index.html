@@ -13,7 +13,6 @@
         #fullscreen-ui {
             display: none; 
             position: fixed; 
-            /* 精确覆盖 Phaser Canvas 区域的尺寸和位置，由 JS 动态计算 */
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd;
             flex-direction: row; pointer-events: auto;
@@ -29,7 +28,7 @@
         }
 
         .char-portrait {
-            height: 35%; 
+            height: 32%; 
             background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; 
             position: relative;
         }
@@ -43,15 +42,15 @@
         .char-name-level h2 { color: #f1c40f; font-size: 20px; }
         .char-name-level span { color: #2ecc71; font-weight: bold; font-size: 14px; }
 
-        .exp-bar-bg { width: 100%; height: 4px; background: #222; border-radius: 2px; margin-bottom: 10px; overflow: hidden; }
+        .exp-bar-bg { width: 100%; height: 4px; background: #222; border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
         .exp-bar-fill { width: 45%; height: 100%; background: #3498db; }
 
         /* 装备槽 */
         .equip-slots-container {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 15px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;
         }
         .equip-slot {
-            aspect-ratio: 1; background: #1a1c29; border: 1px solid #333; border-radius: 6px;
+            aspect-ratio: 1.2; background: #1a1c29; border: 1px solid #333; border-radius: 6px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             cursor: pointer; position: relative;
         }
@@ -60,7 +59,7 @@
         .equip-slot .eq-icon { font-size: 20px; }
         .equip-slot .eq-name { font-size: 10px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;}
 
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; margin-bottom: 15px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; margin-bottom: 10px; }
         .stat-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 2px; }
         .stat-item span { color: #888; }
         .stat-item b { color: #fff; }
@@ -118,6 +117,7 @@
         .inv-slot:hover { border-color: #f1c40f; }
         .inv-slot .item-icon { font-size: 24px; margin-bottom: 4px; }
         .inv-slot .item-name { font-size: 10px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px;}
+        .inv-slot .item-count { position: absolute; bottom: 2px; right: 2px; font-size: 10px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.7); padding: 0 4px; border-radius: 4px;}
 
         /* 技能区 */
         #skill-container { flex: 1; display: none; flex-direction: column; overflow-y: auto; gap: 10px; padding-bottom: 20px;}
@@ -147,6 +147,8 @@
         .btn-equip:hover { background: #d35400; }
         .btn-unequip { background: #e74c3c; }
         .btn-unequip:hover { background: #c0392b; }
+        .btn-use { background: #2ecc71; }
+        .btn-use:hover { background: #27ae60; }
         .btn-close { background: #555; }
 
         .detail-title { font-size: 15px; color: #f1c40f; border-bottom: 1px solid #333; margin: 12px 0 8px 0; padding-bottom:5px;}
@@ -154,11 +156,6 @@
         .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 2px; }
         .detail-item span { color: #888; }
         .detail-item b { color: #fff; }
-
-        /* 适配游戏Canvas覆盖 */
-        #fullscreen-ui.force-fit {
-            /* 在JS中动态计算覆盖 */
-        }
     </style>
 </head>
 <body>
@@ -215,11 +212,11 @@
             <div id="skill-container"></div>
         </div>
 
-        <!-- 弹窗：装备详情对比 -->
+        <!-- 弹窗：物品详情 -->
         <div id="item-tooltip" class="overlay-card">
             <div class="card-close" onclick="hideTooltip()">✖</div>
             <div id="tooltip-content"></div>
-            <button class="btn-action btn-equip" id="btn-equip-action">穿戴</button>
+            <button class="btn-action btn-equip" id="btn-item-action">穿戴</button>
         </div>
 
         <!-- 弹窗：详细属性 -->
@@ -248,7 +245,6 @@
         let currentTab = 'inv';
         let currentFilter = 'all';
 
-        // UI元素
         const uiContainer = document.getElementById('fullscreen-ui');
         const gameContainer = document.getElementById('game');
 
@@ -259,15 +255,12 @@
             uiContainer.style.height = rect.height + 'px';
             uiContainer.style.left = rect.left + 'px';
             uiContainer.style.top = rect.top + 'px';
-            uiContainer.style.position = 'absolute'; // 相对于 body 绝对定位，严格贴合
         }
-
-        // 监听屏幕尺寸变化
         window.addEventListener('resize', resizeUIToGame);
 
-        // 暴露给 Phaser 呼叫打开
+        // 打开界面
         window.openCharacterUI = function() {
-            resizeUIToGame(); // 打开时重新计算尺寸
+            resizeUIToGame(); 
             renderCharList();
             const players = CHARACTERS.filter(c => c.side === 'player');
             if(players.length > 0) selectCharacter(players[0]);
@@ -277,23 +270,22 @@
                 const activeScenes = window.game.scene.getScenes(true);
                 activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
             }
-
             uiContainer.style.display = 'flex';
         }
 
+        // 关闭界面
         window.closeCharacterUI = function() {
             uiContainer.style.display = 'none';
             hideTooltip();
             hideDetailCard();
 
-            // 恢复底层 Phaser 点击
             if (window.game && window.game.scene) {
                 const activeScenes = window.game.scene.getScenes(true);
                 activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
             }
         }
 
-        // 切换角色
+        // 渲染底部头像
         function renderCharList() {
             const box = document.getElementById('ui-char-list');
             box.innerHTML = '';
@@ -309,6 +301,7 @@
             });
         }
 
+        // 切换角色
         function selectCharacter(charData) {
             selectedChar = charData;
             currentUnit = new Unit(selectedChar); 
@@ -340,7 +333,6 @@
                 <div class="stat-item"><span>绝情</span> <b>${stats.jueQing}</b></div>
             `;
 
-            // 刷新 6 个装备槽
             renderEquipSlots();
 
             document.getElementById('detail-atk').innerHTML = `
@@ -386,12 +378,7 @@
                         <div class="eq-icon">${tpl.icon || '📦'}</div>
                         <div class="eq-name" style="color:${qColors[inst.quality]}">${tpl.name}</div>
                     `;
-                    // 点击槽位，直接呼叫详情弹窗
-                    div.onclick = (e) => {
-                        e.stopPropagation();
-                        showTooltip(inst, tpl, true); // true 代表是已穿戴装备
-                    };
-                    // 加个边框颜色暗示品质
+                    div.onclick = (e) => { e.stopPropagation(); showTooltip(inst, tpl, true); };
                     div.style.borderColor = qColors[inst.quality];
                 } else {
                     div.innerHTML = `<span>${slot.name}</span>`;
@@ -428,7 +415,7 @@
             renderInventory();
         }
 
-        // 渲染背包
+        // 渲染背包 (含堆叠)
         function renderInventory() {
             const grid = document.getElementById('inventory-grid');
             grid.innerHTML = '';
@@ -453,9 +440,11 @@
                     const inst = filteredItems[i];
                     const itemTpl = ITEMS[inst.itemId];
                     if (itemTpl) {
+                        const countStr = (inst.count && inst.count > 1) ? `<div class="item-count">x${inst.count}</div>` : '';
                         slot.innerHTML = `
-                            <div class="item-icon" style="border-bottom: 2px solid ${qColors[inst.quality]}">${itemTpl.icon || '📦'}</div>
-                            <div class="item-name" style="color:${qColors[inst.quality]}">${itemTpl.name}</div>
+                            <div class="item-icon" style="border-bottom: 2px solid ${qColors[inst.quality] || '#fff'}">${itemTpl.icon || '📦'}</div>
+                            <div class="item-name" style="color:${qColors[inst.quality] || '#fff'}">${itemTpl.name}</div>
+                            ${countStr}
                         `;
                         slot.onclick = (e) => { e.stopPropagation(); showTooltip(inst, itemTpl, false); };
                     }
@@ -510,106 +499,137 @@
             if (!hasSkill) box.innerHTML = '<div style="color:#888; text-align:center; margin-top:50px;">该角色尚未装备技能</div>';
         }
 
-        // ================= 详情弹窗逻辑 =================
-        // isEquipped: 标识点击的是否为左侧已穿戴的装备
+        // ================= 物品详情与操作 =================
         function showTooltip(inst, itemTpl, isEquipped) {
             const tooltip = document.getElementById('item-tooltip');
             const content = document.getElementById('tooltip-content');
-            const btn = document.getElementById('btn-equip-action');
+            const btn = document.getElementById('btn-item-action');
             
-            let slotKey = itemTpl.equipSlot || (itemTpl.category === 'weapon' ? 'weapon' : (itemTpl.category === 'armor' ? 'body' : 'ring'));
-            let equippedInst = null;
-            if (selectedChar.equipment && selectedChar.equipment[slotKey]) {
-                equippedInst = INVENTORY.find(i => i.uid === selectedChar.equipment[slotKey]);
-            }
-
-            // 如果是非装备（材料等），直接显示描述并返回
-            if (!['weapon', 'armor', 'accessory'].includes(itemTpl.category)) {
-                content.innerHTML = `
-                    <div class="tt-title" style="color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
-                    <div class="tt-sub">${itemTpl.category}</div>
-                    <div style="margin:15px 0; font-size:14px; color:#ccc;">${itemTpl.desc || '暂无描述'}</div>
-                `;
-                btn.innerText = '关闭';
-                btn.className = 'btn-action btn-close';
-                btn.onclick = hideTooltip;
-                tooltip.style.display = 'block';
-                return;
-            }
-
-            // 装备对比逻辑
+            // 基础头部
             let html = `
                 <div class="tt-title" style="color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
-                <div class="tt-sub">${slotKey.toUpperCase()} 部位</div>
-                <div class="tt-stats">
+                <div class="tt-sub">${itemTpl.category}</div>
             `;
 
-            const compareStats = (statName, currentVal, newVal, isPercent = false) => {
-                let diff = newVal - currentVal;
-                if (inst.uid === equippedInst?.uid) diff = 0;
-                
-                let diffStr = '';
-                if (diff > 0) diffStr = ` <span class="tt-diff-up">(▲ +${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
-                else if (diff < 0) diffStr = ` <span class="tt-diff-down">(▼ ${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
-                
-                let newValStr = isPercent ? (newVal*100).toFixed(1)+'%' : newVal;
-                return `<div class="tt-row"><span>${statName}</span> <span class="tt-base">${newValStr}${diffStr}</span></div>`;
-            };
+            // 区分非装备与装备
+            if (!['weapon', 'armor', 'accessory'].includes(itemTpl.category)) {
+                // 消耗品、材料、任务
+                html += `<div style="margin:15px 0; font-size:14px; color:#ccc; text-align:center;">${itemTpl.desc || '暂无描述'}</div>`;
+                content.innerHTML = html;
 
-            // 基础属性对比
-            if (inst.baseAtk || equippedInst?.baseAtk) html += compareStats('攻击力', equippedInst?.baseAtk || 0, inst.baseAtk || 0);
-            if (inst.baseDef || equippedInst?.baseDef) html += compareStats('防御力', equippedInst?.baseDef || 0, inst.baseDef || 0);
-            if (inst.baseHp || equippedInst?.baseHp) html += compareStats('生命值', equippedInst?.baseHp || 0, inst.baseHp || 0);
-
-            // 双向词条对比：把所有存在的词条都找出来
-            let allExtraStats = new Set();
-            if (inst.extras) inst.extras.forEach(ex => allExtraStats.add(ex.stat));
-            if (equippedInst && equippedInst.extras) equippedInst.extras.forEach(ex => allExtraStats.add(ex.stat));
-
-            if (allExtraStats.size > 0) {
-                html += `<div style="border-top:1px dashed #444; margin:10px 0;"></div>`;
-                const statNames = { atkPercent: '攻击力%', defPercent: '防御力%', hpPercent: '生命值%', critRate: '暴击率', critDmg: '暴击伤害', critResist: '抗暴率', hitRate: '命中率', dodgeRate: '闪避率', lifesteal: '吸血', speed: '速度', atkFlat:'攻击力', defFlat:'防御力', hpFlat:'生命值' };
-                
-                allExtraStats.forEach(stat => {
-                    let newVal = inst.extras ? (inst.extras.find(e => e.stat === stat)?.value || 0) : 0;
-                    let oldVal = equippedInst?.extras ? (equippedInst.extras.find(e => e.stat === stat)?.value || 0) : 0;
-                    
-                    let isPct = stat.includes('Percent') || ['critRate','critDmg','critResist','hitRate','dodgeRate','lifesteal'].includes(stat);
-                    html += compareStats(statNames[stat] || stat, oldVal, newVal, isPct);
-                });
-            }
-            html += `</div>`;
-            content.innerHTML = html;
-
-            // 按钮配置
-            if (isEquipped) {
-                // 点击的是身上穿的
-                btn.innerText = '脱下';
-                btn.className = 'btn-action btn-unequip';
-                btn.onclick = () => {
-                    inst.equippedBy = '';
-                    selectedChar.equipment[slotKey] = '';
-                    saveGameData();
-                    hideTooltip();
-                    selectCharacter(selectedChar); // 重新计算并刷新左侧
-                };
+                if (itemTpl.category === 'consumable' && itemTpl.useEffect && itemTpl.useEffect !== 'None') {
+                    btn.innerText = '使用';
+                    btn.className = 'btn-action btn-use';
+                    btn.onclick = () => useItem(inst, itemTpl);
+                } else {
+                    btn.innerText = '关闭';
+                    btn.className = 'btn-action btn-close';
+                    btn.onclick = hideTooltip;
+                }
             } else {
-                // 点击的是背包里的
-                btn.innerText = equippedInst ? '替换' : '穿戴';
-                btn.className = 'btn-action btn-equip';
-                btn.onclick = () => {
-                    if (equippedInst) equippedInst.equippedBy = ''; 
-                    inst.equippedBy = selectedChar.id;
-                    if(!selectedChar.equipment) selectedChar.equipment = {};
-                    selectedChar.equipment[slotKey] = inst.uid;
+                // 装备逻辑
+                let slotKey = itemTpl.equipSlot || (itemTpl.category === 'weapon' ? 'weapon' : (itemTpl.category === 'armor' ? 'body' : 'ring'));
+                let equippedInst = null;
+                if (selectedChar.equipment && selectedChar.equipment[slotKey]) {
+                    equippedInst = INVENTORY.find(i => i.uid === selectedChar.equipment[slotKey]);
+                }
 
-                    saveGameData();
-                    hideTooltip();
-                    selectCharacter(selectedChar);
+                html += `<div class="tt-stats">`;
+                const compareStats = (statName, currentVal, newVal, isPercent = false) => {
+                    let diff = newVal - currentVal;
+                    if (inst.uid === equippedInst?.uid) diff = 0;
+                    
+                    let diffStr = '';
+                    if (diff > 0) diffStr = ` <span class="tt-diff-up">(▲ +${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
+                    else if (diff < 0) diffStr = ` <span class="tt-diff-down">(▼ ${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
+                    
+                    let newValStr = isPercent ? (newVal*100).toFixed(1)+'%' : newVal;
+                    return `<div class="tt-row"><span>${statName}</span> <span class="tt-base">${newValStr}${diffStr}</span></div>`;
                 };
+
+                if (inst.baseAtk || equippedInst?.baseAtk) html += compareStats('攻击力', equippedInst?.baseAtk || 0, inst.baseAtk || 0);
+                if (inst.baseDef || equippedInst?.baseDef) html += compareStats('防御力', equippedInst?.baseDef || 0, inst.baseDef || 0);
+                if (inst.baseHp || equippedInst?.baseHp) html += compareStats('生命值', equippedInst?.baseHp || 0, inst.baseHp || 0);
+
+                let allExtraStats = new Set();
+                if (inst.extras) inst.extras.forEach(ex => allExtraStats.add(ex.stat));
+                if (equippedInst && equippedInst.extras) equippedInst.extras.forEach(ex => allExtraStats.add(ex.stat));
+
+                if (allExtraStats.size > 0) {
+                    html += `<div style="border-top:1px dashed #444; margin:10px 0;"></div>`;
+                    const statNames = { atkPercent: '攻击力%', defPercent: '防御力%', hpPercent: '生命值%', critRate: '暴击率', critDmg: '暴击伤害', critResist: '抗暴率', hitRate: '命中率', dodgeRate: '闪避率', lifesteal: '吸血', speed: '速度', atkFlat:'攻击力', defFlat:'防御力', hpFlat:'生命值' };
+                    
+                    allExtraStats.forEach(stat => {
+                        let newVal = inst.extras ? (inst.extras.find(e => e.stat === stat)?.value || 0) : 0;
+                        let oldVal = equippedInst?.extras ? (equippedInst.extras.find(e => e.stat === stat)?.value || 0) : 0;
+                        let isPct = stat.includes('Percent') || ['critRate','critDmg','critResist','hitRate','dodgeRate','lifesteal'].includes(stat);
+                        html += compareStats(statNames[stat] || stat, oldVal, newVal, isPct);
+                    });
+                }
+                html += `</div>`;
+                content.innerHTML = html;
+
+                if (isEquipped) {
+                    btn.innerText = '脱下';
+                    btn.className = 'btn-action btn-unequip';
+                    btn.onclick = () => {
+                        inst.equippedBy = '';
+                        selectedChar.equipment[slotKey] = '';
+                        saveGameData();
+                        hideTooltip();
+                        selectCharacter(selectedChar);
+                    };
+                } else {
+                    btn.innerText = equippedInst ? '替换' : '穿戴';
+                    btn.className = 'btn-action btn-equip';
+                    btn.onclick = () => {
+                        if (equippedInst) equippedInst.equippedBy = ''; 
+                        inst.equippedBy = selectedChar.id;
+                        if(!selectedChar.equipment) selectedChar.equipment = {};
+                        selectedChar.equipment[slotKey] = inst.uid;
+
+                        saveGameData();
+                        hideTooltip();
+                        selectCharacter(selectedChar);
+                    };
+                }
+            }
+            tooltip.style.display = 'block';
+        }
+
+        // ================= 使用道具逻辑 =================
+        function useItem(inst, itemTpl) {
+            if (itemTpl.useEffect === 'AddExp') {
+                if (!selectedChar.exp) selectedChar.exp = 0;
+                selectedChar.exp += (itemTpl.useValue || 0);
+                alert(`【${selectedChar.name}】获得 ${itemTpl.useValue} 点经验！`);
+            } 
+            else if (itemTpl.useEffect === 'AddStat') {
+                if (!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+                const key = itemTpl.useStatKey;
+                if (key) {
+                    selectedChar.stats[key] = (selectedChar.stats[key] || 0) + (itemTpl.useValue || 1);
+                    const statName = {fengRui:'锋锐', hunHou:'浑厚', lingDong:'灵动', jianRen:'坚韧', guiMi:'诡秘', jueQing:'绝情'}[key] || key;
+                    alert(`【${selectedChar.name}】的 ${statName} 永久增加了 ${itemTpl.useValue || 1} 点！`);
+                }
+            }
+            else if (itemTpl.useEffect === 'PackageEquip' || itemTpl.useEffect === 'RandomEquip') {
+                alert('该道具功能暂未开放（预留功能）');
+                return; // 拦截，不扣数量
             }
 
-            tooltip.style.display = 'block';
+            // 扣除数量
+            if (inst.count && inst.count > 1) {
+                inst.count -= 1;
+            } else {
+                // 数量为1，从背包移除
+                const idx = INVENTORY.findIndex(i => i.uid === inst.uid);
+                if (idx !== -1) INVENTORY.splice(idx, 1);
+            }
+
+            saveGameData();
+            hideTooltip();
+            selectCharacter(selectedChar); // 重新计算并刷新面板
         }
 
         function hideTooltip() { document.getElementById('item-tooltip').style.display = 'none'; }
