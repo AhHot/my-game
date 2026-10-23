@@ -32,12 +32,46 @@ class Unit {
     if (!this.sizeX) this.sizeX = 1;
     if (!this.sizeY) this.sizeY = 1;
 
-    this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0;
-    this.critResist = this.critResist || 0; this.dmgIncrease = this.dmgIncrease || 0;
-    this.dmgReduction = this.dmgReduction || 0; this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
-    this.trueDmg = this.trueDmg || 0; this.critDmg = this.critDmg || 1.5;
+    // 兼容旧版直接传入的这些值
+    this.hitRate = this.hitRate || 0; 
+    this.dodgeRate = this.dodgeRate || 0;
+    this.critRate = this.critRate || 0;
+    this.critResist = this.critResist || 0; 
+    this.dmgIncrease = this.dmgIncrease || 0;
+    this.dmgReduction = this.dmgReduction || 0; 
+    this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
+    this.trueDmg = this.trueDmg || 0; 
+    this.critDmg = this.critDmg || 1.5;
     this.lifesteal = this.lifesteal || 0;
 
+    // ==========================================
+    // ★ 新增：6大意境数值转化阶段
+    // ==========================================
+    const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
+    
+    // 1. 基础白字转化 (气血、攻击、防御、速度)
+    this.maxHp = (this.maxHp || 0) + stats.hunHou * CONFIG.hunHouToHp;
+    this.atk = (this.atk || 0) + stats.fengRui * CONFIG.fengRuiToAtk;
+    this.def = (this.def || 0) + stats.jianRen * CONFIG.jianRenToDef;
+    this.speed = (this.speed || 0) + stats.lingDong * CONFIG.lingDongToSpd;
+
+    // 2. 百分比转化 (暴击、闪避、命中、暴伤、韧性)
+    // 注意：配置里填的是 30.0，代表30%，这里要除以100变成 0.3。
+    // 升级赋予的暴击/闪避有严格上限，所以用 Math.min 锁死。
+    let statCrit = this.critRate + (stats.jueQing * CONFIG.jueQingToCrit / 100);
+    this.critRate = Math.min(statCrit, CONFIG.maxCritFromStats / 100);
+    
+    let statEva = this.dodgeRate + (stats.lingDong * CONFIG.lingDongToEva / 100);
+    this.dodgeRate = Math.min(statEva, CONFIG.maxEvaFromStats / 100);
+    
+    this.hitRate = this.hitRate + (stats.guiMi * CONFIG.guiMiToHit / 100);
+    this.critResist = this.critResist + (stats.jianRen * CONFIG.jianRenToRes / 100);
+    this.critDmg = this.critDmg + (stats.guiMi * CONFIG.guiMiToCritDmg / 100);
+    // ==========================================
+
+    // ==========================================
+    // 计算装备加成（原有逻辑）
+    // ==========================================
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
     Object.values(this.equipment).forEach(uid => {
@@ -54,7 +88,7 @@ class Unit {
             else if (ex.stat === 'atkPercent') eqAtkPct += val;
             else if (ex.stat === 'defPercent') eqDefPct += val;
             else if (ex.stat === 'hpPercent') eqHpPct += val;
-            else if (this[ex.stat] !== undefined) this[ex.stat] += val;
+            else if (this[ex.stat] !== undefined) this[ex.stat] += val; // 装备直接加百分比，不吃升级上限
           });
         }
       }
@@ -64,6 +98,8 @@ class Unit {
     this.def = Math.floor((this.def + eqDefAdd) * (1 + eqDefPct));
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
+    
+    // 被动技能计算
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
     this.passives.forEach(sk => {
       if (sk.isAura) return;
@@ -135,7 +171,7 @@ class Unit {
 }
 
 // ==========================================
-// BattleLogic
+// BattleLogic 及相关代码完全保留
 // ==========================================
 const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
@@ -193,9 +229,6 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
-// ==========================================
-// 随机掉落（★ 修复卡死，严格校验空数组和缺失池）
-// ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   
@@ -227,7 +260,6 @@ function generateRandomInstance(templateId) {
   };
   const pools = window.GLOBAL_AFFIX_POOLS || defaultPools;
 
-  // 防止数据缺失或为空导致报错中断
   let pool = [];
   if (t.category === 'armor') {
     pool = Array.isArray(pools.armor) && pools.armor.length > 0 ? [...pools.armor] : [...defaultPools.armor];
@@ -286,7 +318,7 @@ function generateRandomInstance(templateId) {
 }
 
 // ==========================================
-// 主菜单
+// 其余所有场景的代码保留（不一一列出，因为和原本的一样）
 // ==========================================
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
@@ -301,9 +333,6 @@ class MainMenuScene extends Phaser.Scene {
   }
 }
 
-// ==========================================
-// 战前布阵
-// ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
@@ -408,9 +437,6 @@ class FormationScene extends Phaser.Scene {
   }
 }
 
-// ==========================================
-// 战斗场景
-// ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
@@ -445,7 +471,7 @@ class BattleScene extends Phaser.Scene {
     }
 
     if (fighters.filter(f => f.side === 'enemy').length === 0) {
-      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
+      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
     }
 
     fighters.forEach(d => { const u = new Unit(d); this.allUnits.push(u); });
@@ -720,9 +746,6 @@ class BattleScene extends Phaser.Scene {
   }
 }
 
-// ==========================================
-// 结算场景（★ 增加 try-catch 防止崩溃）
-// ==========================================
 class ResultScene extends Phaser.Scene {
   constructor() { super('ResultScene'); }
   init(d) { this.resultType = d.type; this.currentLevelIndex = d.levelIndex || 0; }
@@ -748,7 +771,6 @@ class ResultScene extends Phaser.Scene {
           }
         } catch (err) {
           console.error("生成掉落物报错，已跳过：", err);
-          // 即使报错，也不会卡死，直接进入下一步
         }
       }
       if (this.currentLevelIndex < LEVELS.length - 1) { label = '➡️ 进入下一关'; action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); }
@@ -758,18 +780,12 @@ class ResultScene extends Phaser.Scene {
   }
 }
 
-// ==========================================
-// 监听编辑器更新
-// ==========================================
 window.addEventListener('storage', (e) => {
   if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') {
     if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload();
   }
 });
 
-// ==========================================
-// 启动
-// ==========================================
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
