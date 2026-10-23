@@ -61,7 +61,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v12.5 元素测试版)</h1>
+  <h1>⚙️ 配置中心 (v12.6 装备掉落版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -128,6 +128,14 @@
       <div id="global-config-fields" class="form-grid"></div>
     </div>
 
+    <!-- 新增：装备掉落配置 -->
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 装备掉落配置</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">调整各品质的掉落区间、基础属性倍率、额外词条数量。（概率区间必须从 0 覆盖到 100）</p>
+      <div id="drop-rate-fields"></div>
+      <button class="btn" style="background:#e74c3c; width:100%; margin-top:10px;" onclick="resetDropRates()">恢复掉落默认值</button>
+    </div>
+
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎨 元素管理</h3>
       <div style="overflow-x:auto;">
@@ -157,7 +165,7 @@
 
     <div style="display:flex; gap:10px; margin-bottom:20px;">
       <button class="btn btn-play" onclick="saveGlobalConfig()">💾 保存全局设置</button>
-      <button class="btn btn-reset" onclick="resetGlobalConfig()">⚠️ 恢复默认</button>
+      <button class="btn btn-reset" onclick="resetGlobalConfig()">⚠️ 恢复全部默认</button>
     </div>
   </div>
 
@@ -198,12 +206,22 @@
       { id: 'lv_1', name: '第 1 关', enemyList: [] } 
     ];
 
+    const DEFAULT_DROP_RATES = [
+      { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
+      { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
+      { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
+      { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
+      { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
+      { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
+    ];
+
     const DEFAULT_GLOBAL_CONFIG = {
       config: {
         WIDTH: 1280, HEIGHT: 720, MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
         START_MP_RATIO: 0.3, MP_REGEN_PER_ROUND: 0.1, DEF_CONSTANT: 1000,
         MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0, HIT_RATE_MIN: 0.2, HIT_RATE_MAX: 1.0
       },
+      dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
       elements: [
         { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
         { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
@@ -247,6 +265,7 @@
       globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
     }
     if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
+    if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
     if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
     if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
     let editingElementIds = new Set();
@@ -271,13 +290,13 @@
     function generateRandomInstance(templateId) {
       const template = gameItems.find(t => t.id === templateId);
       if (!template) return null;
-      const rand = Math.random() * 100;
-      let quality = 'white', qMult = 1.0, extraCount = 0, tier = 1;
-      if (rand > 99) { quality = 'red'; qMult = 1.8; extraCount = 5; tier = 3; }
-      else if (rand > 95) { quality = 'orange'; qMult = 1.5; extraCount = 4; tier = 3; }
-      else if (rand > 85) { quality = 'purple'; qMult = 1.3; extraCount = 3; tier = 2; }
-      else if (rand > 60) { quality = 'blue'; qMult = 1.15; extraCount = 2; tier = 2; }
-      else if (rand > 30) { quality = 'green'; qMult = 1.05; extraCount = 1; tier = 1; }
+      
+      const r = Math.random() * 100;
+      const config = globalData.dropRates.find(d => r >= d.min && r < d.max) || globalData.dropRates[0];
+      const quality = config.q;
+      const qMult = config.m;
+      const extraCount = config.n;
+      const tier = config.tier;
 
       const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
       const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
@@ -353,7 +372,6 @@
       return html;
     }
 
-    // 新增：获取元素下拉框
     function getElementOptions(selectedId) {
       let html = '';
       globalData.elements.forEach(el => {
@@ -378,7 +396,6 @@
             <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateChar(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>图标</label><input type="text" value="${char.emoji}" onchange="updateChar(${index}, 'emoji', this.value)"></div>
             
-            <!-- 这里增加了元素属性 -->
             <div class="form-item" style="grid-column: span 2;">
               <label style="color:#f1c40f; font-weight:bold;">元素属性</label>
               <select onchange="updateChar(${index}, 'element', this.value)">
@@ -494,7 +511,6 @@
             <div class="form-item"><label>名称</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateSkill(${index}, 'type', this.value)">${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             
-            <!-- 这里增加了技能的元素属性 -->
             <div class="form-item" style="grid-column: span 2;">
               <label style="color:#f1c40f; font-weight:bold;">技能元素属性</label>
               <select onchange="updateSkill(${index}, 'element', this.value)">
@@ -842,6 +858,37 @@
         `;
       }).join('');
 
+      // 渲染掉落配置
+      const dropBox = document.getElementById('drop-rate-fields');
+      if (dropBox) {
+        const qNames = { white: '普通 (白)', green: '精良 (绿)', blue: '稀有 (蓝)', purple: '史诗 (紫)', orange: '传说 (橙)', red: '神话 (红)' };
+        const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+        
+        dropBox.innerHTML = globalData.dropRates.map((d, i) => `
+          <div style="background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
+            <div style="color:${qColors[d.q] || '#fff'}; font-weight:bold; margin-bottom:8px;">${qNames[d.q] || d.q}</div>
+            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+              <div class="form-item">
+                <label>概率下限(%)</label>
+                <input type="number" step="1" value="${d.min}" onchange="globalData.dropRates[${i}].min = parseFloat(this.value)">
+              </div>
+              <div class="form-item">
+                <label>概率上限(%)</label>
+                <input type="number" step="1" value="${d.max}" onchange="globalData.dropRates[${i}].max = parseFloat(this.value)">
+              </div>
+              <div class="form-item">
+                <label>属性倍率</label>
+                <input type="number" step="0.1" value="${d.m}" onchange="globalData.dropRates[${i}].m = parseFloat(this.value)">
+              </div>
+              <div class="form-item">
+                <label>额外词条数</label>
+                <input type="number" step="1" value="${d.n}" onchange="globalData.dropRates[${i}].n = parseInt(this.value)">
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
       const elBody = document.getElementById('global-elements-body');
       elBody.innerHTML = globalData.elements.map((el, idx) => {
         const isEditing = editingElementIds.has(el.id);
@@ -957,10 +1004,23 @@
       }
     }
 
+    function resetDropRates() {
+      if (!confirm('确定恢复掉率默认值吗？')) return;
+      globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
+      renderGlobal();
+    }
+
     function saveGlobalConfig() {
       Object.keys(globalData.config).forEach(k => {
         if (isNaN(globalData.config[k])) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
       });
+
+      // 简单校验概率是否覆盖 0-100
+      let sum = 0;
+      globalData.dropRates.forEach(d => { sum += (d.max - d.min); });
+      if (Math.abs(sum - 100) > 1) {
+        alert(`⚠️ 警告：您的掉落概率总区间为 ${sum}%，不是 100%。可能导致某些物品无法掉落。`);
+      }
       
       localStorage.setItem('my_game_config', JSON.stringify(globalData));
       editingElementIds.clear();
@@ -996,7 +1056,6 @@
     function updateChar(index, key, value) { 
       gameChars[index][key] = value; 
       saveData(); 
-      // 如果修改的是元素，界面可能要刷新选项
       if (key === 'element') render();
     }
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
