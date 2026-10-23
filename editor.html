@@ -32,15 +32,31 @@
     .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
     .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
 
+    /* ★ 新增：4x4 关卡可视化网格 */
+    .level-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; background: #0f0f1a; padding: 10px; border-radius: 8px; }
+    .level-cell { background: #1a1a2e; border: 1px solid #444; border-radius: 4px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; position: relative; }
+    .level-cell:hover { background: #0f3460; }
+    .level-cell .cell-pos { position: absolute; top: 2px; left: 2px; font-size: 10px; color: #666; }
+    .level-cell .cell-emoji { font-size: 28px; }
+    .level-cell .cell-name { font-size: 10px; color: #aaa; margin-top: 2px; }
+
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none;}
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
+    
+    /* 弹窗样式 */
+    .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: #16213e; width: 90%; max-width: 400px; border-radius: 8px; border: 1px solid #3498db; padding: 20px; max-height: 80vh; overflow-y: auto; }
+    .modal-title { font-size: 18px; color: #f1c40f; margin-bottom: 15px; text-align: center; }
+    .modal-btn { background: #0f3460; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 4px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .modal-btn:hover { background: #3498db; border-color: #3498db; }
+    .modal-close { background: #e74c3c; color: #fff; border: none; padding: 10px; border-radius: 4px; margin-top: 15px; width: 100%; cursor: pointer; font-weight: bold;}
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v9.2 稳定版)</h1>
+  <h1>⚙️ 配置中心 (v10.0 战棋空间版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -65,7 +81,7 @@
     <div class="sub-tabs">
       <div class="sub-tab active" id="tab-skill-active" onclick="switchSubTab('skill', 'active')">主动/治疗</div>
       <div class="sub-tab" id="tab-skill-followup" onclick="switchSubTab('skill', 'followup')">追打</div>
-      <div class="sub-tab" id="tab-skill-passive" onclick="switchSubTab('skill', 'passive')">被动</div>
+      <div class="sub-tab" id="tab-skill-passive" onclick="switchSubTab('skill', 'passive')">被动/光环</div>
     </div>
     <div id="skill-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addSkill()">➕ 新增技能</button>
@@ -99,18 +115,30 @@
     <button class="btn btn-reset" onclick="resetData()">⚠️ 重置数据</button>
   </div>
 
+  <!-- 关卡网格选择弹窗 -->
+  <div class="modal-overlay" id="level-modal">
+    <div class="modal-content">
+      <div class="modal-title">选择要放置的敌人 (点击后方格)</div>
+      <div id="level-modal-list"></div>
+      <button class="modal-close" onclick="document.getElementById('level-modal').style.display='none'">取消 / 关闭</button>
+    </div>
+  </div>
+
   <script>
+    // 兜底默认数据
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
+      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
+      { id: 'e_boss', name: '骷髅王', side: 'enemy', emoji: '👑', element: 'dark', maxHp: 8000, atk: 400, def: 300, speed: 6, sizeX: 2, sizeY: 2, critRate: 0.1, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.2, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } }
     ];
 
     const DEFAULT_SKILLS = [
-      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [] },
-      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
-      { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [] },
-      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, effects: [] }
+      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
+      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'fire_hit', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
+      { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
+      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'fire_hit', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
+      { id: 'skill_aura_atk', name: '鼓舞光环', type: 'passive', element: 'light', targetSide: 'player', targetRule: 'frontRow', multiplier: 0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0.2, isAura: true, auraRange: 1, effects: [] }
     ];
 
     const DEFAULT_STATUS = [ 
@@ -124,27 +152,59 @@
       { id: 'item_shield', name: '木盾', category: 'armor', icon: '🛡️', desc: '', atkMin: 0, atkMax: 0, defMin: 20, defMax: 50, hpMin: 100, hpMax: 300, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }
     ];
 
-    const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyIds: ['e_skeleton', 'e_skeleton', ''], rewardItemId: 'item_sword' } ];
+    const DEFAULT_LEVELS = [ 
+      { id: 'lv_1', name: '第 1 关', enemyGrid: Array(16).fill(null).map((_, i) => {
+          if (i === 0 || i === 1) return 'e_skeleton';
+          return null;
+        }) 
+      } 
+    ];
 
     let currentTab = 'char';
     let subTab = { char: 'player', skill: 'active', item: 'weapon' };
 
     let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory;
     try {
-      gameChars = JSON.parse(localStorage.getItem('my_game_data_v17')) || DEFAULT_CHARS;
-      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v17')) || DEFAULT_SKILLS;
-      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v17')) || DEFAULT_STATUS;
-      gameItems = JSON.parse(localStorage.getItem('my_game_items_v17')) || DEFAULT_ITEMS;
-      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v17')) || DEFAULT_LEVELS;
-      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v17')) || [];
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v18')) || DEFAULT_CHARS;
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v18')) || DEFAULT_SKILLS;
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v18')) || DEFAULT_STATUS;
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v18')) || DEFAULT_ITEMS;
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v18')) || DEFAULT_LEVELS;
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v18')) || [];
     } catch(e) { resetData(); }
 
+    // ★ 数据兜底与平滑升级
     if (!Array.isArray(gameChars)) gameChars = DEFAULT_CHARS;
     if (!Array.isArray(gameSkills)) gameSkills = DEFAULT_SKILLS;
     if (!Array.isArray(gameStatuses)) gameStatuses = DEFAULT_STATUS;
     if (!Array.isArray(gameItems)) gameItems = DEFAULT_ITEMS;
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
+
+    gameChars.forEach(c => {
+      if (c.sizeX === undefined) c.sizeX = 1;
+      if (c.sizeY === undefined) c.sizeY = 1;
+    });
+
+    gameSkills.forEach(sk => {
+      if (!sk.effects) sk.effects = [];
+      if (sk.targetSide === undefined) sk.targetSide = 'enemy';
+      if (sk.passiveType === undefined) sk.passiveType = 'atkAdd';
+      if (sk.passiveValue === undefined) sk.passiveValue = 0;
+      if (sk.isAura === undefined) sk.isAura = false;
+      if (sk.auraRange === undefined) sk.auraRange = 0;
+    });
+
+    // 关卡旧数据升级
+    gameLevels.forEach(lv => {
+      if (!lv.enemyGrid) {
+        lv.enemyGrid = Array(16).fill(null);
+        if (lv.enemyIds) { // 旧版转新版
+           let idx = 0;
+           lv.enemyIds.forEach(eid => { if(eid) { lv.enemyGrid[idx] = eid; idx++; } });
+        }
+      }
+    });
 
     setTimeout(() => { saveData(); }, 100);
 
@@ -191,7 +251,7 @@
     const elements = ['fire', 'water', 'wind', 'light', 'dark'];
     const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
     const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '随机目标' }, { val: 'all', label: '群体(全体)' }];
-    const passiveTypes = [{ val: 'atkAdd', label: '攻击加成' }, { val: 'hpAdd', label: '生命加成' }, { val: 'defAdd', label: '防御加成' }, { val: 'speedAdd', label: '速度加成' }];
+    const passiveTypes = [{ val: 'atkAdd', label: '攻击力(%)' }, { val: 'hpAdd', label: '生命值(%)' }, { val: 'defAdd', label: '防御力(%)' }, { val: 'speedAdd', label: '速度(%)' }];
     const itemCategories = [{ val: 'weapon', label: '武器' }, { val: 'armor', label: '防具' }, { val: 'accessory', label: '饰品' }];
     const statusTypes = [{ val: 'buff', label: '增益' }, { val: 'debuff', label: '减益' }, { val: 'control', label: '控制' }];
     const statusMods = [{ val: 'none', label: '无属性变化' }, { val: 'atk', label: '攻击力' }, { val: 'def', label: '防御力' }, { val: 'speed', label: '速度' }];
@@ -228,6 +288,7 @@
       return html;
     }
 
+    // 增加体积配置
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-char').value.toLowerCase();
@@ -245,6 +306,11 @@
             <div class="form-item"><label>攻击</label><input type="number" value="${char.atk}" onchange="updateChar(${index}, 'atk', parseInt(this.value))"></div>
             <div class="form-item"><label>防御</label><input type="number" value="${char.def}" onchange="updateChar(${index}, 'def', parseInt(this.value))"></div>
             <div class="form-item"><label>速度</label><input type="number" value="${char.speed}" onchange="updateChar(${index}, 'speed', parseInt(this.value))"></div>
+            
+            <!-- ★ 占格体积 -->
+            <div class="form-item"><label style="color:#f1c40f;">占格宽 (1~4)</label><input type="number" min="1" max="4" value="${char.sizeX}" onchange="updateChar(${index}, 'sizeX', parseInt(this.value))"></div>
+            <div class="form-item"><label style="color:#f1c40f;">占格高 (1~4)</label><input type="number" min="1" max="4" value="${char.sizeY}" onchange="updateChar(${index}, 'sizeY', parseInt(this.value))"></div>
+
             <div class="form-item"><label>暴击(%)</label><input type="number" step="0.1" value="${(char.critRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'critRate', this.value)"></div>
             <div class="form-item"><label>暴伤(倍)</label><input type="number" step="0.1" value="${char.critDmg||1.5}" onchange="updateChar(${index}, 'critDmg', parseFloat(this.value))"></div>
             <div class="form-item"><label>抗暴(%)</label><input type="number" step="0.1" value="${(char.critResist*100).toFixed(1)}" onchange="updateCharPct(${index}, 'critResist', this.value)"></div>
@@ -267,6 +333,7 @@
       });
     }
 
+    // 增加光环配置
     function renderSkills() {
       const list = document.getElementById('skill-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-skill').value.toLowerCase();
@@ -292,10 +359,10 @@
                     <label>类型</label>
                     <select onchange="updateEffect(${index}, ${effIdx}, 'type', this.value)">
                       <option value="status" ${eff.type==='status'?'selected':''}>附加状态</option>
-                      <option value="heal_pct" ${eff.type==='heal_pct'?'selected':''}>恢复生命(基于攻击力)</option>
-                      <option value="heal_flat" ${eff.type==='heal_flat'?'selected':''}>恢复生命(固定值)</option>
-                      <option value="shield_pct" ${eff.type==='shield_pct'?'selected':''}>附加护盾(基于攻击力)</option>
-                      <option value="shield_flat" ${eff.type==='shield_flat'?'selected':''}>附加护盾(固定值)</option>
+                      <option value="heal_pct" ${eff.type==='heal_pct'?'selected':''}>恢复生命(倍率)</option>
+                      <option value="heal_flat" ${eff.type==='heal_flat'?'selected':''}>恢复生命(固定)</option>
+                      <option value="shield_pct" ${eff.type==='shield_pct'?'selected':''}>附加护盾(倍率)</option>
+                      <option value="shield_flat" ${eff.type==='shield_flat'?'selected':''}>附加护盾(固定)</option>
                       <option value="mp" ${eff.type==='mp'?'selected':''}>恢复MP(%)</option>
                     </select>
                   </div>
@@ -364,20 +431,33 @@
             <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>耗蓝(%)</label><input type="number" value="${skill.mpCost || 0}" onchange="updateSkill(${index}, 'mpCost', parseInt(this.value))"></div>
             <div class="form-item" style="display:${isPassive?'none':'flex'};"><label>冷却</label><input type="number" value="${skill.cooldown || 0}" onchange="updateSkill(${index}, 'cooldown', parseInt(this.value))"></div>
             
+            <!-- 被动 & 光环配置区 -->
+            <div class="form-item full" style="display: ${isPassive ? 'block' : 'none'}; background:#1e1e2e; border:1px solid #e67e22; padding:10px; border-radius:4px; margin-top:10px;">
+              <label style="color:#e67e22;">被动效果</label>
+              <div style="display:flex; gap:10px; margin-top:5px;">
+                <select style="flex:1;" onchange="updateSkill(${index}, 'passiveType', this.value)">${passiveTypes.map(p => `<option value="${p.val}" ${skill.passiveType === p.val ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
+                <input type="number" step="0.1" style="flex:1;" value="${skill.passiveValue || 0}" onchange="updateSkill(${index}, 'passiveValue', parseFloat(this.value))">
+              </div>
+              
+              <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+                <label style="color:#f1c40f;">是否光环(周围有效)</label>
+                <select onchange="updateSkill(${index}, 'isAura', this.value === 'true')">
+                  <option value="false" ${!skill.isAura ? 'selected' : ''}>否 (仅自身)</option>
+                  <option value="true" ${skill.isAura ? 'selected' : ''}>是 (群体光环)</option>
+                </select>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:10px; display:${skill.isAura ? 'flex' : 'none'};">
+                <label style="color:#f1c40f;">光环范围(格)</label>
+                <input type="number" value="${skill.auraRange || 0}" onchange="updateSkill(${index}, 'auraRange', parseInt(this.value))">
+              </div>
+            </div>
+
             <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; border-top:1px dashed #444; padding-top:10px; margin-top:10px;">
               <label style="color:#f1c40f; font-size:14px;">多重后续效果 (可叠加无数个)</label>
               <div id="effects-container-${index}">
                 ${effectsHtml}
               </div>
               <button class="btn-add-effect" onclick="addSkillEffect(${index})">➕ 添加后续效果</button>
-            </div>
-
-            <div class="form-item full" style="display: ${isPassive ? 'block' : 'none'}; background:#1e1e2e; border:1px solid #e67e22; padding:10px; border-radius:4px; margin-top:10px;">
-              <label style="color:#e67e22;">被动效果</label>
-              <div style="display:flex; gap:10px; margin-top:5px;">
-                <select style="flex:1;" onchange="updateSkill(${index}, 'passiveType', this.value)">${passiveTypes.map(p => `<option value="${p.val}" ${skill.passiveType === p.val ? 'selected' : ''}>${p.label}</option>`).join('')}</select>
-                <input type="number" style="flex:1;" value="${skill.passiveValue || 0}" onchange="updateSkill(${index}, 'passiveValue', parseInt(this.value))">
-              </div>
             </div>
 
             <div class="form-item full" style="display: ${isPassive ? 'none' : 'block'}; background:#1e1e2e; border:1px solid #e74c3c; padding:10px; border-radius:4px; margin-top:10px;">
@@ -461,33 +541,87 @@
       });
     }
 
+    // ★ 关卡编辑器彻底重写：4x4 网格
+    let currentEditingLevelIdx = -1;
+    let currentEditingCellIdx = -1;
+
     function renderLevels() {
       const list = document.getElementById('level-list'); list.innerHTML = '';
       gameLevels.forEach((lv, index) => {
+        let gridHtml = '';
+        for (let i = 0; i < 16; i++) {
+          const enemyId = lv.enemyGrid[i];
+          let cellContent = '';
+          if (enemyId) {
+            const cData = gameChars.find(c => c.id === enemyId);
+            if (cData) {
+              cellContent = `
+                <div class="cell-emoji">${cData.emoji}</div>
+                <div class="cell-name">${cData.name}</div>
+              `;
+            }
+          }
+          gridHtml += `<div class="level-cell" onclick="openLevelCellModal(${index}, ${i})">
+            <div class="cell-pos">${i+1}</div>
+            ${cellContent}
+          </div>`;
+        }
+
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">删除</button></div>
           <div class="form-grid">
             <div class="form-item full"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
-            <div class="form-item full"><label>掉落物品模板</label><select onchange="updateLevel(${index}, 'rewardItemId', this.value)"><option value="">(无)</option>${gameItems.map(e => `<option value="${e.id}" ${lv.rewardItemId === e.id ? 'selected' : ''}>${e.name}</option>`).join('')}</select></div>
-            <div class="form-item full">
-              ${[0,1,2].map(i => {
-                const curEnemy = lv.enemyIds && lv.enemyIds[i] ? lv.enemyIds[i] : '';
-                return `<div style="display:flex; gap:10px; margin-bottom:5px;"><span>位置 ${i+1}:</span><select style="flex:1;" onchange="updateLevelEnemy(${index}, ${i}, this.value)"><option value="">(空)</option>${gameChars.filter(c=>c.side==='enemy').map(c => `<option value="${c.id}" ${curEnemy === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select></div>`;
-              }).join('')}
-            </div>
+          </div>
+          <div class="sub-title">敌方 4x4 阵型 (点击格子放置)</div>
+          <div class="level-grid">
+            ${gridHtml}
           </div>`;
         list.appendChild(div);
       });
     }
 
+    function openLevelCellModal(lvIdx, cellIdx) {
+      currentEditingLevelIdx = lvIdx;
+      currentEditingCellIdx = cellIdx;
+      
+      const listDiv = document.getElementById('level-modal-list');
+      listDiv.innerHTML = '';
+      
+      // 清空选项
+      const emptyBtn = document.createElement('div');
+      emptyBtn.className = 'modal-btn';
+      emptyBtn.style.borderColor = '#e74c3c';
+      emptyBtn.innerHTML = `<span style="color:#e74c3c;">✖ 清空该格子</span>`;
+      emptyBtn.onclick = () => setLevelCell(null);
+      listDiv.appendChild(emptyBtn);
+
+      // 敌人列表
+      gameChars.filter(c => c.side === 'enemy').forEach(enemy => {
+        const btn = document.createElement('div');
+        btn.className = 'modal-btn';
+        btn.innerHTML = `<span>${enemy.emoji} ${enemy.name}</span>`;
+        btn.onclick = () => setLevelCell(enemy.id);
+        listDiv.appendChild(btn);
+      });
+
+      document.getElementById('level-modal').style.display = 'flex';
+    }
+
+    function setLevelCell(enemyId) {
+      gameLevels[currentEditingLevelIdx].enemyGrid[currentEditingCellIdx] = enemyId;
+      saveData();
+      document.getElementById('level-modal').style.display = 'none';
+      renderLevels();
+    }
+
     function saveData() {
-      localStorage.setItem('my_game_data_v17', JSON.stringify(gameChars));
-      localStorage.setItem('my_game_skills_v17', JSON.stringify(gameSkills));
-      localStorage.setItem('my_game_statuses_v17', JSON.stringify(gameStatuses));
-      localStorage.setItem('my_game_items_v17', JSON.stringify(gameItems));
-      localStorage.setItem('my_game_levels_v17', JSON.stringify(gameLevels));
-      localStorage.setItem('my_game_inventory_v17', JSON.stringify(inventory));
+      localStorage.setItem('my_game_data_v18', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v18', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v18', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v18', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v18', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_inventory_v18', JSON.stringify(inventory));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -524,7 +658,7 @@
     function updateSkill(index, key, value) { 
       gameSkills[index][key] = value; 
       saveData(); 
-      if (['name', 'type', 'healMultiplier', 'multiplier'].includes(key)) render(); 
+      if (['name', 'type', 'isAura'].includes(key)) render(); 
     }
 
     function addSkillEffect(skillIdx) {
@@ -545,17 +679,12 @@
     function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); }
     function updateItem(index, key, value) { gameItems[index][key] = value; saveData(); }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
-    function updateLevelEnemy(lvIndex, slotIndex, enemyId) {
-      if (!gameLevels[lvIndex].enemyIds) gameLevels[lvIndex].enemyIds = ['', '', ''];
-      gameLevels[lvIndex].enemyIds[slotIndex] = enemyId;
-      saveData();
-    }
 
-    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',armor:'',accessory:''} }); saveData(); render(); }
+    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',armor:'',accessory:''} }); saveData(); render(); }
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     function addSkill() { 
       let type = subTab.skill === 'followup' ? 'followup' : subTab.skill === 'passive' ? 'passive' : 'skill';
-      gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, mpCost:10, cooldown:0, comboTagOut:'', comboTagIn:'', maxTriggers:1, passiveType:'atkAdd', passiveValue:0, effects:[] }); 
+      gameSkills.push({ id:'skill_'+Date.now(), name:'新技能', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, mpCost:10, cooldown:0, comboTagOut:'', comboTagIn:'', maxTriggers:1, passiveType:'atkAdd', passiveValue:0, isAura:false, auraRange:0, effects:[] }); 
       saveData(); render(); 
     }
     function deleteSkill(index) { if (confirm('确定删除？')) { gameSkills.splice(index, 1); saveData(); render(); } }
@@ -563,7 +692,7 @@
     function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); render(); } }
     function addItem() { gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:subTab.item, icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 }); saveData(); render(); }
     function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); render(); } }
-    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyIds:['','',''], rewardItemId:'' }); saveData(); render(); }
+    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyGrid: Array(16).fill(null) }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
     
     function grantItem() {
