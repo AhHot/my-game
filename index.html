@@ -5,63 +5,153 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>中大型策略战棋</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; }
         #game { width: 100%; height: 100%; }
         
-        /* ================= 角色面板样式 ================= */
-        #char-panel-overlay {
-            display: none; /* 默认隐藏 */
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7); /* 背景遮罩 */
-            z-index: 9999; justify-content: center; align-items: center;
-            font-family: "Microsoft YaHei", sans-serif;
-        }
-
-        .char-panel-box {
-            width: 95%; max-width: 600px;
-            background-color: #1e2028; /* 默认深色背景 */
-            border: 2px solid #4a4a4a; /* 边框颜色，可改 */
-            border-radius: 8px;
-            color: #ddd; padding: 15px;
-            position: relative;
-            background-size: cover; background-position: center;
-            max-height: 90vh; overflow-y: auto; /* 防止内容过长超出屏幕 */
-        }
-
-        /* 顶部信息 */
-        .cp-header { display: flex; gap: 15px; margin-bottom: 15px; }
-        .cp-avatar { width: 80px; height: 80px; background: #333; border: 2px solid #888; display: flex; justify-content: center; align-items: center; font-size: 40px; }
-        .cp-info { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; font-size: 13px; }
-        .cp-info span { color: #aaa; }
-        .cp-info b { color: #fff; margin-left: 5px; }
-        .cp-info .highlight { color: #e74c3c; } /* 境界、战力用红色或绿色 */
-
-        /* 标签页 */
-        .cp-tabs { display: flex; background: #111; margin-bottom: 10px; border-bottom: 2px solid #333; }
-        .cp-tab { flex: 1; text-align: center; padding: 8px 0; cursor: pointer; font-weight: bold; color: #888; }
-        .cp-tab.active { background: #d48b21; color: #fff; } /* 当前选中的橙色高亮 */
-
-        /* 属性网格 */
-        .cp-attr-section { margin-bottom: 15px; }
-        .cp-attr-title { font-size: 14px; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold; }
-        .cp-attr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 13px; }
-        .cp-attr-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 2px; }
-        .cp-attr-item span { color: #aaa; }
-        .cp-attr-item b { color: #fff; }
-
-        /* 关闭按钮 */
-        .cp-close-btn {
-            position: absolute; top: 10px; right: 15px; font-size: 20px; color: #aaa; cursor: pointer;
-        }
-        .cp-close-btn:hover { color: #fff; }
-
-        /* 左下角测试按钮 */
+        /* ================= 游戏内测试按钮 ================= */
         #test-ui-btn {
-            position: fixed; bottom: 20px; left: 20px; z-index: 9998;
+            position: fixed; bottom: 20px; left: 20px; z-index: 999;
             background: #3498db; color: white; padding: 10px 15px; border-radius: 5px;
             cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
+
+        /* ================= 全屏 UI 遮罩 ================= */
+        #fullscreen-ui {
+            display: none; /* 默认隐藏 */
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(10, 10, 15, 0.95); /* 极深的半透明背景，覆盖游戏 */
+            z-index: 9000;
+            color: #ddd;
+            display: flex; /* 弹性布局：左面板 + 右面板 */
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* 顶部关闭按钮 */
+        .close-ui-btn {
+            position: absolute; top: 20px; right: 30px; font-size: 30px; color: #aaa; cursor: pointer; z-index: 9100;
+        }
+        .close-ui-btn:hover { color: #fff; }
+
+        /* ================= 左侧基础面板 ================= */
+        #left-panel {
+            width: 420px; /* 固定宽度 */
+            height: 100%;
+            background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
+            border-right: 2px solid #333;
+            position: relative;
+            display: flex; flex-direction: column;
+            box-shadow: 5px 0 20px rgba(0,0,0,0.5);
+            z-index: 9010;
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        /* 立绘占位（以后可以替换成真实的 img 标签） */
+        .char-portrait {
+            flex: 1;
+            background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; /* 临时网络图 */
+            position: relative;
+        }
+        .char-portrait::after {
+            content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 50%;
+            background: linear-gradient(to top, #1a1c29, transparent);
+        }
+
+        /* 角色信息与数值区 */
+        .char-info-area {
+            padding: 20px;
+            background: rgba(15, 15, 21, 0.9);
+            border-top: 1px solid #333;
+        }
+        .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+        .char-name-level h2 { color: #f1c40f; font-size: 24px; }
+        .char-name-level span { color: #2ecc71; font-weight: bold; }
+
+        .exp-bar-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
+        .exp-bar-fill { width: 45%; height: 100%; background: #3498db; }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px; margin-bottom: 20px; }
+        .stat-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+        .stat-item span { color: #888; }
+        .stat-item b { color: #fff; }
+
+        .core-four { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+        .core-four div { text-align: center; }
+        .core-four div b { display: block; color: #e74c3c; margin-top: 4px; font-size: 18px;}
+
+        /* 展开按钮（贴在左面板右侧中间） */
+        .expand-btn {
+            position: absolute; top: 50%; right: -30px; transform: translateY(-50%);
+            width: 30px; height: 80px; background: #2c3e50; border: 1px solid #444; border-left: none;
+            border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center;
+            color: #f1c40f; font-size: 20px; z-index: 9020;
+        }
+        .expand-btn:hover { background: #34495e; }
+
+        /* ================= 右侧详细面板 ================= */
+        #right-panel {
+            flex: 1;
+            padding: 40px 30px;
+            overflow-y: auto;
+            display: none; /* 默认隐藏，点击展开后显示 */
+            background: rgba(20, 22, 30, 0.8);
+        }
+
+        .detail-section { margin-bottom: 30px; }
+        .detail-title { font-size: 18px; color: #f1c40f; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 15px; }
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 40px; font-size: 15px; }
+        .detail-item { display: flex; justify-content: space-between; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; }
+        .detail-item span { color: #888; }
+        .detail-item b { color: #fff; }
+
+        /* ================= 全屏背包网格 ================= */
+        #inventory-view {
+            display: none; /* 默认隐藏 */
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 10, 15, 0.98); z-index: 9500;
+            padding: 30px; flex-direction: column;
+        }
+        .inv-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .inv-header h2 { color: #f1c40f; }
+        .inv-header .back-btn { background: #e74c3c; color: #fff; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+
+        .inv-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* 自适应网格 */
+            gap: 10px;
+            overflow-y: auto;
+            padding-bottom: 50px;
+        }
+        .inv-slot {
+            aspect-ratio: 1;
+            background: #1a1c29;
+            border: 2px solid #333;
+            border-radius: 8px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; position: relative;
+            transition: all 0.2s;
+        }
+        .inv-slot:hover { border-color: #f1c40f; transform: scale(1.05); }
+        .inv-slot .item-icon { font-size: 32px; }
+        .inv-slot .item-name { font-size: 12px; color: #aaa; margin-top: 5px; text-align: center; width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 5px; }
+        
+        /* 装备详情对比悬浮卡 */
+        #item-tooltip {
+            display: none;
+            position: fixed; z-index: 9600;
+            width: 280px; background: #0f0f15; border: 2px solid #f1c40f; border-radius: 8px;
+            padding: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            pointer-events: none; /* 穿透鼠标事件，防止遮挡点击 */
+        }
+        .tt-title { font-size: 16px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; }
+        .tt-stats { font-size: 13px; margin-top: 10px; }
+        .tt-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .tt-diff-up { color: #2ecc71; } /* 绿字提升 */
+        .tt-diff-down { color: #e74c3c; } /* 红字下降 */
+        .tt-base { color: #fff; }
+
     </style>
 </head>
 <body>
@@ -69,121 +159,301 @@
     <!-- 游戏引擎挂载点 -->
     <div id="game"></div>
 
-    <!-- 测试面板的按钮 -->
-    <div id="test-ui-btn" onclick="openCharPanel()">📊 查看角色面板</div>
+    <!-- 左下角测试按钮 -->
+    <div id="test-ui-btn" onclick="openCharacterUI()">📊 打开全屏属性与背包</div>
 
-    <!-- 角色面板 DOM 结构 -->
-    <div id="char-panel-overlay" onclick="closeCharPanel(event)">
-        <div class="char-panel-box" id="char-panel-box" onclick="event.stopPropagation()">
-            <div class="cp-close-btn" onclick="closeCharPanel(event)">✖</div>
+    <!-- ================= 全屏 UI 区域 ================= -->
+    <div id="fullscreen-ui">
+        <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
+
+        <!-- 左侧：基础面板 -->
+        <div id="left-panel">
+            <div class="char-portrait"></div>
             
-            <!-- 顶部信息 -->
-            <div class="cp-header">
-                <div class="cp-avatar" id="panel-emoji">👩</div>
-                <div class="cp-info">
-                    <div><span>[姓名]</span> <b id="panel-name">殷悠悠</b></div>
-                    <div><span>[师门]</span> <b>明教</b></div>
-                    <div><span>[境界]</span> <b class="highlight" style="color:#f1c40f;">神乎其技</b></div>
-                    <div><span>[战力]</span> <b style="color:#2ecc71;">133368</b></div>
+            <div class="char-info-area">
+                <div class="char-name-level">
+                    <h2 id="ui-char-name">战士</h2>
+                    <span>Lv. 44</span>
+                </div>
+                <div class="exp-bar-bg"><div class="exp-bar-fill"></div></div>
+
+                <!-- 6大意境 -->
+                <div class="stat-grid" id="ui-stats-grid">
+                    <!-- JS动态填充 -->
+                </div>
+
+                <!-- 核心四维 -->
+                <div class="core-four" id="ui-core-four">
+                    <div>气血<span style="color:#aaa;font-size:12px;font-weight:normal;">(HP)</span><b id="ui-hp">3000</b></div>
+                    <div>攻击<span style="color:#aaa;font-size:12px;font-weight:normal;">(ATK)</span><b id="ui-atk">400</b></div>
+                    <div>防御<span style="color:#aaa;font-size:12px;font-weight:normal;">(DEF)</span><b id="ui-def">200</b></div>
+                    <div>速度<span style="color:#aaa;font-size:12px;font-weight:normal;">(SPD)</span><b id="ui-spd">10</b></div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:15px;">
+                    <div class="inv-header" style="margin:0; width:100%;">
+                        <div class="back-btn" style="background:#3498db; text-align:center; width:100%;" onclick="openInventory()">🎒 打开全屏背包</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- 标签页 -->
-            <div class="cp-tabs">
-                <div class="cp-tab active">人物</div>
-                <div class="cp-tab">装备</div>
-                <div class="cp-tab">武学</div>
-                <div class="cp-tab">经脉</div>
-            </div>
+            <!-- 展开右侧详细属性的按钮 -->
+            <div class="expand-btn" id="expand-btn" onclick="toggleDetailPanel()">▶</div>
+        </div>
 
-            <!-- 新增：6大意境 -->
-            <div class="cp-attr-section">
-                <div class="cp-attr-title">六大意境 (主属性)</div>
-                <div class="cp-attr-grid" id="panel-stats-grid">
-                    <!-- 动态注入 -->
+        <!-- 右侧：详细属性（默认隐藏） -->
+        <div id="right-panel">
+            <div class="detail-section">
+                <div class="detail-title">【攻伐】</div>
+                <div class="detail-grid" id="detail-atk">
+                    <!-- 动态填充 -->
                 </div>
             </div>
-
-            <!-- 计算后的显示属性 -->
-            <div class="cp-attr-section">
-                <div class="cp-attr-title">最终属性 (含装备加成)</div>
-                <div class="cp-attr-grid" id="panel-attrs-grid">
-                    <!-- 动态注入 -->
+            <div class="detail-section">
+                <div class="detail-title">【守御】</div>
+                <div class="detail-grid" id="detail-def">
+                    <!-- 动态填充 -->
+                </div>
+            </div>
+            <div class="detail-section">
+                <div class="detail-title">【克制与特殊】</div>
+                <div class="detail-grid" id="detail-special">
+                    <!-- 动态填充 -->
                 </div>
             </div>
         </div>
+
+        <!-- ================= 全屏背包层（覆盖在最上方） ================= -->
+        <div id="inventory-view">
+            <div class="inv-header">
+                <h2>🎒 背包 (200格上限)</h2>
+                <div class="back-btn" onclick="closeInventory()">关闭返回</div>
+            </div>
+            
+            <div class="inv-grid" id="inv-grid-container">
+                <!-- JS动态生成200个格子 -->
+            </div>
+
+            <!-- 装备详情悬浮卡 -->
+            <div id="item-tooltip"></div>
+        </div>
     </div>
+
 
     <!-- 引入 Phaser 引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     
+    <!-- 你的游戏脚本 -->
     <script src="data.js"></script>
     <script src="team.js"></script>
     <script src="battle.js"></script>
 
-    <!-- 面板控制与计算逻辑 -->
+    <!-- 新版全屏 UI 控制逻辑 -->
     <script>
-        function applyUIConfig() {
-            try {
-                const configStr = localStorage.getItem('my_game_ui_config');
-                if (configStr) {
-                    const config = JSON.parse(configStr);
-                    const box = document.getElementById('char-panel-box');
-                    if (config.bgImage && config.bgImage.trim() !== '') box.style.backgroundImage = `url('${config.bgImage}')`;
-                    else box.style.backgroundImage = 'none';
-                    if (config.bgColor) box.style.backgroundColor = config.bgColor;
-                    if (config.borderColor) box.style.borderColor = config.borderColor;
-                }
-            } catch (e) { console.error("读取UI配置失败", e); }
+        let currentChar = null;
+        let currentUnit = null;
+        let isDetailExpanded = false;
+
+        // 1. 打开主界面
+        function openCharacterUI() {
+            // 默认取第一个玩家角色
+            currentChar = CHARACTERS.find(c => c.side === 'player') || CHARACTERS[0];
+            if (!currentChar) return alert("编辑器里没有角色！");
+            
+            // 实例化 Unit 获取计算后的最终属性
+            currentUnit = new Unit(currentChar);
+
+            // 填充左侧基础信息
+            document.getElementById('ui-char-name').innerText = currentChar.name;
+            document.getElementById('ui-hp').innerText = currentUnit.maxHp;
+            document.getElementById('ui-atk').innerText = currentUnit.atk;
+            document.getElementById('ui-def').innerText = currentUnit.def;
+            document.getElementById('ui-spd').innerText = currentUnit.speed.toFixed(1);
+
+            // 填充意境数值
+            const stats = currentChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+            document.getElementById('ui-stats-grid').innerHTML = `
+                <div class="stat-item"><span>锋锐</span> <b>${stats.fengRui}</b></div>
+                <div class="stat-item"><span>浑厚</span> <b>${stats.hunHou}</b></div>
+                <div class="stat-item"><span>灵动</span> <b>${stats.lingDong}</b></div>
+                <div class="stat-item"><span>坚韧</span> <b>${stats.jianRen}</b></div>
+                <div class="stat-item"><span>诡秘</span> <b>${stats.guiMi}</b></div>
+                <div class="stat-item"><span>绝情</span> <b>${stats.jueQing}</b></div>
+            `;
+
+            // 填充右侧详细属性
+            document.getElementById('detail-atk').innerHTML = `
+                <div class="detail-item"><span>攻击力</span> <b>${currentUnit.atk}</b></div>
+                <div class="detail-item"><span>破甲</span> <b>0%</b></div>
+                <div class="detail-item"><span>暴击率</span> <b>${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
+                <div class="detail-item"><span>暴击伤害</span> <b>${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
+                <div class="detail-item"><span>命中率</span> <b>${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
+            `;
+            document.getElementById('detail-def').innerHTML = `
+                <div class="detail-item"><span>气血上限</span> <b>${currentUnit.maxHp}</b></div>
+                <div class="detail-item"><span>防御力</span> <b>${currentUnit.def}</b></div>
+                <div class="detail-item"><span>闪避率</span> <b>${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
+                <div class="detail-item"><span>韧性(抗暴)</span> <b>${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
+            `;
+            document.getElementById('detail-special').innerHTML = `
+                <div class="detail-item"><span>吸血</span> <b>${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
+                <div class="detail-item"><span>内力恢复</span> <b>+10% / 回合</b></div>
+                <div class="detail-item"><span>火抗性</span> <b>0%</b></div>
+                <div class="detail-item"><span>冰抗性</span> <b>0%</b></div>
+            `;
+
+            // 显示全屏 UI
+            document.getElementById('fullscreen-ui').style.display = 'flex';
         }
 
-        function openCharPanel() {
-            applyUIConfig();
+        // 2. 关闭主界面
+        function closeCharacterUI() {
+            document.getElementById('fullscreen-ui').style.display = 'none';
+            document.getElementById('inventory-view').style.display = 'none';
+            document.getElementById('item-tooltip').style.display = 'none';
+        }
+
+        // 3. 展开/折叠右侧详细属性
+        function toggleDetailPanel() {
+            isDetailExpanded = !isDetailExpanded;
+            const rightPanel = document.getElementById('right-panel');
+            const btn = document.getElementById('expand-btn');
             
-            // 获取第一个玩家角色进行展示
-            const char = CHARACTERS.find(c => c.side === 'player') || CHARACTERS[0];
-            if (!char) {
-                alert("还没有角色，请去编辑器添加！");
-                return;
+            if (isDetailExpanded) {
+                rightPanel.style.display = 'block';
+                btn.innerText = '◀';
+            } else {
+                rightPanel.style.display = 'none';
+                btn.innerText = '▶';
+            }
+        }
+
+        // 4. 打开/关闭全屏背包
+        function openInventory() {
+            renderInventoryGrid();
+            document.getElementById('inventory-view').style.display = 'flex';
+        }
+        function closeInventory() {
+            document.getElementById('inventory-view').style.display = 'none';
+            document.getElementById('item-tooltip').style.display = 'none';
+        }
+
+        // 5. 渲染200格背包网格
+        function renderInventoryGrid() {
+            const grid = document.getElementById('inv-grid-container');
+            grid.innerHTML = '';
+            
+            const TOTAL_SLOTS = 200;
+            // 获取玩家背包里的物品
+            const playerItems = INVENTORY.filter(i => !i.equippedBy || i.equippedBy === '');
+
+            const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+
+            for (let i = 0; i < TOTAL_SLOTS; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'inv-slot';
+
+                // 如果这个格子有道具
+                if (playerItems[i]) {
+                    const inst = playerItems[i];
+                    const itemTpl = ITEMS[inst.itemId];
+                    if (itemTpl) {
+                        slot.innerHTML = `
+                            <div class="item-icon" style="border-bottom: 2px solid ${qColors[inst.quality]}">${itemTpl.icon || '📦'}</div>
+                            <div class="item-name" style="color:${qColors[inst.quality]}">${itemTpl.name}</div>
+                        `;
+                        
+                        // 悬停/点击 显示详情
+                        slot.onmouseenter = (e) => showTooltip(e, inst, itemTpl);
+                        slot.onmouseleave = () => { document.getElementById('item-tooltip').style.display = 'none'; };
+                        slot.onclick = (e) => showTooltip(e, inst, itemTpl); // 手机端点击看详情
+                    }
+                } else {
+                    // 空格子
+                    slot.innerHTML = `<div style="color:#333;">空</div>`;
+                }
+                grid.appendChild(slot);
+            }
+        }
+
+        // 6. 装备详情悬浮卡（带红绿字对比）
+        function showTooltip(event, inst, itemTpl) {
+            const tooltip = document.getElementById('item-tooltip');
+            
+            // 基础信息
+            let html = `
+                <div class="tt-title" style="color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
+                <div style="font-size:12px; color:#888;">${itemTpl.category === 'weapon' ? '武器' : itemTpl.category === 'armor' ? '防具' : '饰品'}</div>
+                <div class="tt-stats">
+            `;
+
+            // 对比逻辑
+            // 找出当前角色身上同部位穿着的装备
+            let equippedInst = null;
+            if (currentChar && currentChar.equipment && currentChar.equipment[itemTpl.category]) {
+                const eqUid = currentChar.equipment[itemTpl.category];
+                equippedInst = INVENTORY.find(i => i.uid === eqUid);
             }
 
-            document.getElementById('panel-name').innerText = char.name;
-            document.getElementById('panel-emoji').innerText = char.emoji;
+            // 收集对比数值
+            const compareStats = (statName, currentVal, newVal, isPercent = false) => {
+                let diff = newVal - currentVal;
+                let diffStr = '';
+                if (diff > 0) diffStr = ` <span class="tt-diff-up">(▲ +${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
+                else if (diff < 0) diffStr = ` <span class="tt-diff-down">(▼ ${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
+                
+                let newValStr = isPercent ? (newVal*100).toFixed(1)+'%' : newVal;
+                return `<div class="tt-row"><span>${statName}</span> <span class="tt-base">${newValStr}${diffStr}</span></div>`;
+            };
 
-            // 1. 渲染6大意境
-            const stats = char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
-            document.getElementById('panel-stats-grid').innerHTML = `
-                <div class="cp-attr-item"><span style="color:#e67e22;">锋锐 (攻击)</span> <b>${stats.fengRui}</b></div>
-                <div class="cp-attr-item"><span style="color:#e74c3c;">浑厚 (气血)</span> <b>${stats.hunHou}</b></div>
-                <div class="cp-attr-item"><span style="color:#2ecc71;">灵动 (速度/闪避)</span> <b>${stats.lingDong}</b></div>
-                <div class="cp-attr-item"><span style="color:#3498db;">坚韧 (防御/韧性)</span> <b>${stats.jianRen}</b></div>
-                <div class="cp-attr-item"><span style="color:#9b59b6;">诡秘 (命中/暴伤)</span> <b>${stats.guiMi}</b></div>
-                <div class="cp-attr-item"><span style="color:#f1c40f;">绝情 (暴击)</span> <b>${stats.jueQing}</b></div>
-            `;
+            // 基础三围对比
+            let eqAtk = equippedInst ? equippedInst.baseAtk || 0 : 0;
+            let eqDef = equippedInst ? equippedInst.baseDef || 0 : 0;
+            let eqHp = equippedInst ? equippedInst.baseHp || 0 : 0;
 
-            // 2. 创建临时 Unit 实例并计算最终属性（复用 battle.js 里的计算逻辑）
-            const unit = new Unit(char);
+            if (inst.baseAtk || eqAtk) html += compareStats('攻击力', eqAtk, inst.baseAtk || 0);
+            if (inst.baseDef || eqDef) html += compareStats('防御力', eqDef, inst.baseDef || 0);
+            if (inst.baseHp || eqHp) html += compareStats('生命值', eqHp, inst.baseHp || 0);
 
-            // 3. 渲染最终属性
-            document.getElementById('panel-attrs-grid').innerHTML = `
-                <div class="cp-attr-item"><span>气血</span> <b>${unit.maxHp}</b></div>
-                <div class="cp-attr-item"><span>内力</span> <b>100%</b></div>
-                <div class="cp-attr-item"><span>攻击</span> <b>${unit.atk}</b></div>
-                <div class="cp-attr-item"><span>防御</span> <b>${unit.def}</b></div>
-                <div class="cp-attr-item"><span>速度</span> <b>${unit.speed}</b></div>
-                <div class="cp-attr-item"><span>暴击率</span> <b>${(unit.critRate * 100).toFixed(1)}%</b></div>
-                <div class="cp-attr-item"><span>暴击伤害</span> <b>${(unit.critDmg * 100).toFixed(1)}%</b></div>
-                <div class="cp-attr-item"><span>闪避率</span> <b>${(unit.dodgeRate * 100).toFixed(1)}%</b></div>
-                <div class="cp-attr-item"><span>命中率</span> <b>${(unit.hitRate * 100).toFixed(1)}%</b></div>
-                <div class="cp-attr-item"><span>抗暴率(韧性)</span> <b>${(unit.critResist * 100).toFixed(1)}%</b></div>
-            `;
+            // 词条对比
+            if (inst.extras && inst.extras.length > 0) {
+                html += `<div style="border-top:1px dashed #444; margin:5px 0;"></div>`;
+                const statNames = { 
+                    atkPercent: '攻击力', defPercent: '防御力', hpPercent: '生命值', 
+                    critRate: '暴击率', critDmg: '暴击伤害', critResist: '抗暴率', 
+                    hitRate: '命中率', dodgeRate: '闪避率', lifesteal: '吸血', speed: '速度' 
+                };
+                inst.extras.forEach(ex => {
+                    let eqVal = 0;
+                    if (equippedInst && equippedInst.extras) {
+                        const eqEx = equippedInst.extras.find(e => e.stat === ex.stat);
+                        if (eqEx) eqVal = eqEx.value;
+                    }
+                    let isPct = ex.stat.includes('Percent') || ['critRate','critDmg','critResist','hitRate','dodgeRate','lifesteal'].includes(ex.stat);
+                    html += compareStats(statNames[ex.stat] || ex.stat, eqVal, ex.value, isPct);
+                });
+            }
 
-            document.getElementById('char-panel-overlay').style.display = 'flex';
+            html += `</div>`;
+            tooltip.innerHTML = html;
+            tooltip.style.display = 'block';
+
+            // 计算位置（防止超出屏幕）
+            let clientX = event.clientX || event.touches[0].clientX;
+            let clientY = event.clientY || event.touches[0].clientY;
+            
+            let x = clientX + 15;
+            let y = clientY + 15;
+            if (x + 280 > window.innerWidth) x = clientX - 290;
+            if (y + 200 > window.innerHeight) y = clientY - 200;
+
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
         }
 
-        function closeCharPanel(e) {
-            if (e && e.target.id === 'char-panel-box') return;
-            document.getElementById('char-panel-overlay').style.display = 'none';
+        function getQualityColor(q) {
+            const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+            return qc[q] || '#fff';
         }
     </script>
 </body>
