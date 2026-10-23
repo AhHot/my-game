@@ -1,4 +1,14 @@
 // ==========================================
+// 全局配置更新为横屏
+// ==========================================
+// 注意：这里覆盖了原来的 CONFIG.WIDTH 等，因为我们要在全文件统一用横屏
+if (typeof CONFIG === 'object') {
+  CONFIG.WIDTH = 1280;
+  CONFIG.HEIGHT = 720;
+  CONFIG.CELL_SIZE = 110; // 横屏下格子稍微缩小一点点
+}
+
+// ==========================================
 // 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
@@ -58,12 +68,10 @@ class Unit {
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
-    // 过滤出自身的被动
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
     
-    // 应用自身被动
     this.passives.forEach(sk => {
-      if (sk.isAura) return; // 光环不在初始化时应用给自己
+      if (sk.isAura) return; 
       if (sk.passiveType === 'atkAdd') { this.atk += this.baseAtk * sk.passiveValue; this.baseAtk += this.baseAtk * sk.passiveValue; }
       if (sk.passiveType === 'hpAdd') this.maxHp += this.maxHp * sk.passiveValue;
       if (sk.passiveType === 'defAdd') { this.def += this.baseDef * sk.passiveValue; this.baseDef += this.baseDef * sk.passiveValue; }
@@ -91,29 +99,23 @@ class Unit {
   reduceCooldowns() { for (let key in this.cooldowns) { if (this.cooldowns[key] > 0) this.cooldowns[key]--; } }
   resetFollowups() { this.followupCounts = {}; }
 
-  // 重新计算所有光环（每次轮到自己行动前或者布阵完调用）
   applyAura(allUnits) {
-    // 先把所有属性重置为基础值
     this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
     
-    // 遍历场上所有友方单位的光环
     allUnits.forEach(ally => {
       if (ally.side !== this.side || !ally.isAlive()) return;
       ally.passives.forEach(sk => {
         if (!sk.isAura) return;
-        
-        // 计算曼哈顿距离 (忽略体积，仅按中心点算)
         const dist = Math.abs(ally.gridX - this.gridX) + Math.abs(ally.gridY - this.gridY);
         if (dist <= sk.auraRange) {
           if (sk.passiveType === 'atkAdd') this.atk += this.baseAtk * sk.passiveValue;
-          if (sk.passiveType === 'hpAdd') this.maxHp += this.baseHp * sk.passiveValue; // 注意上限变化
+          if (sk.passiveType === 'hpAdd') this.maxHp += this.baseHp * sk.passiveValue;
           if (sk.passiveType === 'defAdd') this.def += this.baseDef * sk.passiveValue;
           if (sk.passiveType === 'speedAdd') this.speed += this.baseSpeed * sk.passiveValue;
         }
       });
     });
 
-    // 应用 Debuff 修正
     this.statuses.forEach(st => {
       const config = STATUSES[st.id]; if (!config) return;
       if (config.statMod === 'atk') this.atk += this.baseAtk * config.statValue;
@@ -124,7 +126,6 @@ class Unit {
     this.atk = Math.max(1, Math.floor(this.atk)); 
     this.def = Math.max(0, Math.floor(this.def)); 
     this.speed = Math.max(1, Math.floor(this.speed));
-    // 血量上限如果变了，不能超过
     if (this.hp > this.maxHp) this.hp = this.maxHp;
   }
   
@@ -276,7 +277,25 @@ function generateRandomInstance(templateId) {
 }
 
 // ==========================================
-// 场景 1：战前布阵
+// 场景 0：主菜单
+// ==========================================
+class MainMenuScene extends Phaser.Scene {
+  constructor() { super('MainMenuScene'); }
+  create() {
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    this.add.text(CONFIG.WIDTH / 2, 200, '中大型策略战棋', { fontSize: '64px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, 280, 'Main Menu & Strategy RPG', { fontSize: '24px', color: '#aaa' }).setOrigin(0.5);
+
+    const startBtn = this.add.text(CONFIG.WIDTH / 2, 500, '⚔️ 开始推图', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
+    startBtn.on('pointerdown', () => { this.scene.start('FormationScene', { levelIndex: 0 }); });
+    
+    const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '20px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
+  }
+}
+
+// ==========================================
+// 场景 1：战前布阵（横屏重构）
 // ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
@@ -285,22 +304,23 @@ class FormationScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
-    const gridLeft = (CONFIG.WIDTH - gridW) / 2, gridTop = 180, standbyTop = 680; 
+    
+    // 横屏布局：左边待命，右边网格
+    const standbyLeft = 50;
+    const gridLeft = CONFIG.WIDTH / 2 + 50;
+    const gridTop = 150;
 
     const levelData = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(10, 10, `版本: v10.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(20, 20, `版本: v11.0.0 | 当前: ${levelData.name}`, { fontSize: '16px', color: '#00ff00' });
     
-    const editBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#ffffff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
-    editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
-
-    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 65, '🔄 强刷', { fontSize: '18px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#ffffff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
 
-    const teamBtn = this.add.text(CONFIG.WIDTH - 20, 110, '👥 队伍与装备', { fontSize: '18px', color: '#ffffff', backgroundColor: '#9b59b6', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    const teamBtn = this.add.text(CONFIG.WIDTH - 20, 65, '👥 队伍与装备', { fontSize: '18px', color: '#ffffff', backgroundColor: '#9b59b6', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     teamBtn.on('pointerdown', () => { this.scene.start('TeamScene', { levelIndex: this.currentLevelIndex }); });
 
-    this.countText = this.add.text(CONFIG.WIDTH / 2, 150, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(CONFIG.WIDTH / 2, 60, '战前布阵', { fontSize: '42px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
+    this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#ffffff', fontStyle: 'bold' }).setOrigin(0.5);
 
     const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
     for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
@@ -309,10 +329,11 @@ class FormationScene extends Phaser.Scene {
     }
 
     const standbyBg = this.add.graphics(); standbyBg.fillStyle(0x16213e, 0.8);
-    standbyBg.fillRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10);
-    standbyBg.lineStyle(2, 0x3498DB, 0.5); standbyBg.strokeRoundedRect(20, standbyTop - 20, CONFIG.WIDTH - 40, 300, 10);
+    standbyBg.fillRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
+    standbyBg.lineStyle(2, 0x3498DB, 0.5); standbyBg.strokeRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
+    this.add.text(standbyLeft, 110, '待命区', { fontSize: '20px', color: '#aaa' });
 
-    const startBtn = this.add.text(CONFIG.WIDTH / 2, 1180, '⚔️ 开始战斗', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
+    const startBtn = this.add.text(CONFIG.WIDTH - 150, CONFIG.HEIGHT - 60, '⚔️ 开始战斗', { fontSize: '36px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive();
     startBtn.on('pointerdown', () => { 
       const playersCount = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
       if (playersCount === 0) { alert("至少需要上阵1名角色！"); return; }
@@ -325,7 +346,6 @@ class FormationScene extends Phaser.Scene {
 
     this.unitContainers = [];
     playerChars.forEach(data => {
-      // 暂时玩家还是 1x1，如果有 2x2 玩家，这里的渲染和拖拽逻辑需要大幅修改
       const container = this.add.container(0, 0);
       const circle = this.add.circle(0, 0, 42, ELEMENTS[data.element].color).setStrokeStyle(3, 0xffffff, 0.9);
       const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
@@ -351,27 +371,29 @@ class FormationScene extends Phaser.Scene {
           }
           if (container.isOnGrid) { container.x = gridLeft + data.gridX * cell + cell / 2; container.y = gridTop + data.gridY * cell + cell / 2; }
         } else { data.gridX = -1; data.gridY = -1; container.isOnGrid = false; }
-        this.layoutStandby(standbyTop);
+        this.layoutStandby(standbyLeft);
       });
     });
-    this.layoutStandby(standbyTop);
+    this.layoutStandby(standbyLeft);
   }
 
-  layoutStandby(standbyTop) {
+  // 横屏待命区排版：自动换行
+  layoutStandby(standbyLeft) {
     const standbyContainers = this.unitContainers.filter(c => !c.isOnGrid);
     const cCount = this.unitContainers.filter(c => c.isOnGrid).length;
     this.countText.setText(`当前上阵: ${cCount} / 5`).setColor(cCount >= 5 ? '#e74c3c' : '#f1c40f');
-    const cols = 4, cellW = 140, cellH = 120, startX = (CONFIG.WIDTH - (cols - 1) * cellW) / 2;
+    
+    const cols = 4, cellW = 120, cellH = 120;
     standbyContainers.forEach((container, index) => {
-      const targetX = startX + (index % cols) * cellW;
-      const targetY = standbyTop + 50 + Math.floor(index / cols) * cellH; 
+      const targetX = standbyLeft + 40 + (index % cols) * cellW;
+      const targetY = 180 + Math.floor(index / cols) * cellH; 
       this.tweens.add({ targets: container, x: targetX, y: targetY, duration: 200, ease: 'Cubic.easeOut' });
     });
   }
 }
 
 // ==========================================
-// 场景 2：战斗表现
+// 场景 2：战斗表现（横屏重构）
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
@@ -381,14 +403,14 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
-    const speedBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
+    const speedBtn = this.add.text(CONFIG.WIDTH / 2 - 150, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     speedBtn.on('pointerdown', () => {
       this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
       speedBtn.setText(`⏩ ${this.speedMultiplier}x 速度`);
       speedBtn.setBackgroundColor(this.speedMultiplier === 2 ? '#e67e22' : '#2980b9');
     });
 
-    const skipBtn = this.add.text(150, 20, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
+    const skipBtn = this.add.text(CONFIG.WIDTH - 20, 20, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive().setDepth(200);
     skipBtn.on('pointerdown', () => { 
       if (this.isSkipping || this.battleEnded) return; 
       this.isSkipping = true; 
@@ -399,7 +421,6 @@ class BattleScene extends Phaser.Scene {
     const activeFighters = [];
     CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => activeFighters.push({...c}));
     
-    // ★ 读取 4x4 网格配置
     if (levelData.enemyGrid) {
       levelData.enemyGrid.forEach((enemyId, idx) => {
         if (!enemyId) return;
@@ -417,15 +438,13 @@ class BattleScene extends Phaser.Scene {
 
     activeFighters.forEach(data => { const unit = new Unit(data); this.allUnits.push(unit); });
     
-    // ★ 初始光环结算
     this.allUnits.forEach(u => u.applyAura(this.allUnits));
-
-    // 渲染单位
     this.allUnits.forEach(unit => this.createUnitView(unit));
     
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
     
-    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 620, 640, 80, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
+    // 战报在正下方居中
+    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 620, 600, 80, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
     this.logHistory = []; 
     this.logTexts = [];   
 
@@ -434,12 +453,25 @@ class BattleScene extends Phaser.Scene {
 
   drawBattlefield() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
-    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE, gridLeft = (CONFIG.WIDTH - gridW) / 2;
-    this.drawGrid(gridLeft, 70, cell, 0xE74C3C, 0.2); this.drawGrid(gridLeft, 700, cell, 0x3498DB, 0.2);
-    this.add.rectangle(CONFIG.WIDTH / 2, 660, CONFIG.WIDTH - 100, 2, 0xffffff, 0.15);
-    this.add.text(gridLeft + gridW + 10, 74, '敌方', { fontSize: '20px', color: '#E74C3C' });
-    this.add.text(gridLeft + gridW + 10, 704, '我方', { fontSize: '20px', color: '#3498DB' });
+    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
+    
+    // 横屏左右对峙
+    const enemyGridLeft = 100;
+    const playerGridLeft = CONFIG.WIDTH - 100 - gridW;
+    const gridTop = 150;
+
+    this.drawGrid(enemyGridLeft, gridTop, cell, 0xE74C3C, 0.2); 
+    this.drawGrid(playerGridLeft, gridTop, cell, 0x3498DB, 0.2);
+    
+    this.add.text(enemyGridLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#E74C3C' });
+    this.add.text(playerGridLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#3498DB' });
+    
+    // 记录一下网格坐标，供 getUnitScreenPosition 使用
+    this.enemyGridLeft = enemyGridLeft;
+    this.playerGridLeft = playerGridLeft;
+    this.gridTop = gridTop;
   }
+  
   drawGrid(x, y, cell, color, alpha) {
     const g = this.add.graphics(); g.lineStyle(2, color, alpha);
     for (let i = 0; i <= CONFIG.GRID_SIZE; i++) { g.lineBetween(x, y + i * cell, x + CONFIG.GRID_SIZE * cell, y + i * cell); g.lineBetween(x + i * cell, y, x + i * cell, y + CONFIG.GRID_SIZE * cell); }
@@ -449,13 +481,12 @@ class BattleScene extends Phaser.Scene {
     const pos = this.getUnitScreenPosition(unit);
     const container = this.add.container(pos.x, pos.y);
     
-    // ★ 如果占格大于 1，缩放头像并居中
     const scaleFactor = (unit.sizeX > 1 || unit.sizeY > 1) ? 1.2 : 1.0;
     const offsetX = (unit.sizeX - 1) * CONFIG.CELL_SIZE / 2;
     const offsetY = (unit.sizeY - 1) * CONFIG.CELL_SIZE / 2;
     container.x += offsetX;
-    // 对于敌方，因为 Y 轴是倒序的，需要反向偏移
-    if (unit.side === 'enemy') container.y -= offsetY; else container.y += offsetY;
+    // 敌方Y轴是从上往下排的，所以大体积偏移要向下
+    container.y += offsetY;
 
     const circle = this.add.circle(0, 0, 42 * scaleFactor, ELEMENTS[unit.element].color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (48 * scaleFactor) + 'px' }).setOrigin(0.5);
@@ -483,10 +514,17 @@ class BattleScene extends Phaser.Scene {
     this.unitViews.set(unit, { container, circle, emoji, hpBar, shieldBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
+  
   getUnitScreenPosition(unit) {
-    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE, gridLeft = (CONFIG.WIDTH - gridW) / 2;
-    let x = gridLeft + unit.gridX * cell + cell / 2;
-    let y = unit.side === 'enemy' ? 70 + (CONFIG.GRID_SIZE - 1 - unit.gridY) * cell + cell / 2 : 700 + unit.gridY * cell + cell / 2;
+    const cell = CONFIG.CELL_SIZE;
+    let x, y;
+    if (unit.side === 'enemy') {
+      x = this.enemyGridLeft + unit.gridX * cell + cell / 2;
+      y = this.gridTop + unit.gridY * cell + cell / 2;
+    } else {
+      x = this.playerGridLeft + unit.gridX * cell + cell / 2;
+      y = this.gridTop + unit.gridY * cell + cell / 2;
+    }
     return { x, y };
   }
   
@@ -528,7 +566,6 @@ class BattleScene extends Phaser.Scene {
     const actor = this.actionOrder[this.actionIndex++];
     if (!actor.isAlive()) return this.time.delayedCall(80 / this.speedMultiplier, () => this.nextAction());
     
-    // ★ 每次行动前重新计算光环
     this.allUnits.forEach(u => u.applyAura(this.allUnits));
     this.allUnits.forEach(u => this.updateUnitView(u));
 
@@ -768,7 +805,7 @@ class BattleScene extends Phaser.Scene {
 
     this.logHistory.forEach((log, index) => {
       const yPos = 645 - (index * 20); 
-      const txt = this.add.text(50, yPos, log.text, { fontSize: '16px', color: log.color, stroke: '#000', strokeThickness: 2 });
+      const txt = this.add.text(360, yPos, log.text, { fontSize: '16px', color: log.color, stroke: '#000', strokeThickness: 2 });
       txt.setDepth(51); 
       this.logTexts.push(txt);
     });
@@ -893,7 +930,7 @@ class ResultScene extends Phaser.Scene {
 }
 
 window.addEventListener('storage', (e) => {
-  if (e.key === 'my_game_data_v18') {
+  if (e.key === 'my_game_data_v19') {
     const confirmReload = confirm("检测到编辑器数据更新，是否立即刷新游戏查看效果？");
     if (confirmReload) window.location.reload();
   }
@@ -902,5 +939,5 @@ window.addEventListener('storage', (e) => {
 new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-  scene: [FormationScene, BattleScene, TeamScene, ResultScene],
+  scene: [MainMenuScene, FormationScene, BattleScene, TeamScene, ResultScene],
 });
