@@ -57,11 +57,19 @@
     table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
     th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #222; }
     input[type="color"] { padding: 0; height: 30px; cursor: pointer; }
+
+    .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+    .checkbox-item { display: flex; align-items: center; gap: 4px; background: #0f0f1a; padding: 4px 8px; border-radius: 4px; border: 1px solid #333; cursor: pointer; font-size: 12px; }
+    .checkbox-item input { width: auto; }
+    
+    .drop-rate-row { display: flex; align-items: center; gap: 10px; background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
+    .drop-rate-label { width: 80px; font-weight: bold; }
+    .drop-rate-calc { width: 80px; text-align: right; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (v12.6 装备掉落版)</h1>
+  <h1>⚙️ 配置中心 (v12.8 掉落辅助版)</h1>
   
   <div class="tabs">
     <div class="tab active" onclick="switchTab('char')">👾 角色</div>
@@ -128,12 +136,18 @@
       <div id="global-config-fields" class="form-grid"></div>
     </div>
 
-    <!-- 新增：装备掉落配置 -->
     <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 装备掉落配置</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">调整各品质的掉落区间、基础属性倍率、额外词条数量。（概率区间必须从 0 覆盖到 100）</p>
+      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 装备掉落与词条池</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">调整各品质的掉落区间。实际概率 = 上限 - 下限。区间需首尾相连。</p>
       <div id="drop-rate-fields"></div>
-      <button class="btn" style="background:#e74c3c; width:100%; margin-top:10px;" onclick="resetDropRates()">恢复掉落默认值</button>
+      
+      <div class="sub-title" style="margin-top:20px;">防具可随机出的词条</div>
+      <div id="affix-pool-armor" class="checkbox-group"></div>
+
+      <div class="sub-title" style="margin-top:20px;">武器/饰品 可随机出的词条</div>
+      <div id="affix-pool-weapon" class="checkbox-group"></div>
+
+      <button class="btn" style="background:#e74c3c; width:100%; margin-top:15px;" onclick="resetDropRates()">恢复掉落默认值</button>
     </div>
 
     <div class="card">
@@ -175,7 +189,6 @@
   </div>
 
   <script>
-    // 完整兜底数据
     const DEFAULT_CHARS = [
       { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
       { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', armor: '', accessory: '' } },
@@ -203,7 +216,7 @@
     ];
 
     const DEFAULT_LEVELS = [ 
-      { id: 'lv_1', name: '第 1 关', enemyList: [] } 
+      { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '' } 
     ];
 
     const DEFAULT_DROP_RATES = [
@@ -215,6 +228,24 @@
       { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
     ];
 
+    const DEFAULT_AFFIX_POOLS = {
+      weapon: ['atkPercent','critRate','critDmg','lifesteal','hitRate','speed'],
+      armor: ['hpPercent','defPercent','critResist','dodgeRate','speed']
+    };
+
+    const ALL_AFFIX_STATS = [
+      { id: 'atkPercent', name: '攻击力%' },
+      { id: 'defPercent', name: '防御力%' },
+      { id: 'hpPercent', name: '生命值%' },
+      { id: 'critRate', name: '暴击率' },
+      { id: 'critDmg', name: '暴击伤害' },
+      { id: 'critResist', name: '抗暴率' },
+      { id: 'hitRate', name: '命中率' },
+      { id: 'dodgeRate', name: '闪避率' },
+      { id: 'lifesteal', name: '吸血' },
+      { id: 'speed', name: '速度' }
+    ];
+
     const DEFAULT_GLOBAL_CONFIG = {
       config: {
         WIDTH: 1280, HEIGHT: 720, MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
@@ -222,6 +253,7 @@
         MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0, HIT_RATE_MIN: 0.2, HIT_RATE_MAX: 1.0
       },
       dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
+      affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
       elements: [
         { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
         { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
@@ -266,6 +298,7 @@
     }
     if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
     if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
+    if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
     if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
     if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
     let editingElementIds = new Set();
@@ -302,16 +335,14 @@
       const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
       const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
 
-      const WEAPON_ACC_POOL = ['atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'];
-      const ARMOR_POOL = ['hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'];
-      const pool = template.category === 'armor' ? ARMOR_POOL : WEAPON_ACC_POOL;
+      let pool = template.category === 'armor' ? [...globalData.affixPools.armor] : [...globalData.affixPools.weapon];
       
-      let tempPool = [...pool];
       const extras = [];
       for (let i = 0; i < extraCount; i++) {
-        if(tempPool.length === 0) break;
-        const idx = Math.floor(Math.random() * tempPool.length);
-        const stat = tempPool.splice(idx, 1)[0];
+        if(pool.length === 0) break;
+        const idx = Math.floor(Math.random() * pool.length);
+        const stat = pool.splice(idx, 1)[0];
+        
         let val = 0;
         if (stat === 'speed') val = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
         else if (stat === 'lifesteal') val = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
@@ -322,7 +353,13 @@
       }
 
       const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
-      extraKeys.forEach(k => { if (template[k] && template[k] !== 0) extras.push({ stat: k, value: template[k] / 100 }); });
+      extraKeys.forEach(k => { 
+        if (template[k] && template[k] !== 0) {
+          const exIdx = extras.findIndex(e => e.stat === k);
+          if (exIdx !== -1) extras.splice(exIdx, 1);
+          extras.push({ stat: k, value: template[k] / 100 }); 
+        }
+      });
 
       return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '' };
     }
@@ -669,11 +706,22 @@
           bgCells += `<div class="bg-cell"></div>`;
         }
 
+        let rewardOptions = `<option value="">无掉落</option>`;
+        gameItems.forEach(it => {
+          rewardOptions += `<option value="${it.id}" ${lv.rewardItemId === it.id ? 'selected' : ''}>${it.icon || ''} ${it.name}</option>`;
+        });
+
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
           <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">删除</button></div>
           <div class="form-grid" style="margin-bottom:15px;">
-            <div class="form-item full"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="updateLevel(${index}, 'name', this.value)"></div>
+            <div class="form-item">
+              <label style="color:#f1c40f;">通关掉落物 (模板)</label>
+              <select onchange="updateLevel(${index}, 'rewardItemId', this.value)">
+                ${rewardOptions}
+              </select>
+            </div>
           </div>
           
           <div class="level-editor-layout">
@@ -864,30 +912,49 @@
         const qNames = { white: '普通 (白)', green: '精良 (绿)', blue: '稀有 (蓝)', purple: '史诗 (紫)', orange: '传说 (橙)', red: '神话 (红)' };
         const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
         
-        dropBox.innerHTML = globalData.dropRates.map((d, i) => `
-          <div style="background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px;">
-            <div style="color:${qColors[d.q] || '#fff'}; font-weight:bold; margin-bottom:8px;">${qNames[d.q] || d.q}</div>
-            <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
-              <div class="form-item">
-                <label>概率下限(%)</label>
-                <input type="number" step="1" value="${d.min}" onchange="globalData.dropRates[${i}].min = parseFloat(this.value)">
-              </div>
-              <div class="form-item">
-                <label>概率上限(%)</label>
-                <input type="number" step="1" value="${d.max}" onchange="globalData.dropRates[${i}].max = parseFloat(this.value)">
-              </div>
-              <div class="form-item">
-                <label>属性倍率</label>
-                <input type="number" step="0.1" value="${d.m}" onchange="globalData.dropRates[${i}].m = parseFloat(this.value)">
-              </div>
-              <div class="form-item">
-                <label>额外词条数</label>
-                <input type="number" step="1" value="${d.n}" onchange="globalData.dropRates[${i}].n = parseInt(this.value)">
-              </div>
+        dropBox.innerHTML = globalData.dropRates.map((d, i) => {
+          const prob = Math.max(0, d.max - d.min);
+          return `
+          <div class="drop-rate-row">
+            <div class="drop-rate-label" style="color:${qColors[d.q] || '#fff'}">${qNames[d.q] || d.q}</div>
+            <div class="form-item" style="flex:1;">
+              <label>概率下限 (%)</label>
+              <input type="number" step="1" value="${d.min}" onchange="updateDropMin(${i}, this.value)">
+            </div>
+            <div class="form-item" style="flex:1;">
+              <label>概率上限 (%)</label>
+              <input type="number" step="1" value="${d.max}" onchange="updateDropMax(${i}, this.value)">
+            </div>
+            <div class="form-item" style="flex:1;">
+              <label>属性倍率</label>
+              <input type="number" step="0.1" value="${d.m}" onchange="globalData.dropRates[${i}].m = parseFloat(this.value)">
+            </div>
+            <div class="form-item" style="flex:1;">
+              <label>额外词条数</label>
+              <input type="number" step="1" value="${d.n}" onchange="globalData.dropRates[${i}].n = parseInt(this.value)">
+            </div>
+            <div class="drop-rate-calc" style="color:#f1c40f;">
+              实际: ${prob}%
             </div>
           </div>
-        `).join('');
+        `}).join('');
       }
+
+      // 渲染词条池
+      ['armor', 'weapon'].forEach(poolType => {
+        const box = document.getElementById(`affix-pool-${poolType}`);
+        if (!box) return;
+        
+        box.innerHTML = ALL_AFFIX_STATS.map(stat => {
+          const checked = globalData.affixPools[poolType].includes(stat.id) ? 'checked' : '';
+          return `
+            <label class="checkbox-item">
+              <input type="checkbox" ${checked} onchange="toggleAffixPool('${poolType}', '${stat.id}', this.checked)">
+              ${stat.name}
+            </label>
+          `;
+        }).join('');
+      });
 
       const elBody = document.getElementById('global-elements-body');
       elBody.innerHTML = globalData.elements.map((el, idx) => {
@@ -942,6 +1009,28 @@
       });
       mHtml += '</tbody>';
       matrixTable.innerHTML = mHtml;
+    }
+
+    function updateDropMin(index, value) {
+      const nv = parseFloat(value);
+      if (isNaN(nv)) return;
+      globalData.dropRates[index].min = nv;
+      renderGlobal(); // 重新渲染以更新计算出的百分比
+    }
+    function updateDropMax(index, value) {
+      const nv = parseFloat(value);
+      if (isNaN(nv)) return;
+      globalData.dropRates[index].max = nv;
+      renderGlobal();
+    }
+
+    function toggleAffixPool(poolType, statId, isChecked) {
+      const pools = globalData.affixPools[poolType];
+      if (isChecked && !pools.includes(statId)) {
+        pools.push(statId);
+      } else if (!isChecked) {
+        globalData.affixPools[poolType] = pools.filter(id => id !== statId);
+      }
     }
 
     function tryRenameElement(idx, newId) {
@@ -1007,6 +1096,7 @@
     function resetDropRates() {
       if (!confirm('确定恢复掉率默认值吗？')) return;
       globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
+      globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
       renderGlobal();
     }
 
@@ -1015,11 +1105,22 @@
         if (isNaN(globalData.config[k])) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
       });
 
-      // 简单校验概率是否覆盖 0-100
-      let sum = 0;
-      globalData.dropRates.forEach(d => { sum += (d.max - d.min); });
-      if (Math.abs(sum - 100) > 1) {
-        alert(`⚠️ 警告：您的掉落概率总区间为 ${sum}%，不是 100%。可能导致某些物品无法掉落。`);
+      // 校验概率是否覆盖 0-100
+      let totalProb = 0;
+      let hasGap = false;
+      let lastMax = 0;
+      
+      const sortedRates = [...globalData.dropRates].sort((a, b) => a.min - b.min);
+      sortedRates.forEach(d => {
+        if (Math.abs(d.min - lastMax) > 0.01) hasGap = true;
+        totalProb += Math.max(0, d.max - d.min);
+        lastMax = d.max;
+      });
+
+      if (hasGap) {
+        alert(`⚠️ 警告：您的掉落概率区间没有首尾相连（有断裂或重叠）。\n请检查：每一档的“下限”必须等于上一档的“上限”。`);
+      } else if (Math.abs(totalProb - 100) > 0.1 || Math.abs(lastMax - 100) > 0.1) {
+        alert(`⚠️ 警告：您的总概率为 ${totalProb}%，且最后一档上限为 ${lastMax}。\n请确保总概率加起来等于 100%。`);
       }
       
       localStorage.setItem('my_game_config', JSON.stringify(globalData));
@@ -1122,7 +1223,7 @@
     function addItem() { gameItems.push({ id:'item_'+Date.now(), name:'新物品', category:subTab.item, icon:'📦', desc:'', atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 }); saveData(); render(); }
     function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); render(); } }
     
-    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [] }); saveData(); render(); }
+    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '' }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
     
     function grantItem() {
