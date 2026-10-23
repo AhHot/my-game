@@ -13,6 +13,13 @@ if (localStorage.getItem('my_game_items_sync')) { try { const d = JSON.parse(loc
 if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length = 0; LEVELS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_inventory_sync')); if (Array.isArray(d)) { INVENTORY.length = 0; INVENTORY.push(...d); } } catch(e){} }
 
+// 读取全局装备配置并挂载到 window，供掉落函数使用
+try {
+  const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
+  window.DROP_RATES = gc.dropRates;
+  window.GLOBAL_AFFIX_POOLS = gc.affixPools;
+} catch(e) {}
+
 // ==========================================
 // Unit 类
 // ==========================================
@@ -185,13 +192,12 @@ const BattleLogic = {
 };
 
 // ==========================================
-// 随机掉落（★ 已更新：读取全局配置）
+// 随机掉落（★ 支持自定义词条池 + 绝对不重复）
 // ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   
-  // 读取全局配置，没有就用默认的兜底
-  const dropRates = window.DROP_RATES || [
+  const defaultDropRates = [
     { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
     { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
     { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
@@ -199,6 +205,7 @@ function generateRandomInstance(templateId) {
     { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
     { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
   ];
+  const dropRates = window.DROP_RATES || defaultDropRates;
 
   const r = Math.random() * 100;
   let config = dropRates.find(d => r >= d.min && r < d.max) || dropRates[0];
@@ -212,23 +219,44 @@ function generateRandomInstance(templateId) {
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
   
-  const W = ['atkPercent','critRate','critDmg','lifesteal','hitRate','speed'];
-  const A = ['hpPercent','defPercent','critResist','dodgeRate','speed'];
-  const pool = t.category === 'armor' ? A : W;
-  let tp = [...pool]; const ex = [];
+  // 词条池配置
+  const defaultPools = {
+    weapon: ['atkPercent','critRate','critDmg','lifesteal','hitRate','speed'],
+    armor: ['hpPercent','defPercent','critResist','dodgeRate','speed']
+  };
+  const pools = window.GLOBAL_AFFIX_POOLS || defaultPools;
+  // 饰品暂用武器池
+  let pool = t.category === 'armor' ? pools.armor : pools.weapon;
+  
+  let tp = [...pool]; // 复制一份用来洗牌抽取
+  const ex = [];
+  
   for (let i = 0; i < n; i++) {
     if (tp.length === 0) break;
+    // 随机取一个下标，然后把它从数组里剔除（这就保证了不会重复）
     const idx = Math.floor(Math.random() * tp.length);
-    const s = tp.splice(idx, 1)[0];
+    const s = tp.splice(idx, 1)[0]; 
+    
     let v = 0;
     if (s === 'speed') v = tier === 1 ? Math.floor(Math.random()*2)+1 : tier === 2 ? Math.floor(Math.random()*3)+3 : Math.floor(Math.random()*5)+6;
     else if (s === 'lifesteal') v = tier === 1 ? (Math.floor(Math.random()*2)+1)/100 : tier === 2 ? (Math.floor(Math.random()*3)+3)/100 : (Math.floor(Math.random()*5)+6)/100;
+    else if (s === 'atkPercent') v = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+8)/100;
+    else if (s === 'defPercent') v = tier === 1 ? (Math.floor(Math.random()*3)+2)/100 : tier === 2 ? (Math.floor(Math.random()*3)+5)/100 : (Math.floor(Math.random()*3)+6)/100;
     else v = tier === 1 ? (Math.floor(Math.random()*5)+1)/100 : tier === 2 ? (Math.floor(Math.random()*5)+10)/100 : (Math.floor(Math.random()*10)+20)/100;
     ex.push({ stat: s, value: v });
   }
-  ['atkPercent','defPercent','hpPercent','critRate','critDmg','lifesteal','hitRate','dodgeRate','critResist','speed'].forEach(k => {
-    if (t[k] && t[k] !== 0) ex.push({ stat: k, value: t[k] / 100 });
+
+  // 物品模板自带的固定属性（不在随机池里，但也检查一下防重复，避免和随机出来的冲突）
+  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
+  extraKeys.forEach(k => { 
+    if (t[k] && t[k] !== 0) {
+      // 如果固定属性里已经有这个词条了，就把随机出来的那个删掉（或者不让它加进去）
+      const existIdx = ex.findIndex(x => x.stat === k);
+      if (existIdx !== -1) ex.splice(existIdx, 1);
+      ex.push({ stat: k, value: t[k] / 100 }); 
+    }
   });
+
   return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '' };
 }
 
