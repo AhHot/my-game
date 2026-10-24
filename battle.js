@@ -119,11 +119,7 @@ class Unit {
   }
   addStatus(id) {
     if (!id || !STATUSES[id]) return;
-    if (STATUSES[id].isStun) {
-      this.skipTurn = true;
-      if (!this.statuses.find(s => s.id === id)) this.statuses.push({ id, duration: 1 });
-      return;
-    }
+    if (STATUSES[id].isStun) { this.skipTurn = true; if (!this.statuses.find(s => s.id === id)) this.statuses.push({ id, duration: 1 }); return; }
     const ex = this.statuses.find(s => s.id === id);
     if (ex) ex.duration = STATUSES[id].duration; else this.statuses.push({ id, duration: STATUSES[id].duration });
   }
@@ -201,8 +197,7 @@ function generateRandomInstance(templateId) {
     const stat = pool.splice(idx, 1)[0];
     const cfg = window.GLOBAL_AFFIX_VALUES?.[stat] || { min: 0, max: 0 };
     let val = cfg.max >= cfg.min ? Math.random() * (cfg.max - cfg.min) + cfg.min : cfg.min;
-    if (intTypes.includes(stat)) val = Math.round(val);
-    else val = Math.round((val / 100) * 100) / 100;
+    if (intTypes.includes(stat)) val = Math.round(val); else val = Math.round((val / 100) * 100) / 100;
     extras.push({ stat, value: val });
   }
   return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '', count: 1 };
@@ -289,8 +284,7 @@ class FormationScene extends Phaser.Scene {
     list.forEach((c, i) => { this.tweens.add({ targets: c, x: left + 40 + (i % 4) * 120, y: 180 + Math.floor(i / 4) * 120, duration: 200 }); });
   }
 }
-
-// ===== 核心修复：精准裁剪 =====
+// ===== 核心：加入强制尺寸限制的 BattleScene =====
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
@@ -332,20 +326,13 @@ class BattleScene extends Phaser.Scene {
     const art = window.ART_CONFIG?.boardBg;
     if (this.textures.exists('art_boardBg')) {
       const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.85);
-      // 【纯数学精确裁剪复刻】
       const iw = bgImg.width, ih = bgImg.height;
-      // 目标框的宽高（游戏屏幕宽高）
       const boxW = CONFIG.WIDTH, boxH = CONFIG.HEIGHT;
-      // 图片缩放后的宽高
       const drawW = boxW * (art.scale || 1);
-      const drawH = drawW * (ih / iw); // 保持宽高比
-      
+      const drawH = drawW * (ih / iw);
       bgImg.setDisplaySize(drawW, drawH);
-      
-      // 根据百分比计算偏移
       let offsetX = (boxW - drawW) * ((art.posX ?? 50) / 100);
       let offsetY = (boxH - drawH) * ((art.posY ?? 50) / 100);
-      
       bgImg.setPosition(offsetX, offsetY);
     }
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -365,24 +352,29 @@ class BattleScene extends Phaser.Scene {
     if (unit.side === 'enemy') { x = this.enemyLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
     else { x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
     const c = this.add.container(x, y);
-    const scale = Math.max(unit.sizeX, unit.sizeY); const r = (cell / 2) * 0.85 * scale;
+    const scale = Math.max(unit.sizeX, unit.sizeY);
+    
+    // 【核心修复】：强制锁定角色大小，无论格子多大都不超过 60 像素半径
+    const r = Math.min((cell / 2) * 0.85 * scale, 60);
     
     if (this.textures.exists('art_unitHalo')) {
       const artHalo = window.ART_CONFIG.unitHalo || {};
       const halo = this.add.image(0, 0, 'art_unitHalo');
-      // 强制缩放为固定比例
-      halo.setDisplaySize(r * 2.5, r * 1.5);
-      // 偏移微调 (默认为0，百分比对齐)
+      // 【核心修复】：强制光环最大宽度 150，高度 80，绝不可能撑爆屏幕
+      halo.setDisplaySize(Math.min(r * 2.5, 150), Math.min(r * 1.5, 80));
       halo.setOrigin(0.5, 0.5); 
       c.add(halo);
     }
+    
+    // 同样强制限制圆的大小
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color);
     if (!this.textures.exists('art_unitHalo')) circle.setStrokeStyle(3, 0xffffff, 0.9); else circle.setAlpha(0.2);
 
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    const bw = cell * scale * 0.85;
+    // 【核心修复】：强制血条最大宽度为 120 像素
+    const bw = Math.min(cell * scale * 0.85, 120); 
     let hpBg, hpBar;
     if (this.textures.exists('art_hpBg')) {
       hpBg = this.add.image(0, r + 32, 'art_hpBg');
