@@ -1,16 +1,16 @@
 // ==========================================
-// 模块：关卡面板 (tab_level.js)
+// 模块：关卡地图面板 (tab_stage.js)
 // ==========================================
-window.renderTabLevel = function(container) {
+window.renderTabStage = function(container) {
   container.innerHTML = `
-    <div id="level-list"></div>
-    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="window.addNewLevel()">➕ 新增关卡</button>
+    <div id="stage-list"></div>
+    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="window.addNewStage()">➕ 新增关卡</button>
   `;
-  renderLevelsList();
+  renderStagesList();
 };
 
-function renderLevelsList() {
-  const list = document.getElementById('level-list'); list.innerHTML = '';
+function renderStagesList() {
+  const list = document.getElementById('stage-list'); list.innerHTML = '';
   gameLevels.forEach((lv, index) => {
     const enemyTypes = gameChars.filter(c => c.side === 'enemy');
     let poolHtml = '';
@@ -28,16 +28,16 @@ function renderLevelsList() {
 
     const div = document.createElement('div'); div.className = 'card';
     div.innerHTML = `
-      <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="window.deleteLevel(${index})">删除</button></div>
+      <div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="window.deleteStage(${index})">删除</button></div>
       <div class="form-grid" style="margin-bottom:15px;">
-        <div class="form-item"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="window.updateLevel(${index}, 'name', this.value)"></div>
+        <div class="form-item"><label>关卡名称</label><input type="text" value="${lv.name}" onchange="window.updateStage(${index}, 'name', this.value)"></div>
         <div class="form-item">
           <label style="color:#f1c40f;">通关掉落物 (模板)</label>
-          <select onchange="window.updateLevel(${index}, 'rewardItemId', this.value)">${rewardOptions}</select>
+          <select onchange="window.updateStage(${index}, 'rewardItemId', this.value)">${rewardOptions}</select>
         </div>
         <div class="form-item">
           <label style="color:#2ecc71;">通关经验</label>
-          <input type="number" value="${lv.rewardExp || 0}" onchange="window.updateLevel(${index}, 'rewardExp', parseInt(this.value))">
+          <input type="number" value="${lv.rewardExp || 0}" onchange="window.updateStage(${index}, 'rewardExp', parseInt(this.value))">
         </div>
       </div>
       <div class="level-editor-layout">
@@ -88,7 +88,7 @@ window.spawnEnemyToBoard = function(lvIdx, enemyId) {
 };
 
 function canPlaceAt(lv, startX, startY, sizeX, sizeY, ignoreUid = null) {
-  if (startX + sizeX > 4 || startY + sizeY > 4) return false;
+  if (startX < 0 || startY < 0 || startX + sizeX > 4 || startY + sizeY > 4) return false;
   for (let item of lv.enemyList) {
     if (item.uid === ignoreUid) continue; 
     const c = gameChars.find(ch => ch.id === item.id); if (!c) continue;
@@ -128,6 +128,6 @@ window.setupDrag = function(el, lvIdx, uid, charData) {
   });
 };
 
-window.updateLevel = function(index, key, value) { gameLevels[index][key] = value; saveData(); };
-window.addNewLevel = function() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '', rewardExp: 0 }); saveData(); window.renderTabLevel(document.getElementById('app-content')); };
-window.deleteLevel = function(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); window.renderTabLevel(document.getElementById('app-content')); } };
+window.updateStage = function(index, key, value) { gameLevels[index][key] = value; saveData(); };
+window.addNewStage = function() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '', rewardExp: 0 }); saveData(); window.renderTabStage(document.getElementById('app-content')); };
+window.deleteStage = function(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); window.renderTabStage(document.getElementById('app-content')); } };
