@@ -124,7 +124,7 @@
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
     }
 
-    // 📤 導出全部數據功能
+    // 📤 導出全部數據功能 (修復 iOS / 手機無法下載問題)
     window.exportGameData = function() {
       const dataToExport = {};
       const keysToExport = [
@@ -146,14 +146,26 @@
         }
       });
 
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataToExport, null, 2));
+      // 1. 將資料轉為 Blob 物件 (相容性最佳)
+      const jsonStr = JSON.stringify(dataToExport, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      // 2. 建立隱藏連結觸發下載
       const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `wuxia_game_backup_${Date.now()}.json`);
+      downloadAnchor.href = blobUrl;
+      downloadAnchor.download = `wuxia_game_backup_${Date.now()}.json`;
+      
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
-      downloadAnchor.remove();
+
+      // 3. 釋放記憶體資源
+      setTimeout(() => {
+        downloadAnchor.remove();
+        URL.revokeObjectURL(blobUrl);
+      }, 1000);
     };
+
 
     // 📥 導入全部數據功能
     window.importGameData = function(event) {
