@@ -3,11 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中大型策略战棋</title>
+    <title>中大型策略战棋 - 游戏大厅</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
-        #game { width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0; }
+        
+        /* 🌟 核心：1280x720 比例縮放容器，包覆整個主畫面與 UI */
+        #game-scale-container {
+            position: absolute; top: 0; left: 0;
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
+            z-index: 10; pointer-events: none;
+        }
+
+        /* 讓容器內的互動元素恢復點擊事件 */
+        .interactive-ui { pointer-events: auto; }
+
+        /* Phaser 遊戲畫布填滿 1280x720 容器 */
+        #game { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; }
         
         /* ================= 主畫面 UI 佈局 (二次元手遊質感) ================= */
         .main-bg {
@@ -25,7 +38,7 @@
         .top-bar-overlay {
             position: absolute; top: 0; left: 0; right: 0; height: 65px;
             display: flex; justify-content: space-between; align-items: center;
-            padding: 0 30px; z-index: 100; pointer-events: auto;
+            padding: 0 30px; z-index: 100;
             background: linear-gradient(to bottom, rgba(15, 15, 26, 0.85) 0%, transparent 100%);
         }
         .top-title { font-size: 20px; font-weight: bold; color: #f1c40f; display: flex; align-items: center; gap: 8px; }
@@ -39,7 +52,7 @@
         /* 左側動態功能側欄 */
         .left-sidebar {
             position: absolute; left: 30px; top: 90px; display: flex;
-            flex-direction: column; gap: 12px; z-index: 100; pointer-events: auto;
+            flex-direction: column; gap: 12px; z-index: 100;
         }
         .menu-btn {
             width: 150px; padding: 12px 16px;
@@ -57,7 +70,7 @@
         .main-right-section {
             position: absolute; right: 40px; top: 90px; bottom: 40px;
             width: 340px; display: flex; flex-direction: column; justify-content: space-between;
-            z-index: 100; pointer-events: auto;
+            z-index: 100;
         }
         .main-stage-card {
             background: rgba(22, 33, 62, 0.85); backdrop-filter: blur(12px);
@@ -79,12 +92,10 @@
         }
         .btn-battle:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(231, 76, 60, 0.6); }
 
-        /* ================= 全屏 UI 遮罩 (原本角色/背包 UI) ================= */
+        /* ================= 全屏 UI 遮罩 (角色/背包 UI) ================= */
         #fullscreen-ui {
             display: none; position: absolute; 
-            /* 强制 1280x720 缩放 */
             width: 1280px; height: 720px;
-            transform-origin: 0 0;
             background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd;
             flex-direction: row; pointer-events: auto;
         }
@@ -249,113 +260,116 @@
     </style>
 </head>
 <body>
-    <!-- 戰棋遊戲畫布容器 -->
-    <div id="game"></div>
+    <!-- 🌟 1280x720 等比縮放包覆容器 -->
+    <div id="game-scale-container">
+        <!-- 戰棋遊戲畫布容器 -->
+        <div id="game"></div>
 
-    <!-- 全螢幕解鎖背景圖 -->
-    <div class="main-bg" id="main-bg"></div>
+        <!-- 全螢幕解鎖背景圖 -->
+        <div class="main-bg" id="main-bg"></div>
 
-    <!-- 頂部導航浮層 -->
-    <div class="top-bar-overlay">
-        <div class="top-title">⚔️ 江湖大廳</div>
-        <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
-    </div>
+        <!-- 頂部導航浮層 -->
+        <div class="top-bar-overlay interactive-ui">
+            <div class="top-title">⚔️ 江湖大廳</div>
+            <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
+        </div>
 
-    <!-- 左側動態功能側欄 -->
-    <div class="left-sidebar" id="left-sidebar"></div>
+        <!-- 左側動態功能側欄 -->
+        <div class="left-sidebar interactive-ui" id="left-sidebar"></div>
 
-    <!-- 右側核心推進大卡片 -->
-    <div class="main-right-section">
-        <div class="main-stage-card">
-            <div>
-                <div class="stage-tag">當前江湖主線</div>
-                <div class="stage-title" id="index-stage-title">第一章：青城山變</div>
+        <!-- 右側核心推進大卡片 -->
+        <div class="main-right-section interactive-ui">
+            <div class="main-stage-card">
+                <div>
+                    <div class="stage-tag">當前江湖主線</div>
+                    <div class="stage-title" id="index-stage-title">第一章：青城山變</div>
+                </div>
+                <div class="stage-desc" id="index-stage-desc">
+                    探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。
+                </div>
+                <button class="btn-battle" onclick="window.location.href='story_menu.html'">⚔️ 進入江湖 / 劇本選擇</button>
             </div>
-            <div class="stage-desc" id="index-stage-desc">
-                探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。
+        </div>
+
+        <!-- 角色與背包 UI 彈窗 -->
+        <div id="fullscreen-ui" class="interactive-ui" onclick="event.stopPropagation()">
+            <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
+
+            <!-- 左侧 -->
+            <div id="left-panel">
+                <div class="char-portrait"></div>
+                <div class="char-info-area">
+                    <div class="char-name-level">
+                        <h2 id="ui-char-name">战士</h2>
+                        <span id="ui-char-level">Lv. 1</span>
+                    </div>
+                    
+                    <!-- 经验条 -->
+                    <div class="exp-container">
+                        <div class="exp-text" id="ui-exp-text">0 / 100</div>
+                        <div class="exp-bar-bg"><div class="exp-bar-fill" id="ui-exp-fill"></div></div>
+                    </div>
+
+                    <!-- 6大装备槽 -->
+                    <div class="equip-slots-container" id="ui-equip-slots"></div>
+
+                    <div class="free-points-hint" id="ui-free-points">剩余点数: 0</div>
+                    <div class="stat-grid" id="ui-stats-grid"></div>
+
+                    <div class="core-four" id="ui-core-four">
+                        <div>气血(HP)<b id="ui-hp">3000</b></div>
+                        <div>攻击(ATK)<b id="ui-atk">400</b></div>
+                        <div>防御(DEF)<b id="ui-def">200</b></div>
+                        <div>速度(SPD)<b id="ui-spd">10</b></div>
+                    </div>
+                </div>
+                <div class="char-list-area" id="ui-char-list"></div>
+                <div class="expand-btn" onclick="showDetailCard()">▶</div>
             </div>
-            <button class="btn-battle" onclick="window.location.href='story_menu.html'">⚔️ 進入江湖 / 劇本選擇</button>
+
+            <!-- 右侧 -->
+            <div id="right-panel">
+                <div class="right-tabs">
+                    <div class="rt-tab active" id="rt-btn-inv" onclick="switchRightTab('inv')">🎒 背包</div>
+                    <div class="rt-tab" id="rt-btn-skill" onclick="switchRightTab('skill')">📖 技能</div>
+                </div>
+
+                <div id="inv-container">
+                    <div class="filter-bar">
+                        <div class="filter-btn active" onclick="setFilter('all', this)">全部</div>
+                        <div class="filter-btn" onclick="setFilter('equip', this)">装备</div>
+                        <div class="filter-btn" onclick="setFilter('consumable', this)">消耗品</div>
+                        <div class="filter-btn" onclick="setFilter('material', this)">材料</div>
+                        <div class="filter-btn" onclick="setFilter('quest', this)">任务</div>
+                    </div>
+                    <div id="inventory-grid"></div>
+                </div>
+
+                <div id="skill-container"></div>
+            </div>
+
+            <!-- 弹窗：物品详情 -->
+            <div id="item-tooltip" class="overlay-card">
+                <div class="card-close" onclick="hideTooltip()">✖</div>
+                <div id="tooltip-content"></div>
+                <button class="btn-action btn-equip" id="btn-item-action">穿戴</button>
+            </div>
+
+            <!-- 弹窗：详细属性 -->
+            <div id="detail-card" class="overlay-card">
+                <div class="card-close" onclick="hideDetailCard()">✖</div>
+                <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
+                <div class="detail-title">【攻伐】</div>
+                <div class="detail-grid" id="detail-atk"></div>
+                <div class="detail-title">【守御】</div>
+                <div class="detail-grid" id="detail-def"></div>
+                <div class="detail-title">【克制与特殊】</div>
+                <div class="detail-grid" id="detail-special"></div>
+            </div>
         </div>
     </div>
 
     <div id="global-toast"></div>
-
-    <!-- 角色與背包 UI 彈窗 -->
-    <div id="fullscreen-ui" onclick="event.stopPropagation()">
-        <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
-
-        <!-- 左侧 -->
-        <div id="left-panel">
-            <div class="char-portrait"></div>
-            <div class="char-info-area">
-                <div class="char-name-level">
-                    <h2 id="ui-char-name">战士</h2>
-                    <span id="ui-char-level">Lv. 1</span>
-                </div>
-                
-                <!-- 经验条 -->
-                <div class="exp-container">
-                    <div class="exp-text" id="ui-exp-text">0 / 100</div>
-                    <div class="exp-bar-bg"><div class="exp-bar-fill" id="ui-exp-fill"></div></div>
-                </div>
-
-                <!-- 6大装备槽 -->
-                <div class="equip-slots-container" id="ui-equip-slots"></div>
-
-                <div class="free-points-hint" id="ui-free-points">剩余点数: 0</div>
-                <div class="stat-grid" id="ui-stats-grid"></div>
-
-                <div class="core-four" id="ui-core-four">
-                    <div>气血(HP)<b id="ui-hp">3000</b></div>
-                    <div>攻击(ATK)<b id="ui-atk">400</b></div>
-                    <div>防御(DEF)<b id="ui-def">200</b></div>
-                    <div>速度(SPD)<b id="ui-spd">10</b></div>
-                </div>
-            </div>
-            <div class="char-list-area" id="ui-char-list"></div>
-            <div class="expand-btn" onclick="showDetailCard()">▶</div>
-        </div>
-
-        <!-- 右侧 -->
-        <div id="right-panel">
-            <div class="right-tabs">
-                <div class="rt-tab active" id="rt-btn-inv" onclick="switchRightTab('inv')">🎒 背包</div>
-                <div class="rt-tab" id="rt-btn-skill" onclick="switchRightTab('skill')">📖 技能</div>
-            </div>
-
-            <div id="inv-container">
-                <div class="filter-bar">
-                    <div class="filter-btn active" onclick="setFilter('all', this)">全部</div>
-                    <div class="filter-btn" onclick="setFilter('equip', this)">装备</div>
-                    <div class="filter-btn" onclick="setFilter('consumable', this)">消耗品</div>
-                    <div class="filter-btn" onclick="setFilter('material', this)">材料</div>
-                    <div class="filter-btn" onclick="setFilter('quest', this)">任务</div>
-                </div>
-                <div id="inventory-grid"></div>
-            </div>
-
-            <div id="skill-container"></div>
-        </div>
-
-        <!-- 弹窗：物品详情 -->
-        <div id="item-tooltip" class="overlay-card">
-            <div class="card-close" onclick="hideTooltip()">✖</div>
-            <div id="tooltip-content"></div>
-            <button class="btn-action btn-equip" id="btn-item-action">穿戴</button>
-        </div>
-
-        <!-- 弹窗：详细属性 -->
-        <div id="detail-card" class="overlay-card">
-            <div class="card-close" onclick="hideDetailCard()">✖</div>
-            <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
-            <div class="detail-title">【攻伐】</div>
-            <div class="detail-grid" id="detail-atk"></div>
-            <div class="detail-title">【守御】</div>
-            <div class="detail-grid" id="detail-def"></div>
-            <div class="detail-title">【克制与特殊】</div>
-            <div class="detail-grid" id="detail-special"></div>
-        </div>
-    </div>
 
     <!-- 引入 Phaser 引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
@@ -364,11 +378,29 @@
     <script src="battle.js"></script>
 
     <script>
+        // ====== 🌟 核心：螢幕自適應等比縮放函數 (對齊 1280x720) ======
+        function resizeGameUI() {
+            const container = document.getElementById('game-scale-container');
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            const scale = Math.min(scaleX, scaleY); // 保持等比
+            
+            container.style.transform = `scale(${scale})`;
+            const scaledWidth = 1280 * scale;
+            const scaledHeight = 720 * scale;
+            container.style.left = (window.innerWidth - scaledWidth) / 2 + 'px';
+            container.style.top = (window.innerHeight - scaledHeight) / 2 + 'px';
+        }
+
+        window.addEventListener('resize', resizeGameUI);
+
         // ====== 主畫面動態 UI 配置讀取 ======
         let currentBgIndex = 0;
         let mainConfig = null;
 
         function initIndexMainUI() {
+            resizeGameUI(); // 初始化執行縮放
+
             mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
                 bgList: [
                     { name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
@@ -411,7 +443,7 @@
             sb.onclick = () => window.location.href = 'story_menu.html';
             sidebar.appendChild(sb);
 
-            // 角色與背包按鈕 (打開你原有的 UI 彈窗)
+            // 角色與背包按鈕
             const cb = document.createElement('div');
             cb.className = 'menu-btn';
             cb.innerHTML = `<span>👥</span> <span>角色與背包</span>`;
@@ -419,7 +451,7 @@
             sidebar.appendChild(cb);
         }
 
-        // ====== 原有：用於計算角色最終六維（含等級成長）的工具函數 ======
+        // ====== 角色與背包相關邏輯 ======
         function getFinalStatsForUI(char) {
             let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
             let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
@@ -449,21 +481,6 @@
         let globalExpTable = [];
 
         const uiContainer = document.getElementById('fullscreen-ui');
-
-        function resizeUIToGame() {
-            if (!window.game || !window.game.canvas) return;
-            
-            const rect = window.game.canvas.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) {
-                setTimeout(resizeUIToGame, 100);
-                return;
-            }
-            const scale = rect.width / 1280;
-            uiContainer.style.transform = `scale(${scale})`;
-            uiContainer.style.left = rect.left + 'px';
-            uiContainer.style.top = rect.top + 'px';
-        }
-        window.addEventListener('resize', resizeUIToGame);
 
         function showToast(msg, color = '#2ecc71') {
             const toast = document.getElementById('global-toast');
@@ -498,8 +515,7 @@
         }
 
         window.openCharacterUI = function() {
-            resizeUIToGame(); 
-            setTimeout(() => { uiContainer.style.display = 'flex'; }, 10);
+            uiContainer.style.display = 'flex';
 
             if (window.game && window.game.scene) {
                 const activeScenes = window.game.scene.getScenes(true);
@@ -910,7 +926,7 @@
             localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
         }
 
-        // 初始化主介面動態 UI
+        // 頁面載入完成時執行初始化與自適應縮放
         window.addEventListener('DOMContentLoaded', () => {
             initIndexMainUI();
         });
