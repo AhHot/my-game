@@ -313,7 +313,7 @@ class BattleScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const art = window.ART_CONFIG?.boardBg;
     if (this.textures.exists('art_boardBg')) {
-      const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.6);
+      const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.4);
       const iw = bgImg.width, ih = bgImg.height;
       const boxW = CONFIG.WIDTH, boxH = CONFIG.HEIGHT;
       const drawW = boxW * (art.scale || 1); const drawH = drawW * (ih / iw);
@@ -323,30 +323,29 @@ class BattleScene extends Phaser.Scene {
     }
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
+    
+    // 绘制纯色发光网格
     this.drawGrid(enemyLeft, gridTop, cell, true);
     this.drawGrid(playerLeft, gridTop, cell, false);
+    
     this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#CC99FF', fontStyle: 'bold' });
     this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#FF8888', fontStyle: 'bold' });
     this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
   }
   
-  // 核心：美化网格绘制
+  // 纯色发光网格
   drawGrid(startX, startY, cell, isEnemy) {
+    const g = this.add.graphics();
+    const fillColor = isEnemy ? 0xCC99FF : 0xFF8888;
+    const fillAlpha = 0.15;
+    const strokeAlpha = 0.4;
+
     for(let y=0; y<CONFIG.GRID_SIZE; y++) {
       for(let x=0; x<CONFIG.GRID_SIZE; x++) {
-        const g = this.add.graphics();
         const px = startX + x * cell;
         const py = startY + y * cell;
-        
-        // 交错底色
-        const isEven = (x + y) % 2 === 0;
-        const fillColor = isEnemy ? 0xCC99FF : 0xFF8888;
-        const fillAlpha = isEven ? 0.15 : 0.05;
-        const strokeAlpha = isEven ? 0.4 : 0.2;
-
         g.fillStyle(fillColor, fillAlpha);
         g.fillRoundedRect(px + 2, py + 2, cell - 4, cell - 4, 6);
-        
         g.lineStyle(1.5, fillColor, strokeAlpha);
         g.strokeRoundedRect(px + 2, py + 2, cell - 4, cell - 4, 6);
       }
@@ -361,24 +360,21 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     
-    // 角色底部立体底座（椭圆）
+    // 纯代码：角色底部立体底座
     const isEnemy = unit.side === 'enemy';
     const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
-    const baseH = r * 0.8;
-    const baseW = r * 2.2;
-    
-    const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25);
-    baseEllipse.setStrokeStyle(2, baseColor, 0.8);
+    const baseH = r * 0.8; const baseW = r * 2.2;
+    const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25).setStrokeStyle(2, baseColor, 0.8);
     c.add(baseEllipse);
 
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    // 纯代码血条
+    // 统一红色血条
     const bw = Math.min(cell * scale * 0.85, 100); 
     const hpBg = this.add.rectangle(-bw/2, r + 32, bw + 4, 10, 0x000000, 0.8).setOrigin(0, 0.5).setStrokeStyle(1, 0x555555);
-    const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, isEnemy ? 0xCC99FF : 0xFF4444).setOrigin(0, 0.5);
+    const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, 0xFF4444).setOrigin(0, 0.5);
     hpBar.maxWidth = bw;
 
     const hpText = this.add.text(0, r + 32, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
@@ -389,7 +385,7 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
     c.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, shieldBar: null, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -509,7 +505,6 @@ class BattleScene extends Phaser.Scene {
     this.logHistory.forEach((l, i) => { const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51); this.logTexts.push(t); });
   }
   
-  // 极简血条更新（代码画的，绝对不崩）
   updateUnitView(u) {
     const v = this.unitViews.get(u); if (!v) return;
     let ratio = Math.max(0, u.hp / u.maxHp);
