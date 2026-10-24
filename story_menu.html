@@ -2,13 +2,13 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>江湖歷程 - 劇本選擇</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "Microsoft YaHei", sans-serif; }
-        body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0b0c10; color: #fff; position: relative; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0b0c10; color: #fff; position: relative; }
 
-        /* 背景與半透明遮罩 */
+        /* 全螢幕背景圖 */
         .menu-bg {
             position: absolute; inset: 0;
             background: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop') center/cover;
@@ -16,36 +16,43 @@
             z-index: 1;
         }
 
+        /* 🌟 核心：1280x720 比例容器，透過 JS 進行等比縮放 */
+        #story-scale-container {
+            position: absolute; top: 0; left: 0;
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
+            z-index: 10; display: flex; flex-direction: column;
+            pointer-events: auto;
+        }
+
         /* 頂部導航欄 */
         .top-bar {
-            position: absolute; top: 0; left: 0; right: 0; height: 70px;
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 0 40px; z-index: 10;
+            height: 80px; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 50px;
             background: linear-gradient(to bottom, rgba(15, 15, 26, 0.9) 0%, transparent 100%);
         }
         .back-btn {
             background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff; padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 14px;
+            color: #fff; padding: 10px 20px; border-radius: 20px; cursor: pointer; font-size: 16px;
             transition: background 0.2s;
         }
         .back-btn:hover { background: #3498db; }
-        .page-title { font-size: 22px; font-weight: bold; color: #f1c40f; letter-spacing: 2px; }
+        .page-title { font-size: 26px; font-weight: bold; color: #f1c40f; letter-spacing: 2px; }
 
-        /* 中間章節列表容器 (橫向或流式卡片) */
+        /* 章節列表容器 */
         .content-container {
-            position: absolute; inset: 90px 40px 40px 40px;
-            z-index: 10; display: flex; gap: 25px; overflow-x: auto;
-            padding-bottom: 20px; align-items: center;
+            flex: 1; display: flex; gap: 30px; padding: 20px 60px;
+            overflow-x: auto; align-items: center;
         }
 
         /* 單個章節卡片 */
         .chapter-card {
-            width: 320px; height: 480px; flex-shrink: 0;
+            width: 340px; height: 480px; flex-shrink: 0;
             background: rgba(22, 33, 62, 0.85); backdrop-filter: blur(10px);
             border: 2px solid rgba(255, 255, 255, 0.15); border-radius: 16px;
             overflow: hidden; display: flex; flex-direction: column;
             transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            cursor: pointer; position: relative;
+            cursor: pointer;
         }
         .chapter-card:hover {
             transform: translateY(-8px);
@@ -57,20 +64,15 @@
             height: 200px; background-size: cover; background-position: center;
             position: relative; border-bottom: 2px solid rgba(255,255,255,0.1);
         }
-        .chapter-img::after {
-            content: ''; position: absolute; inset: 0;
-            background: linear-gradient(to top, rgba(22,33,62,0.9), transparent);
-        }
-
-        .chapter-info { padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-        .chapter-num { font-size: 12px; color: #f1c40f; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; }
-        .chapter-title { font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px; }
-        .chapter-desc { font-size: 13px; color: #aaa; line-height: 1.6; overflow: hidden; height: 70px; }
+        .chapter-info { padding: 25px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .chapter-num { font-size: 14px; color: #f1c40f; font-weight: bold; margin-bottom: 6px; }
+        .chapter-title { font-size: 22px; font-weight: bold; color: #fff; margin-bottom: 10px; }
+        .chapter-desc { font-size: 14px; color: #aaa; line-height: 1.6; height: 65px; overflow: hidden; }
 
         .btn-enter-chapter {
             background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
-            color: #fff; border: none; padding: 12px; border-radius: 8px;
-            font-size: 15px; font-weight: bold; cursor: pointer; text-align: center;
+            color: #fff; border: none; padding: 14px; border-radius: 8px;
+            font-size: 16px; font-weight: bold; cursor: pointer; text-align: center;
             transition: all 0.2s; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
         }
         .btn-enter-chapter:hover { background: #2980b9; transform: scale(1.02); }
@@ -80,19 +82,40 @@
 
     <div class="menu-bg"></div>
 
-    <!-- 頂部列 -->
-    <div class="top-bar">
-        <button class="back-btn" onclick="window.location.href='index.html'">⬅ 返回大廳</button>
-        <div class="page-title">📜 江湖歷程 · 劇本選擇</div>
-        <div style="width: 80px;"></div> <!-- 佔位平衡 -->
+    <!-- 🌟 等比縮放包覆容器 -->
+    <div id="story-scale-container">
+        <!-- 頂部列 -->
+        <div class="top-bar">
+            <button class="back-btn" onclick="window.location.href='index.html'">⬅ 返回大廳</button>
+            <div class="page-title">📜 江湖歷程 · 劇本選擇</div>
+            <div style="width: 100px;"></div>
+        </div>
+
+        <!-- 章節卡片展示區 -->
+        <div class="content-container" id="chapter-list"></div>
     </div>
 
-    <!-- 章節卡片展示區 -->
-    <div class="content-container" id="chapter-list"></div>
-
     <script>
+        // 🌟 螢幕自適應等比縮放函數 (對齊 1280x720 畫布)
+        function resizeStoryUI() {
+            const container = document.getElementById('story-scale-container');
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            const scale = Math.min(scaleX, scaleY); // 保持等比
+            
+            container.style.transform = `scale(${scale})`;
+            // 置中對齊
+            const scaledWidth = 1280 * scale;
+            const scaledHeight = 720 * scale;
+            container.style.left = (window.innerWidth - scaledWidth) / 2 + 'px';
+            container.style.top = (window.innerHeight - scaledHeight) / 2 + 'px';
+        }
+
+        window.addEventListener('resize', resizeStoryUI);
+
         function initStoryMenu() {
-            // 從 localStorage 讀取編輯器設定的劇本資料
+            resizeStoryUI(); // 初始化執行縮放
+
             const storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || {
                 books: [
                     {
@@ -132,9 +155,7 @@
         }
 
         function enterChapter(bookId) {
-            // 點擊後可跳轉至後續的小章節畫布或關卡頁面
             alert(`🚀 準備進入章節 [ID: ${bookId}] 的小章節畫布！`);
-            // 後續可改為：window.location.href = `story_canvas.html?bookId=${bookId}`;
         }
 
         window.onload = initStoryMenu;
