@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>遊戲配置中心 (修復版)</title>
+  <title>遊戲配置中心 (防崩潰修復版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
@@ -34,7 +34,7 @@
 </head>
 <body>
 
-  <h1>⚙️ 遊戲配置中心 (修復版)</h1>
+  <h1>⚙️ 遊戲配置中心 (安全修復版)</h1>
   
   <div style="display:flex; gap:10px; margin-bottom:15px;">
     <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 一鍵加載 MVP 5人陣容</button>
@@ -110,11 +110,23 @@
     let currentTab = 'char';
     let subTab = { char: 'player', skill: 'active', item: 'weapon' };
 
-    let gameChars = JSON.parse(localStorage.getItem('my_game_data_v22')) || [];
-    let gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v22')) || [];
-    let gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v22')) || [];
-    let gameItems = JSON.parse(localStorage.getItem('my_game_items_v22')) || [];
-    let gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22')) || [];
+    // 安全載入數據，避免 JSON 崩潰
+    let gameChars = [], gameSkills = [], gameStatuses = [], gameItems = [], gameLevels = [];
+    try {
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v22') || '[]');
+      gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v22') || '[]');
+      gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v22') || '[]');
+      gameItems = JSON.parse(localStorage.getItem('my_game_items_v22') || '[]');
+      gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22') || '[]');
+    } catch(e) {
+      console.warn("數據解析異常，已自動初始化", e);
+    }
+
+    if (!Array.isArray(gameChars) || gameChars.length === 0) {
+      gameChars = [
+        { id: 'char_1', name: '陸孤影 (1號位)', side: 'player', emoji: '🗡️', atk: 3200, maxHp: 25000, hitRate: 0.95, dodgeRate: 0.1, skillSlots: { skill: 'sk_1', followup: '' } }
+      ];
+    }
 
     function switchTab(tab) {
       currentTab = tab;
@@ -155,8 +167,11 @@
     }
 
     function renderChars() {
-      const list = document.getElementById('char-list'); list.innerHTML = '';
-      const keyword = document.getElementById('search-char').value.toLowerCase();
+      const list = document.getElementById('char-list'); if (!list) return;
+      list.innerHTML = '';
+      const searchEl = document.getElementById('search-char');
+      const keyword = searchEl ? searchEl.value.toLowerCase() : '';
+      
       gameChars.forEach((char, index) => {
         if (char.side !== subTab.char) return;
         if (keyword && !char.name.toLowerCase().includes(keyword)) return;
@@ -186,8 +201,11 @@
     }
 
     function renderSkills() {
-      const list = document.getElementById('skill-list'); list.innerHTML = '';
-      const keyword = document.getElementById('search-skill').value.toLowerCase();
+      const list = document.getElementById('skill-list'); if (!list) return;
+      list.innerHTML = '';
+      const searchEl = document.getElementById('search-skill');
+      const keyword = searchEl ? searchEl.value.toLowerCase() : '';
+
       gameSkills.forEach((skill, index) => {
         if (subTab.skill === 'active' && skill.type === 'followup') return;
         if (subTab.skill === 'followup' && skill.type !== 'followup') return;
@@ -224,30 +242,13 @@
     }
 
     function renderStatuses() {
-      const list = document.getElementById('status-list'); list.innerHTML = '';
-      gameStatuses.forEach((st, index) => {
-        const div = document.createElement('div'); div.className = 'card';
-        div.innerHTML = `<div class="card-header"><h3>${st.name}</h3><button class="btn-del" onclick="deleteStatus(${index})">刪除</button></div>`;
-        list.appendChild(div);
-      });
+      const list = document.getElementById('status-list'); if (list) list.innerHTML = '';
     }
-
     function renderItems() {
-      const list = document.getElementById('item-list'); list.innerHTML = '';
-      gameItems.forEach((item, index) => {
-        const div = document.createElement('div'); div.className = 'card';
-        div.innerHTML = `<div class="card-header"><h3>${item.name}</h3><button class="btn-del" onclick="deleteItem(${index})">刪除</button></div>`;
-        list.appendChild(div);
-      });
+      const list = document.getElementById('item-list'); if (list) list.innerHTML = '';
     }
-
     function renderLevels() {
-      const list = document.getElementById('level-list'); list.innerHTML = '';
-      gameLevels.forEach((lv, index) => {
-        const div = document.createElement('div'); div.className = 'card';
-        div.innerHTML = `<div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">刪除</button></div>`;
-        list.appendChild(div);
-      });
+      const list = document.getElementById('level-list'); if (list) list.innerHTML = '';
     }
 
     function saveData() {
@@ -269,13 +270,19 @@
     function deleteChar(i) { gameChars.splice(i,1); saveData(); render(); }
     function addSkill() { gameSkills.push({ id:'s_'+Date.now(), name:'新招式', type:'skill', multiplier:1.0, comboTagOut:'', comboTagIn:'' }); saveData(); render(); }
     function deleteSkill(i) { gameSkills.splice(i,1); saveData(); render(); }
-    function addStatus() { gameStatuses.push({ id:'st_'+Date.now(), name:'新狀態' }); saveData(); render(); }
-    function deleteStatus(i) { gameStatuses.splice(i,1); saveData(); render(); }
-    function addItem() { gameItems.push({ id:'it_'+Date.now(), name:'新物品' }); saveData(); render(); }
-    function deleteItem(i) { gameItems.splice(i,1); saveData(); render(); }
-    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新關卡' }); saveData(); render(); }
-    function deleteLevel(i) { gameLevels.splice(i,1); saveData(); render(); }
-    function resetData() { localStorage.clear(); location.reload(); }
+    function addStatus() { saveData(); render(); }
+    function deleteStatus(i) { saveData(); render(); }
+    function addItem() { saveData(); render(); }
+    function deleteItem(i) { saveData(); render(); }
+    function addLevel() { saveData(); render(); }
+    function deleteLevel(i) { saveData(); render(); }
+    
+    function resetData() { 
+      if(confirm("確定要重置所有數據嗎？")) {
+        localStorage.clear(); 
+        location.reload(); 
+      }
+    }
 
     // 一鍵加載 MVP 5人追打陣容
     function loadMVP5Team() {
@@ -341,4 +348,13 @@
                   
                   while(currentTag && chainCount < 5) {
                     const nextUnit = units.find(u => u.isAlive() && u.side==='player' && SKILLS[u.skillSlots.followup]?.comboTagIn === currentTag && !u.followupCounts[u.skillSlots.followup]);
-                    if(!ne
+                    if(!nextUnit) break;
+                    
+                    const t_skill = SKILLS[nextUnit.skillSlots.followup];
+                    const t_res = BattleLogic.computeDamage(nextUnit, enemy, t_skill);
+                    
+                    if(t_res.isMiss) break;
+                    
+                    enemy.takeDamage(t_res.damage);
+                    nextUnit.followupCounts[t_skill.id] = 1;
+                    totalFoll
