@@ -44,15 +44,15 @@ window.renderTabGlobal = function(container) {
       <div style="overflow-x:auto;"><table id="global-matrix-table" style="text-align:center;"></table></div>
     </div>
 
-    <!-- 战棋美术素材调节器 (Canvas版) -->
+    <!-- 战棋美术素材调节器 (实时裁剪版) -->
     <div class="card" style="border-color: #e67e22;">
-      <h3 style="color:#e67e22; margin-bottom:15px;">🖼️ 战棋美术素材调节器 (保存时会自动切图)</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">填入图片路径，拖动滑块，点最下方的保存按钮时，系统会自动生成裁切好的新图存入本地。</p>
+      <h3 style="color:#e67e22; margin-bottom:15px;">🖼️ 战棋美术素材调节器</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">填入图片路径，拖动滑块。保存后，游戏内会使用严格的数学算法进行实时裁剪。</p>
       <div id="art-config-container" class="form-grid"></div>
     </div>
 
     <div style="display:flex; gap:10px; margin-bottom:20px;">
-      <button class="btn btn-play" onclick="window.saveGlobalConfigWithBake()">💾 保存全局设置 (并生成切图)</button>
+      <button class="btn btn-play" onclick="saveData(); alert('全局设置已保存！')">💾 保存全局设置</button>
       <button class="btn btn-reset" onclick="if(confirm('恢复默认？')){ localStorage.removeItem('my_game_config'); location.reload(); }">⚠️ 恢复全部默认</button>
     </div>
   `;
@@ -66,10 +66,10 @@ function renderArtConfig() {
   if (!globalData.artConfig) globalData.artConfig = {};
   
   const configs = [
-    { key: 'boardBg', label: '战棋棋盘底图', w: 160, h: 90 }, // 预览框比例 16:9
-    { key: 'unitHalo', label: '角色光环', w: 100, h: 50 },
-    { key: 'hpBg', label: '血条底框', w: 120, h: 20 },
-    { key: 'hpFill', label: '血条填充', w: 120, h: 20 }
+    { key: 'boardBg', label: '战棋棋盘底图 (宽高比 16:9)', w: 160, h: 90 }, 
+    { key: 'unitHalo', label: '角色光环 (宽高比 2:1)', w: 100, h: 50 },
+    { key: 'hpBg', label: '血条底框 (宽高比 6:1)', w: 120, h: 20 },
+    { key: 'hpFill', label: '血条填充 (宽高比 6:1)', w: 120, h: 20 }
   ];
 
   const box = document.getElementById('art-config-container');
@@ -125,99 +125,8 @@ window.updateArt = function(key, prop, value) {
   globalData.artConfig[key][prop] = prop === 'url' ? value : parseFloat(value);
 };
 
-// ====== 核心：保存并生成裁切图 (Base64) ======
-window.saveGlobalConfigWithBake = function() {
-  if (!globalData.artConfig) return saveData();
-  
-  // 目标输出尺寸：棋盘底图固定 1280x720，其余固定 400x200
-  const targets = {
-    boardBg: { w: 1280, h: 720 },
-    unitHalo: { w: 300, h: 150 },
-    hpBg: { w: 200, h: 30 },
-    hpFill: { w: 200, h: 30 }
-  };
-
-  let pending = 0;
-  let total = 0;
-  for (let k in globalData.artConfig) {
-    if (globalData.artConfig[k].url) total++;
-  }
-  
-  if (total === 0) {
-    saveData(); alert('✅ 全局设置已保存！'); return;
-  }
-
-  const loadingMsg = document.createElement('div');
-  loadingMsg.innerText = "正在生成切图，请稍候...";
-  loadingMsg.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#000;color:#fff;padding:20px;z-index:99999;border-radius:10px;";
-  document.body.appendChild(loadingMsg);
-
-  for (let key in globalData.artConfig) {
-    const item = globalData.artConfig[key];
-    if (!item.url) continue;
-
-    const target = targets[key] || { w: 500, h: 500 };
-    const canvas = document.createElement('canvas');
-    canvas.width = target.w;
-    canvas.height = target.h;
-    const ctx = canvas.getContext('2d');
-    
-    const img = new Image();
-    img.crossOrigin = "Anonymous"; // 防止跨域报错
-    img.src = item.url;
-    
-    img.onload = function() {
-      // 背景填黑，防止透明图生成后是空的
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, target.w, target.h);
-
-      // 按照 CSS 的 cover 逻辑计算绘制
-      const imgRatio = img.width / img.height;
-      const targetRatio = target.w / target.h;
-      
-      let drawW, drawH;
-      if (imgRatio > targetRatio) {
-        drawH = target.h * (item.scale || 1);
-        drawW = drawH * imgRatio;
-      } else {
-        drawW = target.w * (item.scale || 1);
-        drawH = drawW / imgRatio;
-      }
-
-      // 计算偏移 (posX, posY: 0-100)
-      const emptyX = drawW - target.w;
-      const emptyY = drawH - target.h;
-      const offsetX = -emptyX * ((item.posX ?? 50) / 100);
-      const offsetY = -emptyY * ((item.posY ?? 50) / 100);
-
-      ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
-      
-      // 将 Canvas 转换为 Base64 存入配置
-      item.bakedBase64 = canvas.toDataURL('image/png');
-      
-      pending++;
-      if (pending === total) {
-        saveData();
-        document.body.removeChild(loadingMsg);
-        alert('✅ 设置已保存，且切图已成功生成并存入本地！');
-      }
-    };
-    
-    img.onerror = function() {
-      console.error("图片加载失败，无法生成切图:", item.url);
-      pending++;
-      if (pending === total) {
-        saveData();
-        document.body.removeChild(loadingMsg);
-        alert('⚠️ 部分图片加载失败（跨域或路径错误），未能生成所有切图，但配置已保存。');
-      }
-    };
-  }
-};
-
 // ====== 以下为原有全局渲染逻辑 ======
 function renderGlobalFields() {
-  // ... (原来的全局表单渲染逻辑，完全保留) ...
   const fieldsBox = document.getElementById('global-config-fields');
   const fieldSchema = [
     { key: 'WIDTH', label: '游戏宽(px)', step: 10, min: 400 }, { key: 'HEIGHT', label: '游戏高(px)', step: 10, min: 400 },
