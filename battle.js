@@ -413,27 +413,38 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景：战斗画面 (美术美化版)
+// 场景：战斗画面 (带调试提示)
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
 
   preload() {
-    // 在加载阶段动态读取配置里的图片链接
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
     if (art.unitHalo && art.unitHalo.url) this.load.image('art_unitHalo', art.unitHalo.url);
     if (art.hpBg && art.hpBg.url) this.load.image('art_hpBg', art.hpBg.url);
     if (art.hpFill && art.hpFill.url) this.load.image('art_hpFill', art.hpFill.url);
     
-    // 忽略加载失败的报错，保证游戏不崩
-    this.load.on('loaderror', (file) => { console.warn('图片加载失败，使用默认代替：', file.src); });
+    // 捕捉加载报错
+    this.load.on('loaderror', (file) => { 
+      this.errorMsg = `图片加载失败: ${file.key}`;
+      console.warn(this.errorMsg, file.src); 
+    });
   }
 
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
+
+    // 屏幕调试提示
+    const art = window.ART_CONFIG?.boardBg;
+    let debugText = '未配置棋盘底图';
+    if (art && art.url) {
+      if (this.textures.exists('art_boardBg')) debugText = `🟢 底图已生效 (路径正常)`;
+      else debugText = `🔴 底图路径错误: ${art.url}`;
+    }
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT - 20, debugText, { fontSize: '16px', color: '#fff', backgroundColor: '#000', padding: {x:5,y:5} }).setOrigin(0.5).setDepth(999);
 
     const sBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
     sBtn.on('pointerdown', () => {
@@ -477,20 +488,19 @@ class BattleScene extends Phaser.Scene {
   drawBattlefield() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     
-    // 渲染底图
     const art = window.ART_CONFIG?.boardBg;
     if (this.textures.exists('art_boardBg')) {
       const bgImg = this.add.image(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, 'art_boardBg');
       bgImg.setOrigin((art.posX || 50) / 100, (art.posY || 50) / 100);
       bgImg.setScale(art.scale || 1);
       bgImg.setDepth(-10);
-      bgImg.setAlpha(0.6); // 略微调暗，防刺眼，让网格清晰
+      bgImg.setAlpha(1.0); // 把透明度拉满，确保能看见
     }
 
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
-    this.drawGrid(enemyLeft, gridTop, cell, 0xE74C3C, 0.4);
-    this.drawGrid(playerLeft, gridTop, cell, 0x3498DB, 0.4);
+    this.drawGrid(enemyLeft, gridTop, cell, 0xE74C3C, 0.6);
+    this.drawGrid(playerLeft, gridTop, cell, 0x3498DB, 0.6);
     this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#E74C3C', fontStyle: 'bold' });
     this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#3498DB', fontStyle: 'bold' });
     this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
@@ -517,12 +527,10 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = (cell / 2) * 0.85 * scale;
     
-    // 角色光环
     if (this.textures.exists('art_unitHalo')) {
       const artHalo = window.ART_CONFIG.unitHalo || {};
       const halo = this.add.image(0, 0, 'art_unitHalo');
       halo.setOrigin((artHalo.posX || 50) / 100, (artHalo.posY || 50) / 100);
-      // 将光环自适应角色大小
       let baseScaleX = (r * 2.5) / halo.width;
       let baseScaleY = (r * 1.5) / halo.height;
       halo.setScale(baseScaleX * (artHalo.scale || 1), baseScaleY * (artHalo.scale || 1));
@@ -531,13 +539,12 @@ class BattleScene extends Phaser.Scene {
 
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color);
     if (!this.textures.exists('art_unitHalo')) circle.setStrokeStyle(3, 0xffffff, 0.9);
-    else circle.setAlpha(0.4); // 有光环的话底色变淡
+    else circle.setAlpha(0.4);
 
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     const bw = cell * scale * 0.85;
     
-    // 血条
     let hpBg, hpBar;
     if (this.textures.exists('art_hpBg')) {
       hpBg = this.add.image(0, r + 32, 'art_hpBg');
@@ -619,7 +626,6 @@ class BattleScene extends Phaser.Scene {
     const targets = BattleLogic.selectTargets(actor, sk, this.allUnits);
     if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     
-    // 冲锋动画效果
     const v = this.unitViews.get(actor);
     if (v) {
       const origX = v.container.x;
@@ -627,7 +633,7 @@ class BattleScene extends Phaser.Scene {
       const target = targets[0];
       const tv = this.unitViews.get(target);
       
-      if (tv && sk.multiplier > 0) { // 如果有伤害，冲过去
+      if (tv && sk.multiplier > 0) {
         const dirX = tv.container.x > origX ? 1 : -1;
         const dirY = tv.container.y > origY ? 1 : -1;
         this.tweens.add({
@@ -638,7 +644,7 @@ class BattleScene extends Phaser.Scene {
           yoyo: true,
           ease: 'Quad.easeOut'
         });
-      } else { // 如果是奶妈，原地放大
+      } else { 
         this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.1, scaleY: v.container.scaleY * 1.1, duration: 150 / this.speedMultiplier, yoyo: true });
       }
     }
@@ -665,7 +671,6 @@ class BattleScene extends Phaser.Scene {
             this.showDamage(t, r);
             this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             
-            // 受击闪白与震动特效
             const tv2 = this.unitViews.get(t);
             if (tv2) {
               tv2.circle.setFillStyle(0xffffff);
@@ -741,7 +746,6 @@ class BattleScene extends Phaser.Scene {
           t.takeDamage(r.damage); 
           this.showDamage(t, r); 
           this.updateUnitView(t); 
-          // 追打震屏
           this.cameras.main.shake(80 / this.speedMultiplier, 0.005);
         }
       });
@@ -755,7 +759,6 @@ class BattleScene extends Phaser.Scene {
     const col = c || (r.isCrit ? '#fc0' : '#f55');
     const s = r.isCrit ? '42px' : '28px';
     const t = this.add.text(v.container.x, v.container.y - 70, r.isCrit ? `-${r.damage} 暴击` : `-${r.damage}`, { fontSize: s, color: col, fontStyle: 'bold', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(100);
-    // 暴击文字弹跳动画
     if (r.isCrit) {
       t.setScale(1.5);
       this.tweens.add({ targets: t, scaleX: 1, scaleY: 1, duration: 200 });
