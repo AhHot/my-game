@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>江湖歷程 - 劇本選擇</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "Microsoft YaHei", sans-serif; }
+        body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0b0c10; color: #fff; position: relative; }
+
+        /* 背景與半透明遮罩 */
+        .menu-bg {
+            position: absolute; inset: 0;
+            background: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop') center/cover;
+            filter: brightness(0.4);
+            z-index: 1;
+        }
+
+        /* 頂部導航欄 */
+        .top-bar {
+            position: absolute; top: 0; left: 0; right: 0; height: 70px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 40px; z-index: 10;
+            background: linear-gradient(to bottom, rgba(15, 15, 26, 0.9) 0%, transparent 100%);
+        }
+        .back-btn {
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff; padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 14px;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: #3498db; }
+        .page-title { font-size: 22px; font-weight: bold; color: #f1c40f; letter-spacing: 2px; }
+
+        /* 中間章節列表容器 (橫向或流式卡片) */
+        .content-container {
+            position: absolute; inset: 90px 40px 40px 40px;
+            z-index: 10; display: flex; gap: 25px; overflow-x: auto;
+            padding-bottom: 20px; align-items: center;
+        }
+
+        /* 單個章節卡片 */
+        .chapter-card {
+            width: 320px; height: 480px; flex-shrink: 0;
+            background: rgba(22, 33, 62, 0.85); backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.15); border-radius: 16px;
+            overflow: hidden; display: flex; flex-direction: column;
+            transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            cursor: pointer; position: relative;
+        }
+        .chapter-card:hover {
+            transform: translateY(-8px);
+            border-color: #f1c40f;
+            box-shadow: 0 15px 40px rgba(241, 196, 15, 0.3);
+        }
+
+        .chapter-img {
+            height: 200px; background-size: cover; background-position: center;
+            position: relative; border-bottom: 2px solid rgba(255,255,255,0.1);
+        }
+        .chapter-img::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(to top, rgba(22,33,62,0.9), transparent);
+        }
+
+        .chapter-info { padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+        .chapter-num { font-size: 12px; color: #f1c40f; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px; }
+        .chapter-title { font-size: 20px; font-weight: bold; color: #fff; margin-bottom: 10px; }
+        .chapter-desc { font-size: 13px; color: #aaa; line-height: 1.6; overflow: hidden; height: 70px; }
+
+        .btn-enter-chapter {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: #fff; border: none; padding: 12px; border-radius: 8px;
+            font-size: 15px; font-weight: bold; cursor: pointer; text-align: center;
+            transition: all 0.2s; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+        .btn-enter-chapter:hover { background: #2980b9; transform: scale(1.02); }
+    </style>
+</head>
+<body>
+
+    <div class="menu-bg"></div>
+
+    <!-- 頂部列 -->
+    <div class="top-bar">
+        <button class="back-btn" onclick="window.location.href='index.html'">⬅ 返回大廳</button>
+        <div class="page-title">📜 江湖歷程 · 劇本選擇</div>
+        <div style="width: 80px;"></div> <!-- 佔位平衡 -->
+    </div>
+
+    <!-- 章節卡片展示區 -->
+    <div class="content-container" id="chapter-list"></div>
+
+    <script>
+        function initStoryMenu() {
+            // 從 localStorage 讀取編輯器設定的劇本資料
+            const storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || {
+                books: [
+                    {
+                        id: 'book_1',
+                        title: '第一章：青城山變',
+                        desc: '青城派遭逢百年難得一見的浩劫，掌門失蹤，祕籍被奪，江湖風雲自此而始……',
+                        cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=600&auto=format&fit=crop'
+                    },
+                    {
+                        id: 'book_2',
+                        title: '第二章：江南煙雨',
+                        desc: '繁華的江南水鄉表面上歌舞昇平，暗地裡卻是各方幫派與朝廷密探交織而成的龍潭虎穴。',
+                        cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop'
+                    }
+                ]
+            };
+
+            const container = document.getElementById('chapter-list');
+            container.innerHTML = '';
+
+            storyData.books.forEach((book, index) => {
+                const card = document.createElement('div');
+                card.className = 'chapter-card';
+                card.innerHTML = `
+                    <div class="chapter-img" style="background-image: url('${book.cover || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop'}')"></div>
+                    <div class="chapter-info">
+                        <div>
+                            <div class="chapter-num">第 ${index + 1} 章節</div>
+                            <div class="chapter-title">${book.title}</div>
+                            <div class="chapter-desc">${book.desc}</div>
+                        </div>
+                        <button class="btn-enter-chapter" onclick="enterChapter('${book.id}')">進入章節</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function enterChapter(bookId) {
+            // 點擊後可跳轉至後續的小章節畫布或關卡頁面
+            alert(`🚀 準備進入章節 [ID: ${bookId}] 的小章節畫布！`);
+            // 後續可改為：window.location.href = `story_canvas.html?bookId=${bookId}`;
+        }
+
+        window.onload = initStoryMenu;
+    </script>
+</body>
+</html>
