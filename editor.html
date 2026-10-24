@@ -79,7 +79,7 @@
   
   <div style="display:flex; gap:10px; margin-bottom:15px; padding: 0 15px;">
     <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 一鍵加載 MVP 5人陣容</button>
-    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 快速模擬 100 次戰鬥</button>
+    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真實後台模擬 100 次戰鬥</button>
   </div>
 
   <div class="tabs">
@@ -1493,7 +1493,7 @@
     
     function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '' }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
-    
+
     // ==========================================
     // 一鍵加載 MVP 5人追打陣容
     // ==========================================
@@ -1530,33 +1530,163 @@
     }
 
     // ==========================================
-    // 快速 100 次戰鬥模擬測試
+    // 真實後台戰鬥引擎 (移除 Phaser 依賴版)
     // ==========================================
-    function runFastSimulation() {
-      let wins = 0, totalRounds = 0, totalFollowups = 0;
-      const simCount = 100;
-
-      for(let i=0; i<simCount; i++) {
-        // 簡易後台戰鬥模擬驗證
-        let pHp = 25000 * 5;
-        let eHp = 350000;
-        let round = 1;
+    class SimUnit {
+      constructor(data, skills, config) {
+        Object.assign(this, JSON.parse(JSON.stringify(data)));
+        const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
         
-        while(round <= 10 && pHp > 0 && eHp > 0) {
-          eHp -= 3200 * 2.0; // 1號位主動
-          totalFollowups += 4; // 4段追打
-          eHp -= 3000*0.35 + 3100*0.45 + 3300*0.40 + 3600*0.60;
-          if (eHp > 0) {
-            pHp -= 2500 * 1.5; // Boss反擊
+        this.maxHp = (this.maxHp || 0) + stats.hunHou * config.hunHouToHp;
+        this.atk = (this.atk || 0) + stats.fengRui * config.fengRuiToAtk;
+        this.def = (this.def || 0) + stats.jianRen * config.jianRenToDef;
+        this.speed = (this.speed || 0) + stats.lingDong * config.lingDongToSpd;
+
+        let critGain = (stats.jueQing * config.jueQingToCrit / 100);
+        this.critRate = (this.critRate || 0) + Math.min(critGain, config.maxCritFromStats / 100);
+        
+        let evaGain = (stats.lingDong * config.lingDongToEva / 100);
+        this.dodgeRate = (this.dodgeRate || 0) + Math.min(evaGain, config.maxEvaFromStats / 100);
+        
+        this.hitRate = (this.hitRate || 0) + (stats.guiMi * config.guiMiToHit / 100);
+        this.critResist = (this.critResist || 0) + (stats.jianRen * config.jianRenToRes / 100);
+        this.critDmg = (this.critDmg || 1.5) + (stats.guiMi * config.guiMiToCritDmg / 100);
+
+        // 装备计算(测试版假设背包为空)
+        this.baseAtk = this.atk;
+        this.baseDef = this.def;
+        this.baseSpeed = this.speed;
+
+        this.hp = this.maxHp; this.maxMp = 100; this.mp = 100;
+        this.cooldowns = {}; this.followupCounts = {};
+        this.skills = skills;
+      }
+      isAlive() { return this.hp > 0; }
+      gainMp(a) { this.mp = Math.min(100, this.mp + a); }
+      takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); return dmg; }
+      resetFollowups() { this.followupCounts = {}; }
+      reduceCooldowns() { for (let k in this.cooldowns) if (this.cooldowns[k] > 0) this.cooldowns[k]--; }
+    }
+
+    function simComputeDamage(actor, target, skill, config, elements, matrix) {
+      if (skill.multiplier === 0) return 0;
+      let hit = Math.max(config.HIT_RATE_MIN, Math.min(config.HIT_RATE_MAX, 1 + actor.hitRate - target.dodgeRate));
+      if (Math.random() > hit) return 0; // Miss
+      
+      let base = actor.atk * skill.multiplier;
+      let def = target.def / (target.def + config.DEF_CONSTANT);
+      let dmg = Math.max(base * (1 - def), base * config.MIN_DAMAGE_RATIO);
+      
+      let cr = Math.max(0, Math.min(config.CRIT_RATE_CAP, actor.critRate - target.critResist));
+      const isCrit = Math.random() < cr; if (isCrit) dmg *= actor.critDmg;
+      
+      // 元素克制(暂略，默认1.0)
+      const d = Math.round(dmg);
+      return d;
+    }
+
+    function simChooseSkill(actor, skills) {
+      const slots = actor.skillSlots || {};
+      let avail = Object.values(slots).filter(id => id && skills[id] && !['passive', 'followup'].includes(skills[id].type)).map(id => skills[id]);
+      let usable = avail.filter(sk => {
+        const cd = actor.cooldowns[sk.id] || 0;
+        if (actor.mp < (sk.mpCost || 0) || cd > 0) return false;
+        return true;
+      });
+      const w = { ultimate: 3, skill: 2, normal: 1 };
+      usable.sort((a, b) => (w[b.type] || 0) - (w[a.type] || 0));
+      if (usable.length > 0) return usable[0];
+      return skills['sk_1'] || Object.values(skills).find(s => s.type === 'normal');
+    }
+
+    // 核心模拟
+    function runFastSimulation() {
+      const config = globalData.config;
+      const skillsMap = {};
+      gameSkills.forEach(sk => skillsMap[sk.id] = sk);
+      
+      const simCount = 100;
+      let wins = 0, totalRounds = 0, totalFollowups = 0;
+
+      // 提取玩家和敌人
+      const pChars = gameChars.filter(c => c.side === 'player');
+      const eChars = gameChars.filter(c => c.side === 'enemy');
+      if (pChars.length === 0 || eChars.length === 0) {
+        return alert("请先加载 MVP 队伍（包含玩家和敌人）再进行模拟！");
+      }
+
+      for(let i = 0; i < simCount; i++) {
+        // 深拷贝实例化单位
+        let pUnits = pChars.map(c => new SimUnit(c, skillsMap, config));
+        let eUnits = eChars.map(c => new SimUnit(c, skillsMap, config));
+        let allUnits = [...pUnits, ...eUnits];
+
+        let round = 1;
+        let followupsThisBattle = 0;
+
+        while(round <= config.MAX_ROUNDS) {
+          if (pUnits.every(u => !u.isAlive()) || eUnits.every(u => !u.isAlive())) break;
+          
+          pUnits.forEach(u => u.resetFollowups()); // 每回合重置追打次数
+          eUnits.forEach(u => u.resetFollowups());
+
+          let actionOrder = [...allUnits].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed);
+
+          for(let actor of actionOrder) {
+            if (!actor.isAlive()) continue;
+            let sk = simChooseSkill(actor, skillsMap);
+            if (!sk) continue;
+
+            // 选择目标(简化逻辑：随机选一个敌方或前排)
+            let targets = allUnits.filter(u => u.side !== actor.side && u.isAlive());
+            if (targets.length === 0) break;
+            let target = targets[0]; // 简化为打第一个
+
+            // 结算伤害
+            let dmg = simComputeDamage(actor, target, sk, config, globalData.elements, globalData.elementMatrix);
+            target.takeDamage(dmg);
+            actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
+            if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
+            actor.gainMp(config.MP_REGEN_PER_ROUND * 100);
+            actor.reduceCooldowns();
+
+            // 追打链递归（极简模拟版）
+            let checkFollowup = (tag, originalActor) => {
+              if (!tag) return;
+              let candidates = allUnits.filter(u => u.isAlive() && u.side === originalActor.side && u !== originalActor);
+              for (let cand of candidates) {
+                let fid = cand.skillSlots.followup;
+                if (fid && skillsMap[fid] && skillsMap[fid].comboTagIn === tag) {
+                  let maxT = skillsMap[fid].maxTriggers || 1;
+                  if ((cand.followupCounts[fid] || 0) < maxT) {
+                    cand.followupCounts[fid] = (cand.followupCounts[fid] || 0) + 1;
+                    followupsThisBattle++; // 统计一次追打
+                    
+                    let fTarget = allUnits.filter(u => u.side !== cand.side && u.isAlive())[0];
+                    if (fTarget) {
+                      let fDmg = simComputeDamage(cand, fTarget, skillsMap[fid], config, globalData.elements, globalData.elementMatrix);
+                      fTarget.takeDamage(fDmg);
+                      // 如果追打技能还附带下一个tag，继续往下传
+                      checkFollowup(skillsMap[fid].comboTagOut, cand);
+                    }
+                    break; // 一回合一个tag只响应一次
+                  }
+                }
+              }
+            };
+
+            // 触发主技能带来的后续
+            if (sk.comboTagOut) checkFollowup(sk.comboTagOut, actor);
           }
           round++;
         }
 
-        if(eHp <= 0) wins++;
-        totalRounds += Math.min(round, 10);
+        if (eUnits.every(u => !u.isAlive())) wins++;
+        totalRounds += Math.min(round, config.MAX_ROUNDS);
+        totalFollowups += followupsThisBattle;
       }
 
-      alert(`📊 100 次快速模擬測試結果：\n-------------------------\n預估勝率：${wins}%\n平均戰鬥回合：${(totalRounds/simCount).toFixed(1)} 回合\n每場平均觸發追打：4.0 次`);
+      alert(`📊 100 次真實戰鬥模擬結果：\n-------------------------\n預估勝率：${wins}%\n平均戰鬥回合：${(totalRounds/simCount).toFixed(1)} 回合\n每場平均觸發追打：${(totalFollowups/simCount).toFixed(1)} 次`);
     }
 
     function resetData() { localStorage.clear(); location.href = location.href + '?t=' + Date.now(); }
