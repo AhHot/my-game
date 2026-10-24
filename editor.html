@@ -87,6 +87,7 @@
     <div class="tab" data-tab="story" onclick="switchTab('story')">📖 劇本</div>
     <div class="tab" data-tab="growth" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" data-tab="global" onclick="switchTab('global')">⚙️ 全局设置</div>
+    <div class="tab" data-tab="main_ui" onclick="switchTab('main_ui')">🖼️ 主頁UI</div>
   </div>
 
   <div id="app-content"></div>
@@ -105,6 +106,7 @@
   <script src="tab_stage.js"></script>
   <script src="tab_global.js"></script>
   <script src="tab_story.js"></script>
+  <script src="tab_main_ui.js"></script>
 
   <script>
     let currentTab = 'char';
@@ -125,6 +127,7 @@
       else if (tab === 'stage' && window.renderTabStage) window.renderTabStage(container);
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
       else if (tab === 'story' && window.renderTabStory) window.renderTabStory(container);
+      else if (tab === 'main_ui' && window.renderTabMainUI) window.renderTabMainUI(container);
     }
 
     // 📤 導出全部數據功能 (修復 iOS / 手機無法下載問題)
