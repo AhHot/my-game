@@ -11,12 +11,10 @@
         
         /* ================= 全屏 UI 遮罩 ================= */
         #fullscreen-ui {
-            display: none; 
-            position: absolute; 
-            /* 强制规定 UI 的内部基准尺寸为 1280x720，后续整体缩放 */
-            width: 1280px; 
-            height: 720px;
-            transform-origin: 0 0; /* 缩放起点设置为左上角 */
+            display: none; position: absolute; 
+            /* 强制 1280x720 缩放 */
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
             background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd;
             flex-direction: row; pointer-events: auto;
         }
@@ -26,13 +24,12 @@
 
         /* ================= 左侧基础面板 ================= */
         #left-panel {
-            width: 420px; /* 固定宽度 */
-            height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
+            width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
             border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;
         }
 
         .char-portrait {
-            height: 260px; /* 固定高度 */
+            height: 230px; 
             background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; 
             position: relative;
         }
@@ -42,44 +39,55 @@
         }
 
         .char-info-area { flex: 1; padding: 20px 25px; display: flex; flex-direction: column; overflow-y: auto; }
-        .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-        .char-name-level h2 { color: #f1c40f; font-size: 32px; }
-        .char-name-level span { color: #2ecc71; font-weight: bold; font-size: 22px; }
+        
+        .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+        .char-name-level h2 { color: #f1c40f; font-size: 28px; }
+        .char-name-level span { color: #2ecc71; font-weight: bold; font-size: 20px; }
 
-        .exp-bar-bg { width: 100%; height: 8px; background: #222; border-radius: 4px; margin-bottom: 20px; overflow: hidden; }
-        .exp-bar-fill { width: 45%; height: 100%; background: #3498db; }
+        /* 经验条 */
+        .exp-container { margin-bottom: 20px; }
+        .exp-text { font-size: 12px; color: #888; text-align: right; margin-bottom: 4px;}
+        .exp-bar-bg { width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; }
+        .exp-bar-fill { width: 0%; height: 100%; background: #3498db; transition: width 0.3s ease; }
 
         /* 装备槽 */
         .equip-slots-container {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 25px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
         }
         .equip-slot {
-            height: 75px; background: #1a1c29; border: 2px solid #333; border-radius: 10px;
+            height: 65px; background: #1a1c29; border: 2px solid #333; border-radius: 8px;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             cursor: pointer; position: relative;
         }
-        .equip-slot.empty { color: #555; font-size: 18px; }
+        .equip-slot.empty { color: #555; font-size: 16px; }
         .equip-slot:hover { border-color: #f1c40f; }
-        .equip-slot .eq-icon { font-size: 32px; }
-        .equip-slot .eq-name { font-size: 16px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 4px;}
+        .equip-slot .eq-icon { font-size: 28px; }
+        .equip-slot .eq-name { font-size: 13px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 4px;}
 
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 20px; margin-bottom: 25px; }
-        .stat-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+        /* 意境与加点 */
+        .free-points-hint { color: #f1c40f; font-size: 16px; margin-bottom: 10px; font-weight: bold; text-align: center;}
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 16px; margin-bottom: 20px; }
+        .stat-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #333; padding-bottom: 6px; }
         .stat-item span { color: #888; }
-        .stat-item b { color: #fff; }
+        .stat-item b { color: #fff; margin-right: 5px; }
+        .add-point-btn { 
+            background: #2ecc71; color: #fff; border: none; border-radius: 4px; 
+            width: 24px; height: 24px; font-weight: bold; cursor: pointer; line-height: 1;
+        }
+        .add-point-btn:disabled { background: #555; cursor: not-allowed; opacity: 0.5; }
 
-        .core-four { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 18px; font-weight: bold; }
+        .core-four { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 16px; font-weight: bold; }
         .core-four div { background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;}
-        .core-four div b { display: block; color: #e74c3c; margin-top: 4px; font-size: 24px;}
+        .core-four div b { display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;}
 
         /* 人物列表区域 (底部) */
         .char-list-area {
             background: #111; padding: 15px; border-top: 1px solid #333;
-            display: flex; gap: 15px; overflow-x: auto; height: 100px; flex-shrink: 0;
+            display: flex; gap: 15px; overflow-x: auto; height: 95px; flex-shrink: 0;
         }
         .char-avatar-btn {
-            width: 70px; height: 70px; flex-shrink: 0; border-radius: 12px; background: #222; border: 2px solid #444;
-            display: flex; justify-content: center; align-items: center; font-size: 36px; cursor: pointer; transition: all 0.2s;
+            width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444;
+            display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s;
         }
         .char-avatar-btn.active { border-color: #f1c40f; box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); background: #333; }
 
@@ -160,10 +168,19 @@
         .detail-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px; }
         .detail-item span { color: #888; }
         .detail-item b { color: #fff; }
+
+        /* 全局提示文字 */
+        #global-toast {
+            position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
+            background: rgba(46, 204, 113, 0.9); color: #fff; padding: 15px 30px; border-radius: 10px;
+            font-size: 24px; font-weight: bold; z-index: 99999; display: none;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); text-align: center;
+        }
     </style>
 </head>
 <body>
     <div id="game"></div>
+    <div id="global-toast"></div>
 
     <div id="fullscreen-ui" onclick="event.stopPropagation()">
         <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
@@ -174,14 +191,21 @@
             <div class="char-info-area">
                 <div class="char-name-level">
                     <h2 id="ui-char-name">战士</h2>
-                    <span id="ui-char-level">Lv. 44</span>
+                    <span id="ui-char-level">Lv. 1</span>
                 </div>
-                <div class="exp-bar-bg"><div class="exp-bar-fill"></div></div>
                 
+                <!-- 经验条 -->
+                <div class="exp-container">
+                    <div class="exp-text" id="ui-exp-text">0 / 100</div>
+                    <div class="exp-bar-bg"><div class="exp-bar-fill" id="ui-exp-fill"></div></div>
+                </div>
+
                 <!-- 6大装备槽 -->
                 <div class="equip-slots-container" id="ui-equip-slots"></div>
 
+                <div class="free-points-hint" id="ui-free-points">剩余点数: 0</div>
                 <div class="stat-grid" id="ui-stats-grid"></div>
+
                 <div class="core-four" id="ui-core-four">
                     <div>气血(HP)<b id="ui-hp">3000</b></div>
                     <div>攻击(ATK)<b id="ui-atk">400</b></div>
@@ -200,7 +224,6 @@
                 <div class="rt-tab" id="rt-btn-skill" onclick="switchRightTab('skill')">📖 技能</div>
             </div>
 
-            <!-- 背包区 -->
             <div id="inv-container">
                 <div class="filter-bar">
                     <div class="filter-btn active" onclick="setFilter('all', this)">全部</div>
@@ -212,7 +235,6 @@
                 <div id="inventory-grid"></div>
             </div>
 
-            <!-- 技能区 -->
             <div id="skill-container"></div>
         </div>
 
@@ -248,6 +270,7 @@
         let currentUnit = null;
         let currentTab = 'inv';
         let currentFilter = 'all';
+        let globalExpTable = [];
 
         const uiContainer = document.getElementById('fullscreen-ui');
 
@@ -260,16 +283,48 @@
                 setTimeout(resizeUIToGame, 100);
                 return;
             }
-
-            // 计算缩放比例：用当前画面实际宽度，除以 UI 基准宽度 1280
             const scale = rect.width / 1280;
-
             uiContainer.style.transform = `scale(${scale})`;
             uiContainer.style.left = rect.left + 'px';
             uiContainer.style.top = rect.top + 'px';
         }
-
         window.addEventListener('resize', resizeUIToGame);
+
+        // 全局简易提示
+        function showToast(msg, color = '#2ecc71') {
+            const toast = document.getElementById('global-toast');
+            toast.innerText = msg;
+            toast.style.background = color;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
+
+        // 获取升级所需经验
+        function getExpNeeded(level) {
+            if(level >= 60) return 9999999;
+            return globalExpTable[level - 1] || 100;
+        }
+
+        // 给角色加经验并处理升级
+        function addCharacterExp(char, amount) {
+            if (char.level >= 60) return;
+            char.exp = (char.exp || 0) + amount;
+            
+            let currentLv = char.level || 1;
+            let reqExp = getExpNeeded(currentLv);
+            let leveledUp = false;
+            
+            while (char.exp >= reqExp && currentLv < 60) {
+                char.exp -= reqExp;
+                currentLv++;
+                // 每次升级送 3 点自由点
+                char.freePoints = (char.freePoints || 0) + 3;
+                reqExp = getExpNeeded(currentLv);
+                leveledUp = true;
+            }
+            char.level = currentLv;
+            return leveledUp;
+        }
 
         // 打开界面
         window.openCharacterUI = function() {
@@ -279,32 +334,35 @@
                 uiContainer.style.display = 'flex';
             }, 10);
 
-            // 阻断底层 Phaser 点击
             if (window.game && window.game.scene) {
                 const activeScenes = window.game.scene.getScenes(true);
                 activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
             }
             
-            if (typeof CHARACTERS === 'undefined' || typeof INVENTORY === 'undefined') return;
+            if (typeof CHARACTERS === 'undefined') return;
+
+            // 读取全局配置里的经验表
+            try {
+                const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
+                globalExpTable = gc.expTable || [];
+            } catch(e) {}
 
             renderCharList();
             const players = CHARACTERS.filter(c => c.side === 'player');
             if(players.length > 0) selectCharacter(players[0]);
         }
 
-        // 关闭界面
         window.closeCharacterUI = function() {
             uiContainer.style.display = 'none';
             hideTooltip();
             hideDetailCard();
-
             if (window.game && window.game.scene) {
                 const activeScenes = window.game.scene.getScenes(true);
                 activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
             }
         }
 
-        // 渲染底部头像
+        // 渲染头像
         function renderCharList() {
             const box = document.getElementById('ui-char-list');
             box.innerHTML = '';
@@ -335,25 +393,47 @@
             refreshRightPanel();
         }
 
+        // 渲染左侧面板 (包含经验、加点)
         function refreshLeftPanel() {
             document.getElementById('ui-char-name').innerText = selectedChar.name;
+            document.getElementById('ui-char-level').innerText = `Lv. ${selectedChar.level || 1}`;
+            
+            // 经验条
+            const cLv = selectedChar.level || 1;
+            const cExp = selectedChar.exp || 0;
+            const reqExp = getExpNeeded(cLv);
+            const pct = Math.min(100, (cExp / reqExp) * 100);
+            
+            document.getElementById('ui-exp-text').innerText = cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`;
+            document.getElementById('ui-exp-fill').style.width = `${pct}%`;
+
+            // 核心数值
             document.getElementById('ui-hp').innerText = currentUnit.maxHp;
             document.getElementById('ui-atk').innerText = currentUnit.atk;
             document.getElementById('ui-def').innerText = currentUnit.def;
             document.getElementById('ui-spd').innerText = currentUnit.speed.toFixed(1);
 
+            // 加点区
+            const fp = selectedChar.freePoints || 0;
+            document.getElementById('ui-free-points').innerText = `剩余点数: ${fp}`;
+            
             const stats = selectedChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
-            document.getElementById('ui-stats-grid').innerHTML = `
-                <div class="stat-item"><span>锋锐</span> <b>${stats.fengRui}</b></div>
-                <div class="stat-item"><span>浑厚</span> <b>${stats.hunHou}</b></div>
-                <div class="stat-item"><span>灵动</span> <b>${stats.lingDong}</b></div>
-                <div class="stat-item"><span>坚韧</span> <b>${stats.jianRen}</b></div>
-                <div class="stat-item"><span>诡秘</span> <b>${stats.guiMi}</b></div>
-                <div class="stat-item"><span>绝情</span> <b>${stats.jueQing}</b></div>
-            `;
+            const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
+            
+            let statsHtml = '';
+            Object.keys(statNames).forEach(k => {
+                statsHtml += `
+                    <div class="stat-item">
+                        <div><span>${statNames[k]}</span> <b>${stats[k] || 0}</b></div>
+                        <button class="add-point-btn" ${fp > 0 ? '' : 'disabled'} onclick="allocatePoint('${k}')">+</button>
+                    </div>
+                `;
+            });
+            document.getElementById('ui-stats-grid').innerHTML = statsHtml;
 
             renderEquipSlots();
 
+            // 详细属性弹窗
             document.getElementById('detail-atk').innerHTML = `
                 <div class="detail-item"><span>暴击率</span> <b>${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>暴击伤害</span> <b>${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
@@ -369,7 +449,19 @@
             `;
         }
 
-        // 渲染左侧装备槽
+        // 加点逻辑
+        function allocatePoint(statKey) {
+            if (!selectedChar.freePoints || selectedChar.freePoints <= 0) return;
+            
+            selectedChar.freePoints--;
+            if(!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+            selectedChar.stats[statKey] = (selectedChar.stats[statKey] || 0) + 1;
+            
+            saveGameData();
+            selectCharacter(selectedChar); // 重新计算并刷新 UI
+        }
+
+        // 装备槽
         function renderEquipSlots() {
             const container = document.getElementById('ui-equip-slots');
             container.innerHTML = '';
@@ -474,7 +566,6 @@
             }
         }
 
-        // 渲染技能
         function renderSkills() {
             const box = document.getElementById('skill-container');
             box.innerHTML = '';
@@ -612,12 +703,13 @@
             tooltip.style.display = 'block';
         }
 
-        // 使用道具逻辑
+        // 使用道具逻辑（支持升级动画）
         function useItem(inst, itemTpl) {
+            let leveledUp = false;
+            
             if (itemTpl.useEffect === 'AddExp') {
-                if (!selectedChar.exp) selectedChar.exp = 0;
-                selectedChar.exp += (itemTpl.useValue || 0);
-                alert(`【${selectedChar.name}】获得 ${itemTpl.useValue} 点经验！`);
+                leveledUp = addCharacterExp(selectedChar, itemTpl.useValue || 0);
+                showToast(`获得 ${itemTpl.useValue} 点经验！`, '#3498db');
             } 
             else if (itemTpl.useEffect === 'AddStat') {
                 if (!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
@@ -625,11 +717,11 @@
                 if (key) {
                     selectedChar.stats[key] = (selectedChar.stats[key] || 0) + (itemTpl.useValue || 1);
                     const statName = {fengRui:'锋锐', hunHou:'浑厚', lingDong:'灵动', jianRen:'坚韧', guiMi:'诡秘', jueQing:'绝情'}[key] || key;
-                    alert(`【${selectedChar.name}】的 ${statName} 永久增加了 ${itemTpl.useValue || 1} 点！`);
+                    showToast(`${statName} 永久 +${itemTpl.useValue || 1}`, '#f1c40f');
                 }
             }
             else if (itemTpl.useEffect === 'PackageEquip' || itemTpl.useEffect === 'RandomEquip') {
-                alert('该道具功能暂未开放（预留功能）');
+                alert('该道具功能暂未开放');
                 return; 
             }
 
@@ -643,6 +735,10 @@
             saveGameData();
             hideTooltip();
             selectCharacter(selectedChar);
+            
+            if(leveledUp) {
+                setTimeout(() => showToast(`LEVEL UP! 升级到 Lv.${selectedChar.level}，获得 3 点意境点！`, '#f1c40f'), 1000);
+            }
         }
 
         function hideTooltip() { document.getElementById('item-tooltip').style.display = 'none'; }
