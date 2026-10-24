@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>遊戲配置中心 (完整升級版)</title>
+  <title>遊戲配置中心 (修復版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
@@ -20,64 +20,24 @@
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .card-header h3 { color: #3498db; }
     .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer;}
-    .btn-grant { background: #e67e22; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer; margin-right:10px;}
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 2; }
     .form-item label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select, .form-item textarea { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; font-size: 13px; width: 100%; }
     .sub-title { color: #f1c40f; font-size: 14px; margin-top: 15px; margin-bottom: 5px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 5px; grid-column: span 2;}
-    
-    .effect-box { background: #0f3460; padding: 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #3498db; position: relative; }
-    .effect-title { font-size: 12px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; display: flex; justify-content: space-between; }
-    .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
-    .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
-
-    .level-editor-layout { display: flex; gap: 15px; }
-    @media (max-width: 768px) { .level-editor-layout { flex-direction: column; } }
-    .enemy-pool { flex: 1; background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
-    .enemy-pool-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #222; cursor: pointer; transition: background 0.2s; }
-    .enemy-pool-item:active { background: #3498db; }
-    .enemy-pool-item.error { background: #e74c3c; color: white; }
-    
-    .grid-container { flex: 1; display: flex; justify-content: center; flex-direction: column;}
-    .board-wrapper { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; overflow: hidden; margin: 0 auto;}
-    .bg-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
-    .bg-cell { border: 1px solid #222; }
-    
-    .unit-block { position: absolute; background: rgba(52, 152, 219, 0.6); border: 2px solid #3498db; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: grab; touch-action: none; user-select: none; z-index: 10; }
-    .unit-block.invalid { background: rgba(231, 76, 60, 0.6); border-color: #e74c3c; }
-    .unit-block .block-emoji { font-size: 32px; pointer-events: none; }
-    .unit-block .block-del { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; z-index: 11; border: 2px solid #fff; }
-    
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; color: #fff; text-align: center; text-decoration: none; cursor:pointer;}
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
-
-    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-    th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #222; }
-    input[type="color"] { padding: 0; height: 30px; cursor: pointer; }
-
-    .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
-    .checkbox-item { display: flex; align-items: center; gap: 4px; background: #0f0f1a; padding: 4px 8px; border-radius: 4px; border: 1px solid #333; cursor: pointer; font-size: 12px; }
-    .checkbox-item input { width: auto; }
-    
-    .drop-rate-row { display: flex; align-items: center; gap: 10px; background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
-    .drop-rate-label { width: 80px; font-weight: bold; }
-    .drop-rate-calc { width: 80px; text-align: right; font-weight: bold; }
-
-    .affix-pool-tabs { display: flex; gap: 10px; margin-bottom: 10px; }
-    .affix-pool-tab { padding: 6px 15px; background: #0f3460; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
-    .affix-pool-tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 遊戲配置中心 (完整升級版)</h1>
+  <h1>⚙️ 遊戲配置中心 (修復版)</h1>
   
   <div style="display:flex; gap:10px; margin-bottom:15px;">
-    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 一鍵加載 MVP 5人追打陣容</button>
+    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 一鍵加載 MVP 5人陣容</button>
     <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 快速模擬 100 次戰鬥</button>
   </div>
 
@@ -87,8 +47,6 @@
     <div class="tab" onclick="switchTab('status')">🌊 狀態</div>
     <div class="tab" onclick="switchTab('item')">🎒 物品</div>
     <div class="tab" onclick="switchTab('level')">🗺️ 關卡</div>
-    <div class="tab" onclick="switchTab('global')">⚙️ 全局</div>
-    <div class="tab" onclick="switchTab('ui')">🎨 UI</div>
   </div>
 
   <!-- 角色 -->
@@ -108,7 +66,6 @@
     <div class="sub-tabs">
       <div class="sub-tab active" id="tab-skill-active" onclick="switchSubTab('skill', 'active')">主動/治療</div>
       <div class="sub-tab" id="tab-skill-followup" onclick="switchSubTab('skill', 'followup')">追打</div>
-      <div class="sub-tab" id="tab-skill-passive" onclick="switchSubTab('skill', 'passive')">被動/光環</div>
     </div>
     <div id="skill-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addSkill()">➕ 新增技能</button>
@@ -116,100 +73,20 @@
 
   <!-- 狀態 -->
   <div id="status-section" style="display:none;">
-    <div class="search-bar"><input type="text" id="search-status" placeholder="🔍 搜索狀態..." oninput="render()"></div>
     <div id="status-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addStatus()">➕ 新增狀態</button>
   </div>
 
   <!-- 物品 -->
   <div id="item-section" style="display:none;">
-    <div class="search-bar"><input type="text" id="search-item" placeholder="🔍 搜索物品..." oninput="render()"></div>
-    <div class="sub-tabs">
-      <div class="sub-tab active" id="tab-item-weapon" onclick="switchSubTab('item', 'weapon')">武器</div>
-      <div class="sub-tab" id="tab-item-armor" onclick="switchSubTab('item', 'armor')">防具</div>
-      <div class="sub-tab" id="tab-item-accessory" onclick="switchSubTab('item', 'accessory')">飾品</div>
-      <div class="sub-tab" id="tab-item-consumable" onclick="switchSubTab('item', 'consumable')">消耗品</div>
-      <div class="sub-tab" id="tab-item-material" onclick="switchSubTab('item', 'material')">材料</div>
-      <div class="sub-tab" id="tab-item-quest" onclick="switchSubTab('item', 'quest')">任務</div>
-    </div>
     <div id="item-list"></div>
-    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addItem()">➕ 新增物品模板</button>
+    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addItem()">➕ 新增物品</button>
   </div>
 
   <!-- 關卡 -->
   <div id="level-section" style="display:none;">
     <div id="level-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addLevel()">➕ 新增關卡</button>
-  </div>
-
-  <!-- 全局設定 -->
-  <div id="global-section" style="display:none;">
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 戰鬥基礎參數 & 意境轉化係數</h3>
-      <div id="global-config-fields" class="form-grid"></div>
-    </div>
-
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">📊 詞條數值波動池</h3>
-      <div class="sub-title">固定數值類</div>
-      <div class="form-grid" id="affix-vals-flat"></div>
-      <div class="sub-title">基礎百分比類</div>
-      <div class="form-grid" id="affix-vals-basic"></div>
-      <div class="sub-title">高級屬性類</div>
-      <div class="form-grid" id="affix-vals-advanced"></div>
-    </div>
-
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 裝備掉落配置</h3>
-      <div id="drop-rate-fields"></div>
-      <button class="btn" style="background:#e74c3c; width:100%; margin-top:15px;" onclick="resetDropRates()">恢復掉落預設值</button>
-    </div>
-
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">🎲 隨機詞條池配置</h3>
-      <div class="affix-pool-tabs">
-        <div class="affix-pool-tab active" id="affix-tab-weapon" onclick="switchAffixTab('weapon')">武器</div>
-        <div class="affix-pool-tab" id="affix-tab-armor" onclick="switchAffixTab('armor')">防具</div>
-        <div class="affix-pool-tab" id="affix-tab-accessory" onclick="switchAffixTab('accessory')">飾品</div>
-      </div>
-      <div id="affix-pool-box" class="checkbox-group"></div>
-    </div>
-
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">🎨 元素管理</h3>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead><tr><th>ID</th><th>顯示名</th><th>圖標</th><th>顏色</th><th>操作</th></tr></thead>
-          <tbody id="global-elements-body"></tbody>
-        </table>
-      </div>
-      <button class="btn" style="background:#3498db; width:100%;" onclick="addElement()">➕ 新增元素</button>
-    </div>
-
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 元素剋制矩陣</h3>
-      <div style="overflow-x:auto;">
-        <table id="global-matrix-table" style="text-align:center;"></table>
-      </div>
-    </div>
-
-    <div style="display:flex; gap:10px; margin-bottom:20px;">
-      <button class="btn btn-play" onclick="saveGlobalConfig()">💾 保存全局設定</button>
-      <button class="btn btn-reset" onclick="resetGlobalConfig()">⚠️ 恢復全部預設</button>
-    </div>
-  </div>
-
-  <!-- UI 設定 -->
-  <div id="ui-section" style="display:none;">
-    <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">🎨 角色屬性面板外觀</h3>
-      <div class="form-grid">
-        <div class="form-item full"><label>背景圖片網址</label><input type="text" id="ui-bg-image"></div>
-        <div class="form-item"><label>背景顏色</label><input type="text" id="ui-bg-color" value="#1e2028"></div>
-        <div class="form-item"><label>邊框顏色</label><input type="text" id="ui-border-color" value="#4a4a4a"></div>
-      </div>
-      <button class="btn btn-play" style="width:100%; margin-top:20px;" onclick="saveUIConfig()">💾 保存 UI 設定</button>
-    </div>
   </div>
 
   <div class="bottom-bar">
@@ -230,54 +107,238 @@
       { val: 'te_shu', label: '【特殊】(少數專屬機制)' }
     ];
 
-    const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '戰士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'p_priest', name: '牧師', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 5, hunHou: 15, lingDong: 10, jianRen: 5, guiMi: 5, jueQing: 5 }, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'e_skeleton', name: '骷髏兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'e_boss', name: '骷髏王', side: 'enemy', emoji: '👑', element: 'dark', maxHp: 8000, atk: 400, def: 300, speed: 6, sizeX: 2, sizeY: 2, critRate: 0.1, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.2, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 1, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
-    ];
+    let currentTab = 'char';
+    let subTab = { char: 'player', skill: 'active', item: 'weapon' };
 
-    const DEFAULT_SKILLS = [
-      { id: 'skill_slash', name: '斬擊', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
-      { id: 'skill_fireball', name: '火球術', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
-      { id: 'skill_heal', name: '聖光術', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
-      { id: 'skill_follow_1', name: '追打·烈焰斬', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] }
-    ];
+    let gameChars = JSON.parse(localStorage.getItem('my_game_data_v22')) || [];
+    let gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v22')) || [];
+    let gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v22')) || [];
+    let gameItems = JSON.parse(localStorage.getItem('my_game_items_v22')) || [];
+    let gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22')) || [];
 
-    const DEFAULT_STATUS = [ 
-      { id: 'status_burn', name: '灼燒', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
-      { id: 'status_stun', name: '眩暈', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true }
-    ];
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      ['char','skill','status','item','level'].forEach(k => { 
+        const el = document.getElementById(k+'-section');
+        if (el) el.style.display = tab === k ? 'block' : 'none'; 
+      });
+      render();
+    }
 
-    const DEFAULT_ITEMS = [
-      { id: 'item_sword', name: '鐵劍', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }
-    ];
+    function switchSubTab(tab, sub) {
+      subTab[tab] = sub;
+      const ids = { char: ['player', 'enemy'], skill: ['active', 'followup'] };
+      if (ids[tab]) {
+        ids[tab].forEach(s => { 
+          const el = document.getElementById(`tab-${tab}-${s}`);
+          if (el) el.classList.remove('active'); 
+        });
+        const target = document.getElementById(`tab-${tab}-${sub}`);
+        if (target) target.classList.add('active');
+      }
+      render();
+    }
 
-    const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 關', enemyList: [], rewardItemId: '' } ];
-    const DEFAULT_DROP_RATES = [
-      { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
-      { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
-      { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
-      { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
-      { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
-      { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
-    ];
+    function render() {
+      if (currentTab === 'char') renderChars();
+      if (currentTab === 'skill') renderSkills();
+      if (currentTab === 'status') renderStatuses();
+      if (currentTab === 'item') renderItems();
+      if (currentTab === 'level') renderLevels();
+    }
 
-    const DEFAULT_AFFIX_POOLS = {
-      weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
-      armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
-      accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
-    };
+    function getSkillOptions(selectedId) {
+      let html = `<option value="">(無)</option>`;
+      gameSkills.forEach(sk => { html += `<option value="${sk.id}" ${selectedId === sk.id ? 'selected' : ''}>[${sk.type}] ${sk.name}</option>`; });
+      return html;
+    }
 
-    const DEFAULT_AFFIX_VALUES = {
-      atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
-      atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
-      critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
-      dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
-      speed: { min: 1, max: 4 }
-    };
+    function renderChars() {
+      const list = document.getElementById('char-list'); list.innerHTML = '';
+      const keyword = document.getElementById('search-char').value.toLowerCase();
+      gameChars.forEach((char, index) => {
+        if (char.side !== subTab.char) return;
+        if (keyword && !char.name.toLowerCase().includes(keyword)) return;
+        if (!char.skillSlots) char.skillSlots = { skill: '', followup: '' };
 
-    const AFFIX_NAMES = {
-      atkFlat: '攻擊力(固定)', defFlat: '防禦力(固定)', hpFlat: '生命值(固定)',
-      atkPercent: '攻擊力(%)', defPercent: '防禦力(%)', hpPercent: '生命值(%)',
-      critRate: '暴擊率(%)', critDmg: '暴擊傷害(%)', critResist: '抗暴率(%
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `
+          <div class="card-header"><h3>${char.emoji || '👤'} ${char.name}</h3><button class="btn-del" onclick="deleteChar(${index})">刪除</button></div>
+          <div class="form-grid">
+            <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateChar(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>圖標</label><input type="text" value="${char.emoji || ''}" onchange="updateChar(${index}, 'emoji', this.value)"></div>
+            
+            <div class="form-item full"><label>角色全身立繪 (Portrait URL)</label><input type="text" value="${char.portrait||''}" placeholder="assets/portraits/char.png" onchange="updateChar(${index}, 'portrait', this.value)"></div>
+            <div class="form-item full"><label>角色戰鬥頭像 (Avatar URL)</label><input type="text" value="${char.avatar||''}" placeholder="assets/avatars/head.png" onchange="updateChar(${index}, 'avatar', this.value)"></div>
+
+            <div class="form-item"><label>生命</label><input type="number" value="${char.maxHp}" onchange="updateChar(${index}, 'maxHp', parseInt(this.value))"></div>
+            <div class="form-item"><label>攻擊</label><input type="number" value="${char.atk}" onchange="updateChar(${index}, 'atk', parseInt(this.value))"></div>
+            
+            <div class="form-item full">
+              <label>技能裝配</label>
+              <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">主動:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
+              <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px; color:#e74c3c;">追打:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'followup', this.value)">${getSkillOptions(char.skillSlots.followup)}</select></div>
+            </div>
+          </div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderSkills() {
+      const list = document.getElementById('skill-list'); list.innerHTML = '';
+      const keyword = document.getElementById('search-skill').value.toLowerCase();
+      gameSkills.forEach((skill, index) => {
+        if (subTab.skill === 'active' && skill.type === 'followup') return;
+        if (subTab.skill === 'followup' && skill.type !== 'followup') return;
+        if (keyword && !skill.name.toLowerCase().includes(keyword)) return;
+
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `
+          <div class="card-header"><h3>${skill.name}</h3><button class="btn-del" onclick="deleteSkill(${index})">刪除</button></div>
+          <div class="form-grid">
+            <div class="form-item"><label>名稱</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
+            <div class="form-item"><label>分類</label><select onchange="updateSkill(${index}, 'type', this.value)"><option value="skill" ${skill.type==='skill'?'selected':''}>主動</option><option value="followup" ${skill.type==='followup'?'selected':''}>追打</option></select></div>
+            
+            <div class="form-item full"><label>技能圖標 (Icon URL)</label><input type="text" value="${skill.iconImg||''}" placeholder="assets/skills/icon.png" onchange="updateSkill(${index}, 'iconImg', this.value)"></div>
+            <div class="form-item full"><label>技能詳細介紹 (Desc)</label><textarea rows="2" onchange="updateSkill(${index}, 'desc', this.value)">${skill.desc||''}</textarea></div>
+
+            <div class="form-item"><label>傷害倍率</label><input type="number" step="0.1" value="${skill.multiplier || 0}" onchange="updateSkill(${index}, 'multiplier', parseFloat(this.value))"></div>
+
+            <div class="sub-title">⚔️ 追打標籤機制（下拉選單）</div>
+            <div class="form-item">
+              <label style="color:#2ecc71;">發起標籤 (comboTagOut)</label>
+              <select onchange="updateSkill(${index}, 'comboTagOut', this.value)">
+                ${FOLLOWUP_TAGS.map(t => `<option value="${t.val}" ${skill.comboTagOut===t.val?'selected':''}>${t.label}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-item">
+              <label style="color:#e74c3c;">響應標籤 (comboTagIn)</label>
+              <select onchange="updateSkill(${index}, 'comboTagIn', this.value)">
+                ${FOLLOWUP_TAGS.map(t => `<option value="${t.val}" ${skill.comboTagIn===t.val?'selected':''}>${t.label}</option>`).join('')}
+              </select>
+            </div>
+          </div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderStatuses() {
+      const list = document.getElementById('status-list'); list.innerHTML = '';
+      gameStatuses.forEach((st, index) => {
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `<div class="card-header"><h3>${st.name}</h3><button class="btn-del" onclick="deleteStatus(${index})">刪除</button></div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderItems() {
+      const list = document.getElementById('item-list'); list.innerHTML = '';
+      gameItems.forEach((item, index) => {
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `<div class="card-header"><h3>${item.name}</h3><button class="btn-del" onclick="deleteItem(${index})">刪除</button></div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderLevels() {
+      const list = document.getElementById('level-list'); list.innerHTML = '';
+      gameLevels.forEach((lv, index) => {
+        const div = document.createElement('div'); div.className = 'card';
+        div.innerHTML = `<div class="card-header"><h3>${lv.name}</h3><button class="btn-del" onclick="deleteLevel(${index})">刪除</button></div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function saveData() {
+      localStorage.setItem('my_game_data_v22', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_v22', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_statuses_v22', JSON.stringify(gameStatuses));
+      localStorage.setItem('my_game_items_v22', JSON.stringify(gameItems));
+      localStorage.setItem('my_game_levels_v22', JSON.stringify(gameLevels));
+      localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
+      localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
+      localStorage.setItem('my_game_levels_sync', JSON.stringify(gameLevels));
+    }
+
+    function updateChar(i, k, v) { gameChars[i][k] = v; saveData(); }
+    function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
+    function updateSkill(i, k, v) { gameSkills[i][k] = v; saveData(); }
+
+    function addChar() { gameChars.push({ id:'c_'+Date.now(), name:'新角色', side: subTab.char, atk:300, maxHp:3000, skillSlots:{skill:'',followup:''} }); saveData(); render(); }
+    function deleteChar(i) { gameChars.splice(i,1); saveData(); render(); }
+    function addSkill() { gameSkills.push({ id:'s_'+Date.now(), name:'新招式', type:'skill', multiplier:1.0, comboTagOut:'', comboTagIn:'' }); saveData(); render(); }
+    function deleteSkill(i) { gameSkills.splice(i,1); saveData(); render(); }
+    function addStatus() { gameStatuses.push({ id:'st_'+Date.now(), name:'新狀態' }); saveData(); render(); }
+    function deleteStatus(i) { gameStatuses.splice(i,1); saveData(); render(); }
+    function addItem() { gameItems.push({ id:'it_'+Date.now(), name:'新物品' }); saveData(); render(); }
+    function deleteItem(i) { gameItems.splice(i,1); saveData(); render(); }
+    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新關卡' }); saveData(); render(); }
+    function deleteLevel(i) { gameLevels.splice(i,1); saveData(); render(); }
+    function resetData() { localStorage.clear(); location.reload(); }
+
+    // 一鍵加載 MVP 5人追打陣容
+    function loadMVP5Team() {
+      if(!confirm("這將會覆蓋您目前的角色與技能設定，導入 MVP 5 人追打小隊，是否繼續？")) return;
+
+      const mvpSkills = [
+        { id: 'sk_1', name: '破浪劍法', type: 'skill', multiplier: 2.0, comboTagOut: 'po_shi', comboTagIn: '', desc: '華山快劍起手，造成 200% 傷害，命中且未被格擋時產生【破勢】。' },
+        { id: 'fu_2', name: '追擊·掃葉棍', type: 'followup', multiplier: 0.35, comboTagOut: 'zhen_chan', comboTagIn: 'po_shi', desc: '響應【破勢】，造成 35% 傷害，並產生【震顫】。' },
+        { id: 'fu_3', name: '追擊·隔空指', type: 'followup', multiplier: 0.45, comboTagOut: 'zhi_qi', comboTagIn: 'zhen_chan', desc: '響應【震顫】，造成 45% 傷害，並產生【滯氣】。' },
+        { id: 'fu_4', name: '追擊·毒翎鏢', type: 'followup', multiplier: 0.40, comboTagOut: 'feng_hou', comboTagIn: 'zhi_qi', desc: '響應【滯氣】，造成 40% 傷害，並產生【封喉】。' },
+        { id: 'fu_5', name: '追擊·絕命斷頭臺', type: 'followup', multiplier: 0.60, comboTagOut: '', comboTagIn: 'feng_hou', desc: '終結響應【封喉】，造成 60% 高額收割傷害，為追打鏈完美收官。' }
+      ];
+
+      const mvpChars = [
+        { id: 'char_1', name: '陸孤影 (1號位)', side: 'player', emoji: '🗡️', atk: 3200, maxHp: 25000, hitRate: 0.95, dodgeRate: 0.1, skillSlots: { skill: 'sk_1', followup: '' } },
+        { id: 'char_2', name: '石破天 (2號位)', side: 'player', emoji: '🥖', atk: 3000, maxHp: 30000, hitRate: 0.90, dodgeRate: 0.05, skillSlots: { skill: '', followup: 'fu_2' } },
+        { id: 'char_3', name: '玄空子 (3號位)', side: 'player', emoji: '☯️', atk: 3100, maxHp: 22000, hitRate: 0.90, dodgeRate: 0.1, skillSlots: { skill: '', followup: 'fu_3' } },
+        { id: 'char_4', name: '唐無影 (4號位)', side: 'player', emoji: '🏹', atk: 3300, maxHp: 20000, hitRate: 0.92, dodgeRate: 0.15, skillSlots: { skill: '', followup: 'fu_4' } },
+        { id: 'char_5', name: '荊無命 (5號位)', side: 'player', emoji: '🥷', atk: 3600, maxHp: 18000, hitRate: 0.95, dodgeRate: 0.2, skillSlots: { skill: '', followup: 'fu_5' } },
+        { id: 'boss_1', name: '大後期 BOSS', side: 'enemy', emoji: '👹', atk: 2500, maxHp: 350000, hitRate: 0.85, dodgeRate: 0.1, skillSlots: {} }
+      ];
+
+      const mvpLevels = [
+        { id: 'lv_mvp', name: 'MVP 測試關卡', enemyList: [{ uid: 'e1', id: 'boss_1', x: 2, y: 2 }] }
+      ];
+
+      gameSkills = mvpSkills;
+      gameChars = mvpChars;
+      gameLevels = mvpLevels;
+      saveData();
+      render();
+      alert("✅ MVP 5 人追打隊伍與測試關卡已成功載入！");
+    }
+
+    // 快速 100 次戰鬥模擬測試
+    function runFastSimulation() {
+      let wins = 0, totalRounds = 0, totalFollowups = 0;
+      const simCount = 100;
+
+      for(let i=0; i<simCount; i++) {
+        const units = gameChars.map(c => new Unit(c));
+        let round = 1;
+        
+        while(round <= 10) {
+          const alivePlayers = units.filter(u => u.side==='player' && u.isAlive());
+          const aliveEnemies = units.filter(u => u.side==='enemy' && u.isAlive());
+          if(alivePlayers.length === 0 || aliveEnemies.length === 0) break;
+
+          units.forEach(u => u.resetFollowups());
+          
+          const p1 = units.find(u => u.id === 'char_1' && u.isAlive());
+          const enemy = aliveEnemies[0];
+          
+          if(p1 && enemy) {
+            const sk = SKILLS[p1.skillSlots.skill];
+            if(sk) {
+              const res = BattleLogic.computeDamage(p1, enemy, sk);
+              if(!res.isMiss) {
+                enemy.takeDamage(res.damage);
+                if(sk.comboTagOut) {
+                  let currentTag = sk.comboTagOut;
+                  let chainCount = 0;
+                  
+                  while(currentTag && chainCount < 5) {
+                    const nextUnit = units.find(u => u.isAlive() && u.side==='player' && SKILLS[u.skillSlots.followup]?.comboTagIn === currentTag && !u.followupCounts[u.skillSlots.followup]);
+                    if(!ne
