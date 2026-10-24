@@ -78,7 +78,7 @@
     <div class="tab" data-tab="skill" onclick="switchTab('skill')">⚔️ 技能</div>
     <div class="tab" data-tab="status" onclick="switchTab('status')">🌊 状态</div>
     <div class="tab" data-tab="item" onclick="switchTab('item')">🎒 物品</div>
-    <div class="tab" data-tab="level" onclick="switchTab('level')">🗺️ 关卡</div>
+    <div class="tab" data-tab="stage" onclick="switchTab('stage')">🗺️ 关卡</div>
     <div class="tab" data-tab="growth" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" data-tab="global" onclick="switchTab('global')">⚙️ 全局设置</div>
   </div>
@@ -96,7 +96,7 @@
   <script src="tab_skill.js"></script>
   <script src="tab_status.js"></script>
   <script src="tab_item.js"></script>
-  <script src="tab_level.js"></script>
+  <script src="tab_stage.js"></script>
   <script src="tab_global.js"></script>
 
   <script>
@@ -115,15 +115,11 @@
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
       else if (tab === 'status' && window.renderTabStatus) window.renderTabStatus(container);
       else if (tab === 'item' && window.renderTabItem) window.renderTabItem(container);
-      else if (tab === 'level' && window.renderTabLevel) window.renderTabLevel(container);
+      else if (tab === 'stage' && window.renderTabStage) window.renderTabStage(container);
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
     }
 
-    // ==========================================
-    // 真实后台战斗引擎模拟（移除了对 MVP 的强制依赖，读取当前配置）
-    // ==========================================
     window.runFastSimulation = function() {
-      // 获取当前第一关的敌人和我方角色
       const lv = gameLevels[0];
       if (!lv || !lv.enemyList || lv.enemyList.length === 0) {
         return alert("请先去【关卡】配置里，给第一关摆放至少一个敌人再进行模拟！");
@@ -136,7 +132,6 @@
       let wins = 0, totalRounds = 0;
 
       for(let i = 0; i < simCount; i++) {
-        // 利用 tab_char.js 中的 calcPreviewStats 计算真实属性
         let pUnits = pChars.map(c => window.calcPreviewStats(c));
         let eUnits = lv.enemyList.map(item => {
           const orig = gameChars.find(c => c.id === item.id);
@@ -152,11 +147,8 @@
         while(round <= 20 && pMax > 0 && eMax > 0) {
            let pAtk = pUnits.reduce((s, u) => s + u.atk, 0);
            let eAtk = eUnits.reduce((s, u) => s + u.atk, 0);
-           
-           // 简易模拟：计算暴击期望和防御减伤
-           let pDmg = pAtk * 1.5; // 假设平均打出 1.5 倍伤害
+           let pDmg = pAtk * 1.5; 
            let eDmg = eAtk * 1.2;
-           
            eMax -= pDmg;
            if(eMax > 0) pMax -= eDmg;
            round++;
