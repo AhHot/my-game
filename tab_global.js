@@ -5,8 +5,6 @@ let affixPoolTab = 'weapon';
 
 window.switchAffixTab = function(poolType) {
   affixPoolTab = poolType;
-  document.querySelectorAll('.affix-pool-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(`affix-tab-${poolType}`).classList.add('active');
   window.renderTabGlobal(document.getElementById('app-content'));
 };
 
@@ -30,9 +28,9 @@ window.renderTabGlobal = function(container) {
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎲 随机词条池配置</h3>
       <div class="affix-pool-tabs">
-        <div class="affix-pool-tab active" id="affix-tab-weapon" onclick="window.switchAffixTab('weapon')">武器</div>
-        <div class="affix-pool-tab" id="affix-tab-armor" onclick="window.switchAffixTab('armor')">防具</div>
-        <div class="affix-pool-tab" id="affix-tab-accessory" onclick="window.switchAffixTab('accessory')">饰品</div>
+        <div class="affix-pool-tab ${affixPoolTab === 'weapon' ? 'active' : ''}" onclick="window.switchAffixTab('weapon')">武器</div>
+        <div class="affix-pool-tab ${affixPoolTab === 'armor' ? 'active' : ''}" onclick="window.switchAffixTab('armor')">防具</div>
+        <div class="affix-pool-tab ${affixPoolTab === 'accessory' ? 'active' : ''}" onclick="window.switchAffixTab('accessory')">饰品</div>
       </div>
       <div id="affix-pool-box" class="checkbox-group"></div>
     </div>
