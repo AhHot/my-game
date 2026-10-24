@@ -170,9 +170,92 @@ const BattleLogic = {
     if (fb) return fb;
     return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] };
   },
-  buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
+  buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); },
+
+  // ===== 新增：完整模拟一个技能（无动画），供「跳过战斗」使用 =====
+  simulateSkill(actor, sk, allUnits) {
+    actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
+    if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
+
+    const targets = this.selectTargets(actor, sk, allUnits);
+    if (targets.length === 0) return;
+    let heal = 0;
+
+    targets.forEach(t => {
+      if (sk.healMultiplier > 0) {
+        t.heal(Math.round(actor.atk * sk.healMultiplier));
+      } else if (sk.shieldMultiplier > 0) {
+        t.addShield(Math.round(actor.atk * sk.shieldMultiplier));
+      } else {
+        const res = this.computeDamage(actor, t, sk);
+        if (!res.isMiss) {
+          t.takeDamage(res.damage);
+          if (res.lifestealAmount > 0) heal += res.lifestealAmount;
+        }
+      }
+    });
+
+    if (sk.effects && sk.effects.length > 0) {
+      sk.effects.forEach(eff => {
+        if (Math.random() > eff.chance) return;
+        let et = [];
+        if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') {
+          et = targets;
+        } else {
+          let pool = eff.targetSide === 'enemy'
+            ? allUnits.filter(u => u.side !== actor.side && u.isAlive())
+            : eff.targetSide === 'player'
+              ? allUnits.filter(u => u.side === actor.side && u.isAlive())
+              : [actor];
+          if (eff.targetRule === 'all') et = pool;
+          else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
+          else et = [pool[0]];
+        }
+        et.forEach(t => {
+          if (!t || !t.isAlive()) return;
+          if (eff.type === 'status') t.addStatus(eff.value);
+          else if (eff.type === 'heal_pct') t.heal(Math.round(actor.atk * eff.value));
+          else if (eff.type === 'heal_flat') t.heal(Math.round(eff.value));
+          else if (eff.type === 'shield_pct') t.addShield(Math.round(actor.atk * eff.value));
+          else if (eff.type === 'shield_flat') t.addShield(Math.round(eff.value));
+          else if (eff.type === 'mp') t.gainMp(eff.value);
+        });
+      });
+    }
+
+    if (heal > 0) actor.heal(heal);
+    if (actor.isAlive()) actor.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
+    actor.reduceCooldowns();
+
+    if (sk.comboTagOut) this.simulateFollowup(sk.comboTagOut, actor, allUnits);
+  },
+
+  // ===== 新增：追打模拟 =====
+  simulateFollowup(tag, original, allUnits) {
+    let cand = allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
+    cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
+    for (let u of cand) {
+      const fid = u.skillSlots.followup;
+      if (!fid || !SKILLS[fid]) continue;
+      if (SKILLS[fid].comboTagIn === tag) {
+        const used = u.followupCounts[fid] || 0;
+        if (used < (SKILLS[fid].maxTriggers || 1)) {
+          u.followupCounts[fid] = used + 1;
+          const sk = SKILLS[fid];
+          u.mp = Math.max(0, u.mp - (sk.mpCost || 0));
+          const targets = this.selectTargets(u, sk, allUnits);
+          targets.forEach(t => {
+            const res = this.computeDamage(u, t, sk);
+            if (!res.isMiss) t.takeDamage(res.damage);
+          });
+          break;
+        }
+      }
+    }
+  }
 };
 
+// ===== 修复：extras 變量名抄錯導致掉落報錯、詞條丟失 =====
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   const dropRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
@@ -193,7 +276,7 @@ function generateRandomInstance(templateId) {
     if (intTypes.includes(stat)) val = Math.round(val); else val = Math.round((val / 100) * 100) / 100;
     extras.push({ stat, value: val });
   }
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '', count: 1 };
+  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: extras, equippedBy: '', count: 1 };
 }
 
 function addCharacterExp(char, amount) {
@@ -210,6 +293,7 @@ function addCharacterExp(char, amount) {
   }
   char.level = currentLv; return leveledUp;
 }
+
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
   create() {
@@ -324,7 +408,6 @@ class BattleScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
     
-    // 绘制纯色发光网格
     this.drawGrid(enemyLeft, gridTop, cell, true);
     this.drawGrid(playerLeft, gridTop, cell, false);
     
@@ -333,7 +416,6 @@ class BattleScene extends Phaser.Scene {
     this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
   }
   
-  // 纯色发光网格
   drawGrid(startX, startY, cell, isEnemy) {
     const g = this.add.graphics();
     const fillColor = isEnemy ? 0xCC99FF : 0xFF8888;
@@ -360,7 +442,6 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     
-    // 纯代码：角色底部立体底座
     const isEnemy = unit.side === 'enemy';
     const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
     const baseH = r * 0.8; const baseW = r * 2.2;
@@ -371,7 +452,6 @@ class BattleScene extends Phaser.Scene {
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    // 统一红色血条
     const bw = Math.min(cell * scale * 0.85, 100); 
     const hpBg = this.add.rectangle(-bw/2, r + 32, bw + 4, 10, 0x000000, 0.8).setOrigin(0, 0.5).setStrokeStyle(1, 0x555555);
     const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, 0xFF4444).setOrigin(0, 0.5);
@@ -515,22 +595,48 @@ class BattleScene extends Phaser.Scene {
     if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
   }
 
+  // ===== 修复：跳过战斗改为完整模拟（与正常打完一致的结算流程）=====
   fastForward() {
-    let r = 0;
-    while (r < CONFIG.MAX_ROUNDS) {
-      const p = this.allUnits.filter(u => u.side === 'player' && u.isAlive()); const e = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
-      if (p.length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
-      if (e.length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
-      this.allUnits.forEach(u => { if (u.isAlive()) u.tickStatuses(); }); this.allUnits.forEach(u => u.applyAura(this.allUnits));
+    for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
+      // 检查胜负
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
+
+      // 回合开始：刷新追打计数 + 状态结算（DOT 扣血、状态持续时间递减）
+      this.allUnits.forEach(u => {
+        if (!u.isAlive()) return;
+        u.resetFollowups();
+        u.tickStatuses();
+      });
+
+      // 状态结算后可能有人阵亡
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
+
+      // 按速度排序，依次行动
       const order = BattleLogic.buildActionOrder(this.allUnits);
       for (let a of order) {
-        if (!a.isAlive() || a.skipTurn) continue; const sk = BattleLogic.chooseSkill(a, this.allUnits); if (!sk) continue;
-        const t = BattleLogic.selectTargets(a, sk, this.allUnits); a.mp = Math.max(0, a.mp - (sk.mpCost || 0));
-        t.forEach(x => { if (sk.healMultiplier > 0) x.heal(Math.round(a.atk * sk.healMultiplier)); else if (sk.shieldMultiplier > 0) x.addShield(Math.round(a.atk * sk.shieldMultiplier)); else { const res = BattleLogic.computeDamage(a, x, sk); if (!res.isMiss) x.takeDamage(res.damage); } });
-        if (a.isAlive()) a.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
+        if (!a.isAlive()) continue;
+        // 每次行动前刷新光环（与 execute 一致）
+        this.allUnits.forEach(u => u.applyAura(this.allUnits));
+        // 眩晕跳过
+        if (a.skipTurn) {
+          a.skipTurn = false;
+          const i = a.statuses.findIndex(s => STATUSES[s.id]?.isStun);
+          if (i !== -1) a.statuses.splice(i, 1);
+          continue;
+        }
+        const sk = BattleLogic.chooseSkill(a, this.allUnits);
+        if (!sk) continue;
+        // 完整模拟技能（含治疗/护盾/状态/追打/MP/冷却）
+        BattleLogic.simulateSkill(a, sk, this.allUnits);
+
+        // 每次行动后立刻检查胜负，避免无谓循环
+        if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
+        if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
       }
-      r++;
     }
+    // 超过最大回合
     this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
   }
 
