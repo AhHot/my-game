@@ -172,7 +172,6 @@ const BattleLogic = {
   },
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); },
 
-  // ===== 新增：完整模拟一个技能（无动画），供「跳过战斗」使用 =====
   simulateSkill(actor, sk, allUnits) {
     actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
     if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
@@ -230,7 +229,6 @@ const BattleLogic = {
     if (sk.comboTagOut) this.simulateFollowup(sk.comboTagOut, actor, allUnits);
   },
 
-  // ===== 新增：追打模拟 =====
   simulateFollowup(tag, original, allUnits) {
     let cand = allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
     cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
@@ -255,7 +253,6 @@ const BattleLogic = {
   }
 };
 
-// ===== 修复：extras 變量名抄錯導致掉落報錯、詞條丟失 =====
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   const dropRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
@@ -595,31 +592,24 @@ class BattleScene extends Phaser.Scene {
     if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
   }
 
-  // ===== 修复：跳过战斗改为完整模拟（与正常打完一致的结算流程）=====
   fastForward() {
     for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
-      // 检查胜负
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
 
-      // 回合开始：刷新追打计数 + 状态结算（DOT 扣血、状态持续时间递减）
       this.allUnits.forEach(u => {
         if (!u.isAlive()) return;
         u.resetFollowups();
         u.tickStatuses();
       });
 
-      // 状态结算后可能有人阵亡
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
 
-      // 按速度排序，依次行动
       const order = BattleLogic.buildActionOrder(this.allUnits);
       for (let a of order) {
         if (!a.isAlive()) continue;
-        // 每次行动前刷新光环（与 execute 一致）
         this.allUnits.forEach(u => u.applyAura(this.allUnits));
-        // 眩晕跳过
         if (a.skipTurn) {
           a.skipTurn = false;
           const i = a.statuses.findIndex(s => STATUSES[s.id]?.isStun);
@@ -628,15 +618,12 @@ class BattleScene extends Phaser.Scene {
         }
         const sk = BattleLogic.chooseSkill(a, this.allUnits);
         if (!sk) continue;
-        // 完整模拟技能（含治疗/护盾/状态/追打/MP/冷却）
         BattleLogic.simulateSkill(a, sk, this.allUnits);
 
-        // 每次行动后立刻检查胜负，避免无谓循环
         if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
         if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
       }
     }
-    // 超过最大回合
     this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
   }
 
@@ -688,5 +675,5 @@ window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' |
 window.game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-  scene: [MainMenuScene, FormationScene, BattleScene, TeamScene, ResultScene],
+  scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
 });
