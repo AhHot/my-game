@@ -12,8 +12,7 @@
         /* ================= 全屏 UI 遮罩 ================= */
         #fullscreen-ui {
             display: none; 
-            position: fixed; 
-            top: 0; left: 0; width: 100%; height: 100%;
+            position: absolute; /* 设为绝对定位，由 JS 动态设置 left/top/width/height */
             background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd;
             flex-direction: row; pointer-events: auto;
         }
@@ -246,31 +245,48 @@
         let currentFilter = 'all';
 
         const uiContainer = document.getElementById('fullscreen-ui');
-        const gameContainer = document.getElementById('game');
 
-        // 1. 让UI完美覆盖游戏画面区域
+        // 1. 让UI完美覆盖游戏Canvas真实区域（忽略黑边）
         function resizeUIToGame() {
-            const rect = gameContainer.getBoundingClientRect();
+            if (!window.game || !window.game.canvas) return;
+            
+            // 获取 Phaser Canvas 在浏览器中的真实渲染尺寸和位置
+            const rect = window.game.canvas.getBoundingClientRect();
+            
+            // 如果在初始化瞬间读取到0，给个兜底等待重试
+            if (rect.width === 0 || rect.height === 0) {
+                setTimeout(resizeUIToGame, 100);
+                return;
+            }
+
             uiContainer.style.width = rect.width + 'px';
             uiContainer.style.height = rect.height + 'px';
             uiContainer.style.left = rect.left + 'px';
             uiContainer.style.top = rect.top + 'px';
         }
+
         window.addEventListener('resize', resizeUIToGame);
 
         // 打开界面
         window.openCharacterUI = function() {
             resizeUIToGame(); 
-            renderCharList();
-            const players = CHARACTERS.filter(c => c.side === 'player');
-            if(players.length > 0) selectCharacter(players[0]);
             
+            // 延迟一丁点显示，确保尺寸计算完毕
+            setTimeout(() => {
+                uiContainer.style.display = 'flex';
+            }, 10);
+
             // 阻断底层 Phaser 点击
             if (window.game && window.game.scene) {
                 const activeScenes = window.game.scene.getScenes(true);
                 activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
             }
-            uiContainer.style.display = 'flex';
+            
+            if (typeof CHARACTERS === 'undefined' || typeof INVENTORY === 'undefined') return;
+
+            renderCharList();
+            const players = CHARACTERS.filter(c => c.side === 'player');
+            if(players.length > 0) selectCharacter(players[0]);
         }
 
         // 关闭界面
@@ -415,7 +431,7 @@
             renderInventory();
         }
 
-        // 渲染背包 (含堆叠)
+        // 渲染背包
         function renderInventory() {
             const grid = document.getElementById('inventory-grid');
             grid.innerHTML = '';
@@ -505,15 +521,12 @@
             const content = document.getElementById('tooltip-content');
             const btn = document.getElementById('btn-item-action');
             
-            // 基础头部
             let html = `
                 <div class="tt-title" style="color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
                 <div class="tt-sub">${itemTpl.category}</div>
             `;
 
-            // 区分非装备与装备
             if (!['weapon', 'armor', 'accessory'].includes(itemTpl.category)) {
-                // 消耗品、材料、任务
                 html += `<div style="margin:15px 0; font-size:14px; color:#ccc; text-align:center;">${itemTpl.desc || '暂无描述'}</div>`;
                 content.innerHTML = html;
 
@@ -527,7 +540,6 @@
                     btn.onclick = hideTooltip;
                 }
             } else {
-                // 装备逻辑
                 let slotKey = itemTpl.equipSlot || (itemTpl.category === 'weapon' ? 'weapon' : (itemTpl.category === 'armor' ? 'body' : 'ring'));
                 let equippedInst = null;
                 if (selectedChar.equipment && selectedChar.equipment[slotKey]) {
@@ -597,7 +609,7 @@
             tooltip.style.display = 'block';
         }
 
-        // ================= 使用道具逻辑 =================
+        // 使用道具逻辑
         function useItem(inst, itemTpl) {
             if (itemTpl.useEffect === 'AddExp') {
                 if (!selectedChar.exp) selectedChar.exp = 0;
@@ -615,21 +627,19 @@
             }
             else if (itemTpl.useEffect === 'PackageEquip' || itemTpl.useEffect === 'RandomEquip') {
                 alert('该道具功能暂未开放（预留功能）');
-                return; // 拦截，不扣数量
+                return; 
             }
 
-            // 扣除数量
             if (inst.count && inst.count > 1) {
                 inst.count -= 1;
             } else {
-                // 数量为1，从背包移除
                 const idx = INVENTORY.findIndex(i => i.uid === inst.uid);
                 if (idx !== -1) INVENTORY.splice(idx, 1);
             }
 
             saveGameData();
             hideTooltip();
-            selectCharacter(selectedChar); // 重新计算并刷新面板
+            selectCharacter(selectedChar);
         }
 
         function hideTooltip() { document.getElementById('item-tooltip').style.display = 'none'; }
