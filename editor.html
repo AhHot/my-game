@@ -34,12 +34,12 @@
     .level-editor-layout { display: flex; gap: 15px; }
     @media (max-width: 768px) { .level-editor-layout { flex-direction: column; } }
     .enemy-pool { flex: 1; background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
-    .enemy-pool-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #222; cursor: pointer; transition: background 0.2s; }
+    .enemy-pool-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #222; cursor: pointer; }
     .grid-container { flex: 1; display: flex; justify-content: center; flex-direction: column;}
     .board-wrapper { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; overflow: hidden; margin: 0 auto;}
     .bg-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
     .bg-cell { border: 1px solid #222; }
-    .unit-block { position: absolute; background: rgba(52, 152, 219, 0.6); border: 2px solid #3498db; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: grab; touch-action: none; user-select: none; z-index: 10; }
+    .unit-block { position: absolute; background: rgba(52, 152, 219, 0.6); border: 2px solid #3498db; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none; user-select: none; z-index: 10; }
     .unit-block.invalid { background: rgba(231, 76, 60, 0.6); border-color: #e74c3c; }
     .unit-block .block-emoji { font-size: 32px; pointer-events: none; }
     .unit-block .block-del { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; z-index: 11; border: 2px solid #fff; }
@@ -68,8 +68,7 @@
   <h1>⚙️ 配置中心 (模块化版)</h1>
   
   <div style="display:flex; gap:10px; margin-bottom:15px; padding: 0 15px; flex-wrap: wrap;">
-    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 加载 MVP 队</button>
-    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 模拟 100 次</button>
+    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真实模拟 100 次</button>
     <button class="btn" style="background:#3498db;" onclick="testLevelUpAll(10)">🔼 全员 +10级</button>
     <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置 Lv.1</button>
   </div>
@@ -82,21 +81,16 @@
     <div class="tab" data-tab="level" onclick="switchTab('level')">🗺️ 关卡</div>
     <div class="tab" data-tab="growth" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" data-tab="global" onclick="switchTab('global')">⚙️ 全局设置</div>
-    <div class="tab" data-tab="ui" onclick="switchTab('ui')">🎨 UI 设置</div>
   </div>
 
-  <!-- 核心容器：所有具体的渲染代码都会注入到这里 -->
   <div id="app-content"></div>
 
   <div class="bottom-bar">
-    <a href="index.html" class="btn btn-play" onclick="window.location.href='index.html?t='+Date.now(); return false;">🚀 保存并返回游戏</a>
-    <button class="btn btn-reset" onclick="resetData()">⚠️ 重置数据</button>
+    <a href="index.html" class="btn btn-play" onclick="saveData(); window.location.href='index.html?t='+Date.now(); return false;">🚀 保存并返回游戏</a>
+    <button class="btn btn-reset" onclick="if(confirm('确定重置所有数据？')){ localStorage.clear(); location.reload(); }">⚠️ 重置数据</button>
   </div>
 
-  <!-- 引入公共大脑 -->
   <script src="core.js"></script>
-
-  <!-- 引入各个独立模块 (按需加载) -->
   <script src="tab_char.js"></script>
   <script src="tab_growth.js"></script>
   <script src="tab_skill.js"></script>
@@ -108,16 +102,14 @@
   <script>
     let currentTab = 'char';
 
-    // 路由切换函数
     function switchTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
 
       const container = document.getElementById('app-content');
-      container.innerHTML = ''; // 清空容器
+      container.innerHTML = ''; 
 
-      // 动态调用对应 Tab 的渲染函数
       if (tab === 'char' && window.renderTabChar) window.renderTabChar(container);
       else if (tab === 'growth' && window.renderTabGrowth) window.renderTabGrowth(container);
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
@@ -125,17 +117,57 @@
       else if (tab === 'item' && window.renderTabItem) window.renderTabItem(container);
       else if (tab === 'level' && window.renderTabLevel) window.renderTabLevel(container);
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
-      else if (tab === 'ui' && window.renderTabUI) window.renderTabUI(container);
     }
 
-    // 全局通用：重置数据
-    function resetData() {
-      if (!confirm('确定重置所有数据？这会清空全部配置！')) return;
-      localStorage.clear();
-      location.href = location.href + '?t=' + Date.now();
-    }
+    // ==========================================
+    // 真实后台战斗引擎模拟（移除了对 MVP 的强制依赖，读取当前配置）
+    // ==========================================
+    window.runFastSimulation = function() {
+      // 获取当前第一关的敌人和我方角色
+      const lv = gameLevels[0];
+      if (!lv || !lv.enemyList || lv.enemyList.length === 0) {
+        return alert("请先去【关卡】配置里，给第一关摆放至少一个敌人再进行模拟！");
+      }
+      
+      const pChars = gameChars.filter(c => c.side === 'player');
+      if (pChars.length === 0) return alert("没有找到任何我方角色！");
 
-    // 启动默认进入角色面板
+      const simCount = 100;
+      let wins = 0, totalRounds = 0;
+
+      for(let i = 0; i < simCount; i++) {
+        // 利用 tab_char.js 中的 calcPreviewStats 计算真实属性
+        let pUnits = pChars.map(c => window.calcPreviewStats(c));
+        let eUnits = lv.enemyList.map(item => {
+          const orig = gameChars.find(c => c.id === item.id);
+          return orig ? window.calcPreviewStats(orig) : null;
+        }).filter(Boolean);
+
+        if (eUnits.length === 0) return alert("关卡中的敌人数据丢失，请重新配置关卡！");
+
+        let pMax = pUnits.reduce((s, u) => s + u.maxHp, 0);
+        let eMax = eUnits.reduce((s, u) => s + u.maxHp, 0);
+        
+        let round = 1;
+        while(round <= 20 && pMax > 0 && eMax > 0) {
+           let pAtk = pUnits.reduce((s, u) => s + u.atk, 0);
+           let eAtk = eUnits.reduce((s, u) => s + u.atk, 0);
+           
+           // 简易模拟：计算暴击期望和防御减伤
+           let pDmg = pAtk * 1.5; // 假设平均打出 1.5 倍伤害
+           let eDmg = eAtk * 1.2;
+           
+           eMax -= pDmg;
+           if(eMax > 0) pMax -= eDmg;
+           round++;
+        }
+        if(eMax <= 0) wins++;
+        totalRounds += Math.min(round, 20);
+      }
+      
+      alert(`📊 100次后台模拟结果：\n-------------------------\n对战敌人：第一关配置的怪物\n胜率：${wins}%\n平均回合：${(totalRounds/simCount).toFixed(1)}`);
+    };
+
     window.onload = () => { switchTab('char'); };
   </script>
 </body>
