@@ -44,27 +44,11 @@ window.renderTabGlobal = function(container) {
       <div style="overflow-x:auto;"><table id="global-matrix-table" style="text-align:center;"></table></div>
     </div>
 
-    <!-- 新增：战棋美术素材 -->
+    <!-- 战棋美术素材调节器 -->
     <div class="card" style="border-color: #e67e22;">
-      <h3 style="color:#e67e22; margin-bottom:15px;">🖼️ 战棋美术素材 (填本地路径或网图URL)</h3>
-      <div class="form-grid">
-        <div class="form-item full">
-          <label>战棋棋盘底图 (正方形)</label>
-          <input type="text" id="art_board_bg" placeholder="例如: assets/battle/board_bg.png" value="${globalData.artConfig?.boardBg || ''}" onchange="window.updateArtConfig('boardBg', this.value)">
-        </div>
-        <div class="form-item">
-          <label>角色底图/光环</label>
-          <input type="text" id="art_unit_halo" placeholder="例如: assets/battle/unit_halo.png" value="${globalData.artConfig?.unitHalo || ''}" onchange="window.updateArtConfig('unitHalo', this.value)">
-        </div>
-        <div class="form-item">
-          <label>血条底框</label>
-          <input type="text" id="art_hp_bg" placeholder="例如: assets/battle/hp_bg.png" value="${globalData.artConfig?.hpBg || ''}" onchange="window.updateArtConfig('hpBg', this.value)">
-        </div>
-        <div class="form-item full">
-          <label>血条填充色/图</label>
-          <input type="text" id="art_hp_fill" placeholder="例如: assets/battle/hp_fill.png" value="${globalData.artConfig?.hpFill || ''}" onchange="window.updateArtConfig('hpFill', this.value)">
-        </div>
-      </div>
+      <h3 style="color:#e67e22; margin-bottom:15px;">🖼️ 战棋美术素材调节器</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">填入图片路径后，拖动下方滑块即可实时预览裁剪效果。</p>
+      <div id="art-config-container" class="form-grid"></div>
     </div>
 
     <div style="display:flex; gap:10px; margin-bottom:20px;">
@@ -74,15 +58,76 @@ window.renderTabGlobal = function(container) {
   `;
 
   renderGlobalFields();
+  renderArtConfig();
 };
 
-window.updateArtConfig = function(key, value) {
+// ====== 美术素材渲染逻辑 ======
+function renderArtConfig() {
   if (!globalData.artConfig) globalData.artConfig = {};
-  globalData.artConfig[key] = value;
+  
+  const configs = [
+    { key: 'boardBg', label: '战棋棋盘底图', w: 100, h: 100 },
+    { key: 'unitHalo', label: '角色光环', w: 100, h: 50 },
+    { key: 'hpBg', label: '血条底框', w: 120, h: 20 },
+    { key: 'hpFill', label: '血条填充', w: 120, h: 20 }
+  ];
+
+  const box = document.getElementById('art-config-container');
+  box.innerHTML = configs.map(cfg => {
+    // 兼容旧数据（如果是字符串就转成对象）
+    let item = globalData.artConfig[cfg.key];
+    if (typeof item === 'string') item = { url: item, scale: 1, posX: 0, posY: 0 };
+    if (!item) item = { url: '', scale: 1, posX: 0, posY: 0 };
+    globalData.artConfig[cfg.key] = item;
+
+    return `
+      <div class="form-item full" style="background:#111; padding:10px; border-radius:6px; border:1px solid #333; margin-bottom:10px;">
+        <label style="color:#e67e22; font-weight:bold; font-size:14px;">${cfg.label}</label>
+        <input type="text" value="${item.url}" placeholder="assets/battle/xxx.png" 
+               onchange="window.updateArt('${cfg.key}', 'url', this.value); window.renderArtConfig();">
+        
+        <div style="display:flex; gap:15px; margin-top:10px; align-items:flex-end;">
+          <!-- 预览框 -->
+          <div style="width:${cfg.w}px; height:${cfg.h}px; background:#000; border:1px dashed #555; overflow:hidden; position:relative; flex-shrink:0; border-radius:4px;">
+            <div id="preview-${cfg.key}" style="width:100%; height:100%; 
+                 background-image:url('${item.url}'); 
+                 background-size:${item.scale * 100}%; 
+                 background-position:${item.posX}% ${item.posY}%; 
+                 background-repeat:no-repeat;">
+            </div>
+          </div>
+          
+          <!-- 控制滑块 -->
+          <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <label style="font-size:11px; display:flex; justify-content:space-between;">缩放 (Scale) <span id="val-scale-${cfg.key}">${item.scale}</span></label>
+              <input type="range" min="0.1" max="5" step="0.05" value="${item.scale}" 
+                     oninput="window.updateArt('${cfg.key}', 'scale', this.value); document.getElementById('preview-${cfg.key}').style.backgroundSize = (this.value*100)+'%'; document.getElementById('val-scale-${cfg.key}').innerText = this.value;">
+            </div>
+            <div>
+              <label style="font-size:11px; display:flex; justify-content:space-between;">左右平移 (X) <span id="val-x-${cfg.key}">${item.posX}</span></label>
+              <input type="range" min="-100" max="200" step="1" value="${item.posX}" 
+                     oninput="window.updateArt('${cfg.key}', 'posX', this.value); document.getElementById('preview-${cfg.key}').style.backgroundPositionX = this.value+'%'; document.getElementById('val-x-${cfg.key}').innerText = this.value;">
+            </div>
+            <div>
+              <label style="font-size:11px; display:flex; justify-content:space-between;">上下平移 (Y) <span id="val-y-${cfg.key}">${item.posY}</span></label>
+              <input type="range" min="-100" max="200" step="1" value="${item.posY}" 
+                     oninput="window.updateArt('${cfg.key}', 'posY', this.value); document.getElementById('preview-${cfg.key}').style.backgroundPositionY = this.value+'%'; document.getElementById('val-y-${cfg.key}').innerText = this.value;">
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.updateArt = function(key, prop, value) {
+  if (!globalData.artConfig[key]) globalData.artConfig[key] = {};
+  globalData.artConfig[key][prop] = prop === 'url' ? value : parseFloat(value);
 };
 
+// ====== 以下为原有全局渲染逻辑 ======
 function renderGlobalFields() {
-  // ... (原本的渲染代码保持不变，为了篇幅我折叠了，你在本地粘贴时，直接粘贴上面那段就行，下面的是给之前的元素填数据的) ...
   const fieldsBox = document.getElementById('global-config-fields');
   const fieldSchema = [
     { key: 'WIDTH', label: '游戏宽(px)', step: 10, min: 400 }, { key: 'HEIGHT', label: '游戏高(px)', step: 10, min: 400 },
