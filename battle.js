@@ -20,7 +20,7 @@ try {
   window.GLOBAL_AFFIX_VALUES = gc.affixValues;
   window.EXP_TABLE = gc.expTable || [];
   window.GROWTH_MODELS = gc.growthModels || [];
-  window.ART_CONFIG = gc.artConfig || {}; // 读取美术素材配置
+  window.ART_CONFIG = gc.artConfig || {}; 
 } catch(e) { window.ART_CONFIG = {}; }
 
 // ==========================================
@@ -413,7 +413,7 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景：战斗画面 (带调试提示)
+// 场景：战斗画面 (带裁剪算法)
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
@@ -426,7 +426,6 @@ class BattleScene extends Phaser.Scene {
     if (art.hpBg && art.hpBg.url) this.load.image('art_hpBg', art.hpBg.url);
     if (art.hpFill && art.hpFill.url) this.load.image('art_hpFill', art.hpFill.url);
     
-    // 捕捉加载报错
     this.load.on('loaderror', (file) => { 
       this.errorMsg = `图片加载失败: ${file.key}`;
       console.warn(this.errorMsg, file.src); 
@@ -437,7 +436,6 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
-    // 屏幕调试提示
     const art = window.ART_CONFIG?.boardBg;
     let debugText = '未配置棋盘底图';
     if (art && art.url) {
@@ -490,11 +488,22 @@ class BattleScene extends Phaser.Scene {
     
     const art = window.ART_CONFIG?.boardBg;
     if (this.textures.exists('art_boardBg')) {
-      const bgImg = this.add.image(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2, 'art_boardBg');
-      bgImg.setOrigin((art.posX || 50) / 100, (art.posY || 50) / 100);
-      bgImg.setScale(art.scale || 1);
+      const bgImg = this.add.image(0, 0, 'art_boardBg');
+      bgImg.setOrigin(0, 0); // 锚点固定在左上角
+      
+      // 1. 计算缩放后的实际宽高 (完美复刻 CSS background-size)
+      const targetW = CONFIG.WIDTH * (art.scale || 1);
+      const ratio = bgImg.height / bgImg.width;
+      const targetH = targetW * ratio;
+      bgImg.setDisplaySize(targetW, targetH);
+      
+      // 2. 计算偏移量 (完美复刻 CSS background-position)
+      const offsetX = (CONFIG.WIDTH - targetW) * ((art.posX ?? 50) / 100);
+      const offsetY = (CONFIG.HEIGHT - targetH) * ((art.posY ?? 50) / 100);
+      
+      bgImg.setPosition(offsetX, offsetY);
       bgImg.setDepth(-10);
-      bgImg.setAlpha(1.0); // 把透明度拉满，确保能看见
+      bgImg.setAlpha(0.8); // 为了让格子清晰，给 0.8 透明度
     }
 
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -530,7 +539,7 @@ class BattleScene extends Phaser.Scene {
     if (this.textures.exists('art_unitHalo')) {
       const artHalo = window.ART_CONFIG.unitHalo || {};
       const halo = this.add.image(0, 0, 'art_unitHalo');
-      halo.setOrigin((artHalo.posX || 50) / 100, (artHalo.posY || 50) / 100);
+      halo.setOrigin((artHalo.posX ?? 50) / 100, (artHalo.posY ?? 50) / 100);
       let baseScaleX = (r * 2.5) / halo.width;
       let baseScaleY = (r * 1.5) / halo.height;
       halo.setScale(baseScaleX * (artHalo.scale || 1), baseScaleY * (artHalo.scale || 1));
