@@ -40,7 +40,6 @@ function calcPreviewStats(char) {
   let critResist = (char.critResist || 0) + baseStats.jianRen * cfg.jianRenToRes / 100;
   let critDmg = (char.critDmg || 1.5) + baseStats.guiMi * cfg.guiMiToCritDmg / 100;
 
-  // 装备加成 (暂略计算，假设编辑器里不带装备)
   return { baseStats, maxHp, atk, def, speed, critRate, dodgeRate, hitRate, critResist, critDmg };
 }
 
@@ -148,6 +147,13 @@ window.filterCharList = function() {
           <select onchange="window.updateChar(${index}, 'element', this.value)">${window.getElementOptions(char.element)}</select>
         </div>
 
+        <!-- 🔥 新增：基础面板属性 -->
+        <div class="sub-title" style="color:#00ff00;">基础面板属性 (不随等级变化，作为初始底子)</div>
+        <div class="form-item"><label style="color:#e74c3c;">初始气血 (HP)</label><input type="number" value="${char.maxHp || 0}" oninput="window.updateCharRealTime(${index}, 'maxHp', this.value)"></div>
+        <div class="form-item"><label style="color:#e67e22;">初始攻击 (ATK)</label><input type="number" value="${char.atk || 0}" oninput="window.updateCharRealTime(${index}, 'atk', this.value)"></div>
+        <div class="form-item"><label style="color:#3498db;">初始防御 (DEF)</label><input type="number" value="${char.def || 0}" oninput="window.updateCharRealTime(${index}, 'def', this.value)"></div>
+        <div class="form-item"><label style="color:#2ecc71;">初始速度 (SPD)</label><input type="number" step="0.1" value="${char.speed || 0}" oninput="window.updateCharRealTime(${index}, 'speed', this.value)"></div>
+
         <div class="sub-title">六大意境 (基础值)</div>
         <div class="form-item"><label style="color:#e67e22;">锋锐 (攻击)</label><input type="number" value="${char.stats.fengRui || 0}" oninput="window.updateCharStatRealTime(${index}, 'fengRui', this.value)"></div>
         <div class="form-item"><label style="color:#e74c3c;">浑厚 (气血)</label><input type="number" value="${char.stats.hunHou || 0}" oninput="window.updateCharStatRealTime(${index}, 'hunHou', this.value)"></div>
@@ -192,8 +198,8 @@ window.updateChar = function(index, key, value) {
 };
 
 window.updateCharRealTime = function(index, key, value) {
-  if (key === 'level') value = parseInt(value) || 1;
-  else if (typeof gameChars[index][key] === 'number') value = parseFloat(value) || 0;
+  if (['level', 'maxHp', 'atk', 'def'].includes(key)) value = parseInt(value) || 0;
+  else if (key === 'speed') value = parseFloat(value) || 0;
   
   gameChars[index][key] = value;
   saveData();
