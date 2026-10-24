@@ -115,6 +115,8 @@ window.filterCharList = function() {
     if (!char.exp) char.exp = 0;
     if (!char.freePoints) char.freePoints = 0;
     if (!char.growthModel) char.growthModel = 'm1';
+    if (!char.sizeX) char.sizeX = 1;
+    if (!char.sizeY) char.sizeY = 1;
 
     const preview = calcPreviewStats(char);
     let gmOptions = globalData.growthModels.map(m => `<option value="${m.id}" ${char.growthModel === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
@@ -122,7 +124,7 @@ window.filterCharList = function() {
     const div = document.createElement('div'); div.className = 'card';
     div.innerHTML = `
       <div class="card-header">
-        <h3>${char.emoji} ${char.name} <span style="font-size:14px; color:#f1c40f;">Lv.${char.level}</span></h3>
+        <h3>${char.emoji} ${char.name} <span style="font-size:14px; color:#f1c40f;">Lv.${char.level}</span> <span style="font-size:12px; color:#3498db; margin-left:10px;">(佔格: ${char.sizeX}×${char.sizeY})</span></h3>
         <button class="btn-del" onclick="window.deleteChar(${index})">删除</button>
       </div>
       <div class="form-grid">
@@ -132,6 +134,29 @@ window.filterCharList = function() {
         <div class="form-item"><label>等级 (Lv)</label><input type="number" min="1" max="60" value="${char.level}" oninput="window.updateCharRealTime(${index}, 'level', this.value)"></div>
         <div class="form-item"><label>当前经验</label><input type="number" value="${char.exp}" onchange="window.updateChar(${index}, 'exp', parseInt(this.value))"></div>
         
+        <!-- 🌟 新增：战场占格大小設定 (Boss/巨型單位支援) -->
+        <div class="form-item" style="grid-column: span 2; background: rgba(52, 152, 219, 0.1); padding: 10px; border-radius: 6px; border: 1px dashed #3498db;">
+          <label style="color:#3498db; font-weight:bold; margin-bottom:6px; display:block;">⚔️ 战场占格大小 (宽 × 高，适合Boss设置)</label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <div style="flex:1; display:flex; align-items:center; gap:5px;">
+              <span style="font-size:12px; color:#aaa;">宽(X):</span>
+              <select style="flex:1;" onchange="window.updateCharRealTime(${index}, 'sizeX', parseInt(this.value))">
+                <option value="1" ${char.sizeX === 1 ? 'selected' : ''}>1 格</option>
+                <option value="2" ${char.sizeX === 2 ? 'selected' : ''}>2 格</option>
+                <option value="3" ${char.sizeX === 3 ? 'selected' : ''}>3 格</option>
+              </select>
+            </div>
+            <div style="flex:1; display:flex; align-items:center; gap:5px;">
+              <span style="font-size:12px; color:#aaa;">高(Y):</span>
+              <select style="flex:1;" onchange="window.updateCharRealTime(${index}, 'sizeY', parseInt(this.value))">
+                <option value="1" ${char.sizeY === 1 ? 'selected' : ''}>1 格</option>
+                <option value="2" ${char.sizeY === 2 ? 'selected' : ''}>2 格</option>
+                <option value="3" ${char.sizeY === 3 ? 'selected' : ''}>3 格</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="form-item full">
           <label style="color:#e67e22; font-weight:bold;">成长模型 (随等级自动加属性)</label>
           <select onchange="window.updateCharRealTime(${index}, 'growthModel', this.value)">${gmOptions}</select>
@@ -147,7 +172,7 @@ window.filterCharList = function() {
           <select onchange="window.updateChar(${index}, 'element', this.value)">${window.getElementOptions(char.element)}</select>
         </div>
 
-        <!-- 🔥 新增：基础面板属性 -->
+        <!-- 🔥 基础面板属性 -->
         <div class="sub-title" style="color:#00ff00;">基础面板属性 (不随等级变化，作为初始底子)</div>
         <div class="form-item"><label style="color:#e74c3c;">初始气血 (HP)</label><input type="number" value="${char.maxHp || 0}" oninput="window.updateCharRealTime(${index}, 'maxHp', this.value)"></div>
         <div class="form-item"><label style="color:#e67e22;">初始攻击 (ATK)</label><input type="number" value="${char.atk || 0}" oninput="window.updateCharRealTime(${index}, 'atk', this.value)"></div>
@@ -198,7 +223,7 @@ window.updateChar = function(index, key, value) {
 };
 
 window.updateCharRealTime = function(index, key, value) {
-  if (['level', 'maxHp', 'atk', 'def'].includes(key)) value = parseInt(value) || 0;
+  if (['level', 'maxHp', 'atk', 'def', 'sizeX', 'sizeY'].includes(key)) value = parseInt(value) || 1;
   else if (key === 'speed') value = parseFloat(value) || 0;
   
   gameChars[index][key] = value;
