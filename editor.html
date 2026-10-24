@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>游戏配置中心 (追打升級全功能版)</title>
+  <title>游戏配置中心 (养成全功能版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
@@ -71,15 +71,20 @@
     .affix-pool-tabs { display: flex; gap: 10px; margin-bottom: 10px; }
     .affix-pool-tab { padding: 6px 15px; background: #0f3460; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
     .affix-pool-tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
+
+    .preview-box { background: #111; border: 1px solid #444; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+    .preview-box span { color: #2ecc71; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (追打升級全功能版)</h1>
+  <h1>⚙️ 配置中心 (养成全功能版)</h1>
   
-  <div style="display:flex; gap:10px; margin-bottom:15px; padding: 0 15px;">
-    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 一鍵加載 MVP 5人陣容</button>
-    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真實後台模擬 100 次戰鬥</button>
+  <div style="display:flex; gap:10px; margin-bottom:15px; padding: 0 15px; flex-wrap: wrap;">
+    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 一键加载 MVP 5人队</button>
+    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真实模拟 100 次</button>
+    <button class="btn" style="background:#3498db;" onclick="testLevelUpAll(10)">🔼 全员 +10级</button>
+    <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置全员 Lv.1</button>
   </div>
 
   <div class="tabs">
@@ -88,6 +93,7 @@
     <div class="tab" onclick="switchTab('status')">🌊 状态</div>
     <div class="tab" onclick="switchTab('item')">🎒 物品</div>
     <div class="tab" onclick="switchTab('level')">🗺️ 关卡</div>
+    <div class="tab" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" onclick="switchTab('global')">⚙️ 全局设置</div>
     <div class="tab" onclick="switchTab('ui')">🎨 UI 设置</div>
   </div>
@@ -141,6 +147,23 @@
   <div id="level-section" style="display:none;">
     <div id="level-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addLevel()">➕ 新增关卡</button>
+  </div>
+
+  <!-- 成长与经验 -->
+  <div id="growth-section" style="display:none;">
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">📈 10大成长模型 (每级增加)</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">配置各种流派的每级属性成长。支持小数。</p>
+      <div id="growth-models-list" class="form-grid"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">📊 等级经验表 (Lv.1 - Lv.60)</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">1-30级平滑，31-50中幅，51-60大幅。</p>
+      <div id="exp-table-list" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; max-height:400px; overflow-y:auto; padding-right:10px;"></div>
+    </div>
+    
+    <button class="btn btn-play" style="width:100%;" onclick="saveGrowthConfig()">💾 保存成长与经验配置</button>
   </div>
 
   <!-- 全局设置 -->
@@ -228,65 +251,49 @@
       { val: 'te_shu', label: '【特殊】(少数字符专属)' }
     ];
 
+    const DEFAULT_GROWTH_MODELS = [
+      { id: 'm1', name: '1. 均衡全能', fengRui: 1, hunHou: 1, lingDong: 1, jianRen: 1, guiMi: 0.5, jueQing: 0.5 },
+      { id: 'm2', name: '2. 物理狂战', fengRui: 2, hunHou: 1.5, lingDong: 0, jianRen: 1, guiMi: 0, jueQing: 0.5 },
+      { id: 'm3', name: '3. 轻灵刺客', fengRui: 1, hunHou: 0.5, lingDong: 2, jianRen: 0, guiMi: 1, jueQing: 0.5 },
+      { id: 'm4', name: '4. 金刚铁壁', fengRui: 0, hunHou: 2, lingDong: 0.5, jianRen: 2, guiMi: 0.5, jueQing: 0 },
+      { id: 'm5', name: '5. 百步穿杨', fengRui: 1, hunHou: 0.5, lingDong: 1, jianRen: 0.5, guiMi: 1.5, jueQing: 0.5 },
+      { id: 'm6', name: '6. 气宗内家', fengRui: 0.5, hunHou: 1, lingDong: 0.5, jianRen: 0.5, guiMi: 2, jueQing: 0.5 },
+      { id: 'm7', name: '7. 快剑游侠', fengRui: 1, hunHou: 0.5, lingDong: 1.5, jianRen: 0.5, guiMi: 1, jueQing: 0.5 },
+      { id: 'm8', name: '8. 极致爆发', fengRui: 1.5, hunHou: 0, lingDong: 0.5, jianRen: 0, guiMi: 0.5, jueQing: 2.5 },
+      { id: 'm9', name: '9. 不倒战象', fengRui: 0.5, hunHou: 2.5, lingDong: 0, jianRen: 1.5, guiMi: 0.5, jueQing: 0 },
+      { id: 'm10', name: '10. 奇门遁甲', fengRui: 0.5, hunHou: 0.5, lingDong: 1, jianRen: 1, guiMi: 1, jueQing: 1 }
+    ];
+
+    // 自动生成 1-60 级经验表
+    const DEFAULT_EXP_TABLE = [];
+    for (let i = 1; i <= 60; i++) {
+      let req = 100;
+      if (i <= 30) req = 100 + (i-1)*50;
+      else if (i <= 50) req = 1500 + (i-31)*500;
+      else req = 15000 + (i-51)*3000;
+      DEFAULT_EXP_TABLE.push(req);
+    }
+
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', emoji: '⚔️', element: 'fire', maxHp: 3000, atk: 400, def: 200, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.15, critDmg: 1.5, hitRate: 0.1, dodgeRate: 0.05, critResist: 0.05, dmgIncrease: 0.1, dmgReduction: 0.05, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: 'skill_fireball', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'p_priest', name: '牧师', side: 'player', emoji: '✨', element: 'light', maxHp: 2500, atk: 300, def: 100, speed: 9, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0.1, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.1, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: -1, gridY: -1, stats: { fengRui: 5, hunHou: 15, lingDong: 10, jianRen: 5, guiMi: 5, jueQing: 5 }, skillSlots: { normal: 'skill_slash', skill: 'skill_heal', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', emoji: '💀', element: 'dark', maxHp: 2000, atk: 200, def: 200, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 0, gridY: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'e_boss', name: '骷髅王', side: 'enemy', emoji: '👑', element: 'dark', maxHp: 8000, atk: 400, def: 300, speed: 6, sizeX: 2, sizeY: 2, critRate: 0.1, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0.1, dmgIncrease: 0, dmgReduction: 0.2, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 1, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', level: 1, exp: 0, growthModel: 'm1', emoji: '⚔️', element: 'fire', maxHp: 1000, atk: 100, def: 50, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', level: 1, exp: 0, growthModel: 'm1', emoji: '💀', element: 'dark', maxHp: 1000, atk: 100, def: 50, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
     ];
 
     const DEFAULT_SKILLS = [
-      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
-      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
-      { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
-      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0, isAura: false, auraRange: 0, effects: [] },
-      { id: 'skill_aura_atk', name: '鼓舞光环', type: 'passive', element: 'light', targetSide: 'player', targetRule: 'frontRow', multiplier: 0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, passiveType: 'atkAdd', passiveValue: 0.2, isAura: true, auraRange: 1, effects: [] }
+      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
+      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
+      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
     ];
 
-    const DEFAULT_STATUS = [ 
-      { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
-      { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true },
-      { id: 'status_atk_up', name: '狂暴', type: 'buff', duration: 3, statMod: 'atk', statValue: 0.3, isDot: false, dotValue: 0, isStun: false }
+    const DEFAULT_STATUS = [ { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false } ];
+    const DEFAULT_ITEMS = [ 
+      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100 }, 
+      { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000 } 
     ];
-
-    const DEFAULT_ITEMS = [
-      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 },
-      { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' },
-      { id: 'item_stat_pill', name: '淬体丹', category: 'consumable', icon: '🔴', desc: '使用后永久增加1点浑厚', maxStack: 99, useEffect: 'AddStat', useValue: 1, useStatKey: 'hunHou' },
-      { id: 'item_pack_equip', name: '装备自选包', category: 'consumable', icon: '🎁', desc: '打开后可以选择一件装备', maxStack: 99, useEffect: 'PackageEquip', useValue: 0, useStatKey: '' },
-      { id: 'item_iron', name: '玄铁', category: 'material', icon: '🪨', desc: '打造武器的高级材料', maxStack: 999, useEffect: 'None', useValue: 0, useStatKey: '' }
-    ];
-
     const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '' } ];
-    const DEFAULT_DROP_RATES = [
-      { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
-      { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
-      { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
-      { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
-      { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
-      { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
-    ];
-
-    const DEFAULT_AFFIX_POOLS = {
-      weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
-      armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
-      accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
-    };
-
-    const DEFAULT_AFFIX_VALUES = {
-      atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
-      atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
-      critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
-      dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
-      speed: { min: 1, max: 4 }
-    };
-
-    const AFFIX_NAMES = {
-      atkFlat: '攻击力(固定)', defFlat: '防御力(固定)', hpFlat: '生命值(固定)',
-      atkPercent: '攻击力(%)', defPercent: '防御力(%)', hpPercent: '生命值(%)',
-      critRate: '暴击率(%)', critDmg: '暴击伤害(%)', critResist: '抗暴率(%)',
-      dodgeRate: '闪避率(%)', hitRate: '命中率(%)', lifesteal: '吸血(%)', speed: '速度(固定)'
-    };
+    const DEFAULT_DROP_RATES = [ { q: 'white', min: 0, max: 100, m: 1.0, n: 1, tier: 1 } ];
+    const DEFAULT_AFFIX_POOLS = { weapon: ['atkFlat'], armor: ['defFlat'], accessory: ['hpFlat'] };
+    const DEFAULT_AFFIX_VALUES = { atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 } };
 
     const DEFAULT_GLOBAL_CONFIG = {
       config: {
@@ -296,23 +303,13 @@
         fengRuiToAtk: 3.0, hunHouToHp: 20.0, lingDongToSpd: 1.5, lingDongToEva: 0.1, maxEvaFromStats: 20.0,
         jianRenToDef: 2.0, jianRenToRes: 0.1, guiMiToHit: 0.15, guiMiToCritDmg: 1.0, jueQingToCrit: 0.2, maxCritFromStats: 30.0
       },
+      growthModels: JSON.parse(JSON.stringify(DEFAULT_GROWTH_MODELS)),
+      expTable: JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE)),
       dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
       affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
       affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
-      elements: [
-        { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
-        { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
-        { id: 'wind', name: '风', icon: '🌪️', color: '#4caf50' },
-        { id: 'light', name: '光', icon: '✨', color: '#ffc107' },
-        { id: 'dark', name: '暗', icon: '🌑', color: '#9c27b0' }
-      ],
-      elementMatrix: {
-        fire: { wind: 1.5, water: 0.7 },
-        water: { fire: 1.5, wind: 0.7 },
-        wind: { water: 1.5, fire: 0.7 },
-        light: { dark: 1.5 },
-        dark: { light: 1.5 }
-      }
+      elements: [{ id: 'fire', name: '火', icon: '🔥', color: '#ff5722' }],
+      elementMatrix: {}
     };
 
     let currentTab = 'char';
@@ -336,11 +333,6 @@
     if (!Array.isArray(gameLevels)) gameLevels = DEFAULT_LEVELS;
     if (!Array.isArray(inventory)) inventory = [];
 
-    gameChars.forEach(c => {
-      if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
-      if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
-    });
-
     let globalData;
     try {
       globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG));
@@ -351,7 +343,9 @@
     Object.keys(DEFAULT_GLOBAL_CONFIG.config).forEach(k => {
       if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
     });
-
+    
+    if (!globalData.growthModels) globalData.growthModels = JSON.parse(JSON.stringify(DEFAULT_GROWTH_MODELS));
+    if (!globalData.expTable) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
     if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
     if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
     if (!globalData.affixValues) globalData.affixValues = JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES));
@@ -359,76 +353,24 @@
     if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
     let editingElementIds = new Set();
 
-    gameLevels.forEach(lv => {
-      if (!lv.enemyList) lv.enemyList = [];
+    // 兼容旧数据
+    gameChars.forEach(c => {
+      if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
+      if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
+      if (c.level === undefined) c.level = 1;
+      if (c.exp === undefined) c.exp = 0;
+      if (!c.growthModel) c.growthModel = 'm1';
     });
 
     setTimeout(() => { saveData(); }, 100);
-
-    function generateRandomInstance(templateId) {
-      const template = gameItems.find(t => t.id === templateId);
-      if (!template) return null;
-      
-      const r = Math.random() * 100;
-      const config = globalData.dropRates.find(d => r >= d.min && r < d.max) || globalData.dropRates[0];
-      const quality = config.q;
-      const qMult = config.m;
-      const extraCount = config.n;
-
-      const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
-      const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
-      const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
-
-      let pool = template.category === 'armor' ? [...globalData.affixPools.armor] : (template.category === 'weapon' ? [...globalData.affixPools.weapon] : [...globalData.affixPools.accessory]);
-      
-      const extras = [];
-      const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
-
-      for (let i = 0; i < extraCount; i++) {
-        if(pool.length === 0) break;
-        const idx = Math.floor(Math.random() * pool.length);
-        const stat = pool.splice(idx, 1)[0];
-        
-        const cfg = globalData.affixValues[stat] || { min: 0, max: 0 };
-        let val = 0;
-        if (cfg.max >= cfg.min) {
-          val = Math.random() * (cfg.max - cfg.min) + cfg.min;
-        } else {
-          val = cfg.min;
-        }
-
-        if (intTypes.includes(stat)) val = Math.round(val);
-        else val = Math.round((val / 100) * 100) / 100;
-
-        extras.push({ stat, value: val });
-      }
-
-      const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
-      extraKeys.forEach(k => { 
-        if (template[k] && template[k] !== 0) {
-          const exIdx = extras.findIndex(e => e.stat === k);
-          if (exIdx !== -1) extras.splice(exIdx, 1);
-          extras.push({ stat: k, value: template[k] / 100 }); 
-        }
-      });
-
-      return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '', count: 1 };
-    }
-
-    const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
-    const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '随机目标' }, { val: 'all', label: '群体(全体)' }];
-    const passiveTypes = [{ val: 'atkAdd', label: '攻击力(%)' }, { val: 'hpAdd', label: '生命值(%)' }, { val: 'defAdd', label: '防御力(%)' }, { val: 'speedAdd', label: '速度(%)' }];
-    
-    const statusTypes = [{ val: 'buff', label: '增益' }, { val: 'debuff', label: '减益' }, { val: 'control', label: '控制' }];
-    const statusMods = [{ val: 'none', label: '无属性变化' }, { val: 'atk', label: '攻击力' }, { val: 'def', label: '防御力' }, { val: 'speed', label: '速度' }];
 
     function switchTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab').forEach(t => { 
-        if (t.innerText.includes({ char:'角色', skill:'技能', status:'状态', item:'物品', level:'关卡', global:'设置', ui:'UI' }[tab])) t.classList.add('active'); 
+        if (t.innerText.includes({ char:'角色', skill:'技能', status:'状态', item:'物品', level:'关卡', growth:'成长', global:'设置', ui:'UI' }[tab])) t.classList.add('active'); 
       });
-      ['char','skill','status','item','level','global','ui'].forEach(k => { 
+      ['char','skill','status','item','level','growth','global','ui'].forEach(k => { 
         const el = document.getElementById(k+'-section');
         if (el) el.style.display = tab === k ? 'block' : 'none'; 
       });
@@ -465,6 +407,7 @@
       if (currentTab === 'status') renderStatuses();
       if (currentTab === 'item') renderItems();
       if (currentTab === 'level') renderLevels();
+      if (currentTab === 'growth') renderGrowth();
       if (currentTab === 'global') renderGlobal();
     }
 
@@ -482,6 +425,67 @@
       return html;
     }
 
+    // 核心预览计算引擎
+    function calcPreviewStats(char) {
+      let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
+      let gm = globalData.growthModels.find(m => m.id === char.growthModel) || globalData.growthModels[0];
+      let lv = char.level || 1;
+      
+      if (lv > 1) {
+        baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
+        baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
+        baseStats.lingDong += (gm.lingDong || 0) * (lv-1);
+        baseStats.jianRen += (gm.jianRen || 0) * (lv-1);
+        baseStats.guiMi += (gm.guiMi || 0) * (lv-1);
+        baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
+      }
+      
+      const cfg = globalData.config;
+      let maxHp = (char.maxHp || 0) + baseStats.hunHou * cfg.hunHouToHp;
+      let atk = (char.atk || 0) + baseStats.fengRui * cfg.fengRuiToAtk;
+      let def = (char.def || 0) + baseStats.jianRen * cfg.jianRenToDef;
+      let speed = (char.speed || 0) + baseStats.lingDong * cfg.lingDongToSpd;
+      
+      let critRate = (char.critRate || 0) + Math.min(baseStats.jueQing * cfg.jueQingToCrit / 100, cfg.maxCritFromStats / 100);
+      let dodgeRate = (char.dodgeRate || 0) + Math.min(baseStats.lingDong * cfg.lingDongToEva / 100, cfg.maxEvaFromStats / 100);
+      let hitRate = (char.hitRate || 0) + baseStats.guiMi * cfg.guiMiToHit / 100;
+      let critResist = (char.critResist || 0) + baseStats.jianRen * cfg.jianRenToRes / 100;
+      let critDmg = (char.critDmg || 1.5) + baseStats.guiMi * cfg.guiMiToCritDmg / 100;
+
+      // 装备加成计算
+      let eqAtkAdd=0, eqDefAdd=0, eqHpAdd=0, eqAtkPct=0, eqDefPct=0, eqHpPct=0;
+      if(char.equipment) {
+        Object.values(char.equipment).forEach(uid => {
+          if (!uid) return;
+          const inst = inventory.find(i => i.uid === uid);
+          if (inst) {
+            eqAtkAdd += (inst.baseAtk || 0); eqDefAdd += (inst.baseDef || 0); eqHpAdd += (inst.baseHp || 0);
+            if (inst.extras) {
+              inst.extras.forEach(ex => {
+                let val = ex.value;
+                if (ex.stat === 'atkFlat') eqAtkAdd += val;
+                else if (ex.stat === 'defFlat') eqDefAdd += val;
+                else if (ex.stat === 'hpFlat') eqHpAdd += val;
+                else if (ex.stat === 'atkPercent') eqAtkPct += val;
+                else if (ex.stat === 'defPercent') eqDefPct += val;
+                else if (ex.stat === 'hpPercent') eqHpPct += val;
+                else if (ex.stat === 'critRate') critRate += val;
+                else if (ex.stat === 'dodgeRate') dodgeRate += val;
+                else if (ex.stat === 'hitRate') hitRate += val;
+                else if (ex.stat === 'critResist') critResist += val;
+              });
+            }
+          }
+        });
+      }
+      
+      maxHp = Math.floor((maxHp + eqHpAdd) * (1 + eqHpPct));
+      atk = Math.floor((atk + eqAtkAdd) * (1 + eqAtkPct));
+      def = Math.floor((def + eqDefAdd) * (1 + eqDefPct));
+
+      return { baseStats, maxHp, atk, def, speed, critRate, dodgeRate, hitRate, critResist, critDmg };
+    }
+
     function renderChars() {
       const list = document.getElementById('char-list'); list.innerHTML = '';
       const keyword = document.getElementById('search-char').value.toLowerCase();
@@ -490,17 +494,28 @@
         if (keyword && !char.name.toLowerCase().includes(keyword)) return;
         if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
         if (!char.equipment) char.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
-        if (!char.stats) char.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
+        
+        const preview = calcPreviewStats(char);
+        
+        let gmOptions = globalData.growthModels.map(m => `<option value="${m.id}" ${char.growthModel === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
 
         const div = document.createElement('div'); div.className = 'card';
         div.innerHTML = `
-          <div class="card-header"><h3>${char.emoji} ${char.name}</h3><button class="btn-del" onclick="deleteChar(${index})">删除</button></div>
+          <div class="card-header">
+            <h3>${char.emoji} ${char.name} <span style="font-size:14px; color:#f1c40f;">Lv.${char.level || 1}</span></h3>
+            <button class="btn-del" onclick="deleteChar(${index})">删除</button>
+          </div>
           <div class="form-grid">
             <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateChar(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>图标</label><input type="text" value="${char.emoji}" onchange="updateChar(${index}, 'emoji', this.value)"></div>
             
-            <div class="form-item full"><label>角色全身立绘 (Portrait URL)</label><input type="text" value="${char.portrait||''}" placeholder="assets/portraits/char.png" onchange="updateChar(${index}, 'portrait', this.value)"></div>
-            <div class="form-item full"><label>角色战斗头像 (Avatar URL)</label><input type="text" value="${char.avatar||''}" placeholder="assets/avatars/head.png" onchange="updateChar(${index}, 'avatar', this.value)"></div>
+            <div class="form-item"><label>等级 (Lv)</label><input type="number" min="1" max="60" value="${char.level || 1}" onchange="updateChar(${index}, 'level', parseInt(this.value))"></div>
+            <div class="form-item"><label>当前经验</label><input type="number" value="${char.exp || 0}" onchange="updateChar(${index}, 'exp', parseInt(this.value))"></div>
+            
+            <div class="form-item full">
+              <label style="color:#e67e22; font-weight:bold;">成长模型 (随等级自动加属性)</label>
+              <select onchange="updateChar(${index}, 'growthModel', this.value)">${gmOptions}</select>
+            </div>
 
             <div class="form-item" style="grid-column: span 2;">
               <label style="color:#f1c40f; font-weight:bold;">元素属性</label>
@@ -509,32 +524,29 @@
               </select>
             </div>
 
-            <div class="form-item"><label>生命</label><input type="number" value="${char.maxHp}" onchange="updateChar(${index}, 'maxHp', parseInt(this.value))"></div>
-            <div class="form-item"><label>攻击</label><input type="number" value="${char.atk}" onchange="updateChar(${index}, 'atk', parseInt(this.value))"></div>
-            <div class="form-item"><label>防御</label><input type="number" value="${char.def}" onchange="updateChar(${index}, 'def', parseInt(this.value))"></div>
-            <div class="form-item"><label>速度</label><input type="number" value="${char.speed}" onchange="updateChar(${index}, 'speed', parseInt(this.value))"></div>
-            
-            <div class="form-item"><label style="color:#f1c40f;">占格宽</label><input type="number" min="1" max="4" value="${char.sizeX}" onchange="updateChar(${index}, 'sizeX', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#f1c40f;">占格高</label><input type="number" min="1" max="4" value="${char.sizeY}" onchange="updateChar(${index}, 'sizeY', parseInt(this.value))"></div>
+            <div class="sub-title">六大意境 (基础值，会加上成长)</div>
+            <div class="form-item"><label style="color:#e67e22;">锋锐 (攻击)</label><input type="number" value="${char.stats.fengRui || 0}" onchange="updateCharStat(${index}, 'fengRui', parseFloat(this.value))"></div>
+            <div class="form-item"><label style="color:#e74c3c;">浑厚 (气血)</label><input type="number" value="${char.stats.hunHou || 0}" onchange="updateCharStat(${index}, 'hunHou', parseFloat(this.value))"></div>
+            <div class="form-item"><label style="color:#2ecc71;">灵动 (速度/闪避)</label><input type="number" value="${char.stats.lingDong || 0}" onchange="updateCharStat(${index}, 'lingDong', parseFloat(this.value))"></div>
+            <div class="form-item"><label style="color:#3498db;">坚韧 (防御/韧性)</label><input type="number" value="${char.stats.jianRen || 0}" onchange="updateCharStat(${index}, 'jianRen', parseFloat(this.value))"></div>
+            <div class="form-item"><label style="color:#9b59b6;">诡秘 (命中/暴伤)</label><input type="number" value="${char.stats.guiMi || 0}" onchange="updateCharStat(${index}, 'guiMi', parseFloat(this.value))"></div>
+            <div class="form-item"><label style="color:#f1c40f;">绝情 (暴击)</label><input type="number" value="${char.stats.jueQing || 0}" onchange="updateCharStat(${index}, 'jueQing', parseFloat(this.value))"></div>
 
-            <div class="sub-title">六大意境 (主属性)</div>
-            <div class="form-item"><label style="color:#e67e22;">锋锐 (攻击)</label><input type="number" value="${char.stats.fengRui || 0}" onchange="updateCharStat(${index}, 'fengRui', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#e74c3c;">浑厚 (气血)</label><input type="number" value="${char.stats.hunHou || 0}" onchange="updateCharStat(${index}, 'hunHou', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#2ecc71;">灵动 (速度/闪避)</label><input type="number" value="${char.stats.lingDong || 0}" onchange="updateCharStat(${index}, 'lingDong', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#3498db;">坚韧 (防御/韧性)</label><input type="number" value="${char.stats.jianRen || 0}" onchange="updateCharStat(${index}, 'jianRen', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#9b59b6;">诡秘 (命中/暴伤)</label><input type="number" value="${char.stats.guiMi || 0}" onchange="updateCharStat(${index}, 'guiMi', parseInt(this.value))"></div>
-            <div class="form-item"><label style="color:#f1c40f;">绝情 (暴击)</label><input type="number" value="${char.stats.jueQing || 0}" onchange="updateCharStat(${index}, 'jueQing', parseInt(this.value))"></div>
+            <div class="sub-title" style="color:#00ff00;">🔍 当前转换面板预览 (含装备与等级)</div>
+            <div class="preview-box full">
+              <div>气血: <span>${preview.maxHp}</span></div>
+              <div>攻击: <span>${preview.atk}</span></div>
+              <div>防御: <span>${preview.def}</span></div>
+              <div>速度: <span>${preview.speed.toFixed(1)}</span></div>
+              <div>暴击: <span>${(preview.critRate*100).toFixed(1)}%</span></div>
+              <div>闪避: <span>${(preview.dodgeRate*100).toFixed(1)}%</span></div>
+              <div>命中: <span>${(preview.hitRate*100).toFixed(1)}%</span></div>
+              <div>抗暴: <span>${(preview.critResist*100).toFixed(1)}%</span></div>
+              <div>暴伤: <span>${(preview.critDmg*100).toFixed(1)}%</span></div>
+            </div>
 
-            <div class="sub-title">旧属性面板 (保留不删)</div>
-            <div class="form-item"><label>暴击(%)</label><input type="number" step="0.1" value="${(char.critRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'critRate', this.value)"></div>
-            <div class="form-item"><label>暴伤(倍)</label><input type="number" step="0.1" value="${char.critDmg||1.5}" onchange="updateChar(${index}, 'critDmg', parseFloat(this.value))"></div>
-            <div class="form-item"><label>抗暴(%)</label><input type="number" step="0.1" value="${(char.critResist*100).toFixed(1)}" onchange="updateCharPct(${index}, 'critResist', this.value)"></div>
-            <div class="form-item"><label>命中(%)</label><input type="number" step="0.1" value="${(char.hitRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'hitRate', this.value)"></div>
-            <div class="form-item"><label>闪避(%)</label><input type="number" step="0.1" value="${(char.dodgeRate*100).toFixed(1)}" onchange="updateCharPct(${index}, 'dodgeRate', this.value)"></div>
-            <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(char.lifesteal*100).toFixed(1)}" onchange="updateCharPct(${index}, 'lifesteal', this.value)"></div>
-            
+            <div class="sub-title">旧属性与技能配置</div>
             <div class="form-item full">
-              <label>技能装配</label>
               <div class="skill-slot">
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">普攻:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">招式:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
@@ -626,9 +638,6 @@
             <div class="form-item"><label>名称</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateSkill(${index}, 'type', this.value)">${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             
-            <div class="form-item full"><label>技能图标 (Icon URL)</label><input type="text" value="${skill.iconImg||''}" placeholder="assets/skills/icon.png" onchange="updateSkill(${index}, 'iconImg', this.value)"></div>
-            <div class="form-item full"><label>技能详细介绍 (Desc)</label><textarea rows="2" onchange="updateSkill(${index}, 'desc', this.value)" placeholder="例如：挥剑斩击，若命中可引动破势...">${skill.desc||''}</textarea></div>
-
             <div class="form-item" style="grid-column: span 2;">
               <label style="color:#f1c40f; font-weight:bold;">技能元素属性</label>
               <select onchange="updateSkill(${index}, 'element', this.value)">
@@ -873,7 +882,6 @@
           inventory.push(newInst);
         }
       }
-      
       saveData();
       alert(`已成功发放：${tpl.name} (请在游戏内背包查看)`);
     }
@@ -1069,6 +1077,35 @@
         } 
         renderBoardUnits(lvIdx);
       });
+    }
+
+    function renderGrowth() {
+      const gmBox = document.getElementById('growth-models-list');
+      if(gmBox) {
+        gmBox.innerHTML = globalData.growthModels.map((m, i) => `
+          <div class="form-item" style="background:#111; padding:10px; border-radius:6px; border:1px solid #333; grid-column: span 2;">
+            <div style="color:#f1c40f; font-weight:bold; margin-bottom:8px;">${m.name}</div>
+            <div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:5px;">
+              <div><label style="font-size:10px;">锋</label><input type="number" step="0.1" value="${m.fengRui}" onchange="globalData.growthModels[${i}].fengRui = parseFloat(this.value)"></div>
+              <div><label style="font-size:10px;">浑</label><input type="number" step="0.1" value="${m.hunHou}" onchange="globalData.growthModels[${i}].hunHou = parseFloat(this.value)"></div>
+              <div><label style="font-size:10px;">灵</label><input type="number" step="0.1" value="${m.lingDong}" onchange="globalData.growthModels[${i}].lingDong = parseFloat(this.value)"></div>
+              <div><label style="font-size:10px;">坚</label><input type="number" step="0.1" value="${m.jianRen}" onchange="globalData.growthModels[${i}].jianRen = parseFloat(this.value)"></div>
+              <div><label style="font-size:10px;">诡</label><input type="number" step="0.1" value="${m.guiMi}" onchange="globalData.growthModels[${i}].guiMi = parseFloat(this.value)"></div>
+              <div><label style="font-size:10px;">绝</label><input type="number" step="0.1" value="${m.jueQing}" onchange="globalData.growthModels[${i}].jueQing = parseFloat(this.value)"></div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      const expBox = document.getElementById('exp-table-list');
+      if(expBox) {
+        expBox.innerHTML = globalData.expTable.map((val, i) => `
+          <div class="form-item" style="background:#111; padding:5px; border:1px solid #333; border-radius:4px;">
+            <label>Lv.${i+1} 升 ${i+2} 需</label>
+            <input type="number" value="${val}" onchange="globalData.expTable[${i}] = parseInt(this.value)">
+          </div>
+        `).join('');
+      }
     }
 
     function renderGlobal() {
@@ -1387,6 +1424,7 @@
       localStorage.setItem('my_game_items_v22', JSON.stringify(gameItems));
       localStorage.setItem('my_game_levels_v22', JSON.stringify(gameLevels));
       localStorage.setItem('my_game_inventory_v22', JSON.stringify(inventory));
+      localStorage.setItem('my_game_config', JSON.stringify(globalData));
 
       localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
       localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
@@ -1396,10 +1434,12 @@
       localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
     }
 
+    function saveGrowthConfig() { saveData(); alert('成长与经验配置已保存！'); }
+
     function updateChar(index, key, value) { 
       gameChars[index][key] = value; 
       saveData(); 
-      if (key === 'element') render();
+      if (['level', 'growthModel'].includes(key)) render(); 
     }
     function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
     function updateCharStat(index, statKey, value) {
@@ -1458,7 +1498,7 @@
     }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
 
-    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, hitRate:0, dodgeRate:0, critResist:0, dmgIncrease:0, dmgReduction:0, dmgTakenIncrease:0, trueDmg:0, lifesteal:0, gridX:-1, gridY:-1, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); saveData(); render(); }
+    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, level:1, exp:0, growthModel:'m1', emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); saveData(); render(); }
     function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
     
     function addSkill() { 
@@ -1494,199 +1534,131 @@
     function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '' }); saveData(); render(); }
     function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
 
-    // ==========================================
-    // 一鍵加載 MVP 5人追打陣容
-    // ==========================================
-    function loadMVP5Team() {
-      if(!confirm("這將會覆蓋您目前的角色與技能設定，導入 MVP 5 人追打小隊，是否繼續？")) return;
-
-      const mvpSkills = [
-        { id: 'sk_1', name: '破浪劍法', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 2.0, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, desc: '華山快劍起手，造成 200% 傷害，命中且未被格擋時產生【破势】。', effects: [] },
-        { id: 'fu_2', name: '追擊·掃葉棍', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 0.35, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: 'zhen_chan', comboTagIn: 'po_shi', maxTriggers: 1, desc: '響應【破势】，造成 35% 傷害，並產生【震顫】。', effects: [] },
-        { id: 'fu_3', name: '追擊·隔空指', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 0.45, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: 'zhi_qi', comboTagIn: 'zhen_chan', maxTriggers: 1, desc: '響應【震顫】，造成 45% 傷害，並產生【滯氣】。', effects: [] },
-        { id: 'fu_4', name: '追擊·毒翎鏢', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 0.40, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: 'feng_hou', comboTagIn: 'zhi_qi', maxTriggers: 1, desc: '響應【滯氣】，造成 40% 傷害，並產生【封喉】。', effects: [] },
-        { id: 'fu_5', name: '追擊·絕命斷頭臺', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 0.60, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'feng_hou', maxTriggers: 1, desc: '終結響應【封喉】，造成 60% 高額收割傷害，為追打鏈完美收官。', effects: [] }
-      ];
-
-      const mvpChars = [
-        { id: 'char_1', name: '陸孤影 (1號位)', side: 'player', emoji: '🗡️', element: 'fire', maxHp: 25000, atk: 3200, def: 200, speed: 10, sizeX:1, sizeY:1, hitRate: 0.95, dodgeRate: 0.1, stats:{fengRui:10,hunHou:10,lingDong:10,jianRen:10,guiMi:10,jueQing:10}, skillSlots: { normal: 'sk_1', skill: 'sk_1', ultimate: '', followup: '', learned: '' }, equipment:{} },
-        { id: 'char_2', name: '石破天 (2號位)', side: 'player', emoji: '🥖', element: 'fire', maxHp: 30000, atk: 3000, def: 300, speed: 9, sizeX:1, sizeY:1, hitRate: 0.90, dodgeRate: 0.05, stats:{fengRui:10,hunHou:10,lingDong:10,jianRen:10,guiMi:10,jueQing:10}, skillSlots: { normal: 'sk_1', skill: '', ultimate: '', followup: 'fu_2', learned: '' }, equipment:{} },
-        { id: 'char_3', name: '玄空子 (3號位)', side: 'player', emoji: '☯️', element: 'fire', maxHp: 22000, atk: 3100, def: 250, speed: 11, sizeX:1, sizeY:1, hitRate: 0.90, dodgeRate: 0.1, stats:{fengRui:10,hunHou:10,lingDong:10,jianRen:10,guiMi:10,jueQing:10}, skillSlots: { normal: 'sk_1', skill: '', ultimate: '', followup: 'fu_3', learned: '' }, equipment:{} },
-        { id: 'char_4', name: '唐無影 (4號位)', side: 'player', emoji: '🏹', element: 'fire', maxHp: 20000, atk: 3300, def: 180, speed: 12, sizeX:1, sizeY:1, hitRate: 0.92, dodgeRate: 0.15, stats:{fengRui:10,hunHou:10,lingDong:10,jianRen:10,guiMi:10,jueQing:10}, skillSlots: { normal: 'sk_1', skill: '', ultimate: '', followup: 'fu_4', learned: '' }, equipment:{} },
-        { id: 'char_5', name: '荊無命 (5號位)', side: 'player', emoji: '🥷', element: 'fire', maxHp: 18000, atk: 3600, def: 150, speed: 14, sizeX:1, sizeY:1, hitRate: 0.95, dodgeRate: 0.2, stats:{fengRui:10,hunHou:10,lingDong:10,jianRen:10,guiMi:10,jueQing:10}, skillSlots: { normal: 'sk_1', skill: '', ultimate: '', followup: 'fu_5', learned: '' }, equipment:{} },
-        { id: 'boss_1', name: '大後期 BOSS', side: 'enemy', emoji: '👹', element: 'dark', maxHp: 350000, atk: 2500, def: 400, speed: 8, sizeX:2, sizeY:2, hitRate: 0.85, dodgeRate: 0.1, stats:{fengRui:0,hunHou:0,lingDong:0,jianRen:0,guiMi:0,jueQing:0}, skillSlots: { normal: 'sk_1' }, equipment:{} }
-      ];
-
-      const mvpLevels = [
-        { id: 'lv_mvp', name: 'MVP 測試關卡', enemyList: [{ uid: 'e1', id: 'boss_1', x: 2, y: 2 }], rewardItemId: '' }
-      ];
-
-      gameSkills = mvpSkills;
-      gameChars = mvpChars;
-      gameLevels = mvpLevels;
-      saveData();
-      render();
-      alert("✅ MVP 5 人追打隊伍與測試關卡已成功載入！");
+    function testLevelUpAll(amount) {
+      gameChars.filter(c => c.side === 'player').forEach(c => { c.level = (c.level || 1) + amount; if(c.level > 60) c.level = 60; });
+      saveData(); render(); alert(`已给所有玩家角色增加 ${amount} 级！`);
+    }
+    function testResetLevel() {
+      gameChars.filter(c => c.side === 'player').forEach(c => { c.level = 1; c.exp = 0; });
+      saveData(); render(); alert(`已重置所有玩家角色至 Lv.1！`);
     }
 
-    // ==========================================
-    // 真實後台戰鬥引擎 (移除 Phaser 依賴版)
-    // ==========================================
+    function loadMVP5Team() {
+      if(!confirm("导入 MVP 5 人队？")) return;
+      const mvpSkills = [
+        { id: 'sk_1', name: '破浪剑', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 2.0, mpCost: 0, cooldown: 0, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, effects: [] },
+        { id: 'fu_2', name: '追·震', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 0.5, mpCost: 0, cooldown: 0, comboTagOut: 'zhen_chan', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] },
+        { id: 'fu_3', name: '追·绝', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 0.8, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'zhen_chan', maxTriggers: 1, effects: [] }
+      ];
+      const mvpChars = [
+        { id: 'char_1', name: '1号位', side: 'player', level: 10, growthModel: 'm2', emoji: '🗡️', maxHp: 3000, atk: 500, def: 100, speed: 10, sizeX:1, sizeY:1, hitRate: 0.9, dodgeRate: 0.1, critRate:0.1, critDmg:1.5, critResist:0, stats:{fengRui:10}, skillSlots: { normal: 'sk_1' }, equipment:{} },
+        { id: 'char_2', name: '2号位', side: 'player', level: 10, growthModel: 'm3', emoji: '🥖', maxHp: 2500, atk: 450, def: 80, speed: 12, sizeX:1, sizeY:1, hitRate: 0.9, dodgeRate: 0.1, critRate:0.1, critDmg:1.5, critResist:0, stats:{fengRui:10}, skillSlots: { normal: 'sk_1', followup: 'fu_2' }, equipment:{} },
+        { id: 'char_3', name: '3号位', side: 'player', level: 10, growthModel: 'm5', emoji: '🏹', maxHp: 2000, atk: 400, def: 60, speed: 14, sizeX:1, sizeY:1, hitRate: 0.9, dodgeRate: 0.1, critRate:0.1, critDmg:1.5, critResist:0, stats:{fengRui:10}, skillSlots: { normal: 'sk_1', followup: 'fu_3' }, equipment:{} },
+        { id: 'boss_1', name: 'Boss', side: 'enemy', level: 10, growthModel: 'm9', emoji: '👹', maxHp: 50000, atk: 600, def: 200, speed: 8, sizeX:2, sizeY:2, hitRate: 0.9, dodgeRate: 0, critRate:0.1, critDmg:1.5, critResist:0.1, stats:{hunHou:10}, skillSlots: { normal: 'sk_1' }, equipment:{} }
+      ];
+      gameSkills = mvpSkills;
+      gameChars = mvpChars;
+      gameLevels = [{ id: 'lv_mvp', name: 'MVP关卡', enemyList: [{ uid: 'e1', id: 'boss_1', x: 2, y: 2 }], rewardItemId: '' }];
+      saveData(); render(); alert("MVP 队伍已加载！");
+    }
+
     class SimUnit {
-      constructor(data, skills, config) {
+      constructor(data, skills, config, models) {
         Object.assign(this, JSON.parse(JSON.stringify(data)));
-        const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
+        const gm = models.find(m => m.id === data.growthModel) || models[0];
+        const lv = data.level || 1;
         
+        let stats = JSON.parse(JSON.stringify(data.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
+        if(lv > 1) {
+          stats.fengRui += (gm.fengRui||0)*(lv-1); stats.hunHou += (gm.hunHou||0)*(lv-1); stats.lingDong += (gm.lingDong||0)*(lv-1);
+          stats.jianRen += (gm.jianRen||0)*(lv-1); stats.guiMi += (gm.guiMi||0)*(lv-1); stats.jueQing += (gm.jueQing||0)*(lv-1);
+        }
+
         this.maxHp = (this.maxHp || 0) + stats.hunHou * config.hunHouToHp;
         this.atk = (this.atk || 0) + stats.fengRui * config.fengRuiToAtk;
         this.def = (this.def || 0) + stats.jianRen * config.jianRenToDef;
         this.speed = (this.speed || 0) + stats.lingDong * config.lingDongToSpd;
-
-        let critGain = (stats.jueQing * config.jueQingToCrit / 100);
-        this.critRate = (this.critRate || 0) + Math.min(critGain, config.maxCritFromStats / 100);
         
-        let evaGain = (stats.lingDong * config.lingDongToEva / 100);
-        this.dodgeRate = (this.dodgeRate || 0) + Math.min(evaGain, config.maxEvaFromStats / 100);
-        
-        this.hitRate = (this.hitRate || 0) + (stats.guiMi * config.guiMiToHit / 100);
-        this.critResist = (this.critResist || 0) + (stats.jianRen * config.jianRenToRes / 100);
-        this.critDmg = (this.critDmg || 1.5) + (stats.guiMi * config.guiMiToCritDmg / 100);
+        this.critRate = (this.critRate || 0) + Math.min(stats.jueQing * config.jueQingToCrit / 100, config.maxCritFromStats / 100);
+        this.dodgeRate = (this.dodgeRate || 0) + Math.min(stats.lingDong * config.lingDongToEva / 100, config.maxEvaFromStats / 100);
+        this.hitRate = (this.hitRate || 0) + stats.guiMi * config.guiMiToHit / 100;
+        this.critResist = (this.critResist || 0) + stats.jianRen * config.jianRenToRes / 100;
+        this.critDmg = (this.critDmg || 1.5) + stats.guiMi * config.guiMiToCritDmg / 100;
 
-        // 装备计算(测试版假设背包为空)
-        this.baseAtk = this.atk;
-        this.baseDef = this.def;
-        this.baseSpeed = this.speed;
-
-        this.hp = this.maxHp; this.maxMp = 100; this.mp = 100;
-        this.cooldowns = {}; this.followupCounts = {};
-        this.skills = skills;
+        this.hp = this.maxHp; this.mp = 100; this.cooldowns = {}; this.followupCounts = {}; this.skills = skills;
       }
       isAlive() { return this.hp > 0; }
-      gainMp(a) { this.mp = Math.min(100, this.mp + a); }
       takeDamage(dmg) { this.hp = Math.max(0, this.hp - dmg); return dmg; }
       resetFollowups() { this.followupCounts = {}; }
-      reduceCooldowns() { for (let k in this.cooldowns) if (this.cooldowns[k] > 0) this.cooldowns[k]--; }
     }
 
-    function simComputeDamage(actor, target, skill, config, elements, matrix) {
-      if (skill.multiplier === 0) return 0;
-      let hit = Math.max(config.HIT_RATE_MIN, Math.min(config.HIT_RATE_MAX, 1 + actor.hitRate - target.dodgeRate));
-      if (Math.random() > hit) return 0; // Miss
-      
-      let base = actor.atk * skill.multiplier;
-      let def = target.def / (target.def + config.DEF_CONSTANT);
-      let dmg = Math.max(base * (1 - def), base * config.MIN_DAMAGE_RATIO);
-      
-      let cr = Math.max(0, Math.min(config.CRIT_RATE_CAP, actor.critRate - target.critResist));
-      const isCrit = Math.random() < cr; if (isCrit) dmg *= actor.critDmg;
-      
-      // 元素克制(暂略，默认1.0)
-      const d = Math.round(dmg);
-      return d;
-    }
-
-    function simChooseSkill(actor, skills) {
-      const slots = actor.skillSlots || {};
-      let avail = Object.values(slots).filter(id => id && skills[id] && !['passive', 'followup'].includes(skills[id].type)).map(id => skills[id]);
-      let usable = avail.filter(sk => {
-        const cd = actor.cooldowns[sk.id] || 0;
-        if (actor.mp < (sk.mpCost || 0) || cd > 0) return false;
-        return true;
-      });
-      const w = { ultimate: 3, skill: 2, normal: 1 };
-      usable.sort((a, b) => (w[b.type] || 0) - (w[a.type] || 0));
-      if (usable.length > 0) return usable[0];
-      return skills['sk_1'] || Object.values(skills).find(s => s.type === 'normal');
-    }
-
-    // 核心模拟
     function runFastSimulation() {
-      const config = globalData.config;
-      const skillsMap = {};
-      gameSkills.forEach(sk => skillsMap[sk.id] = sk);
-      
-      const simCount = 100;
-      let wins = 0, totalRounds = 0, totalFollowups = 0;
-
-      // 提取玩家和敌人
+      const cfg = globalData.config;
+      const skillsMap = {}; gameSkills.forEach(sk => skillsMap[sk.id] = sk);
       const pChars = gameChars.filter(c => c.side === 'player');
       const eChars = gameChars.filter(c => c.side === 'enemy');
-      if (pChars.length === 0 || eChars.length === 0) {
-        return alert("请先加载 MVP 队伍（包含玩家和敌人）再进行模拟！");
-      }
+      if(!pChars.length || !eChars.length) return alert("请先加载 MVP 队伍！");
 
-      for(let i = 0; i < simCount; i++) {
-        // 深拷贝实例化单位
-        let pUnits = pChars.map(c => new SimUnit(c, skillsMap, config));
-        let eUnits = eChars.map(c => new SimUnit(c, skillsMap, config));
+      let wins = 0, totalRounds = 0, totalFollowups = 0;
+      for(let i=0; i<100; i++) {
+        let pUnits = pChars.map(c => new SimUnit(c, skillsMap, cfg, globalData.growthModels));
+        let eUnits = eChars.map(c => new SimUnit(c, skillsMap, cfg, globalData.growthModels));
         let allUnits = [...pUnits, ...eUnits];
+        let round = 1, fCount = 0;
 
-        let round = 1;
-        let followupsThisBattle = 0;
-
-        while(round <= config.MAX_ROUNDS) {
-          if (pUnits.every(u => !u.isAlive()) || eUnits.every(u => !u.isAlive())) break;
+        while(round <= cfg.MAX_ROUNDS) {
+          if(pUnits.every(u=>!u.isAlive()) || eUnits.every(u=>!u.isAlive())) break;
+          pUnits.forEach(u => u.resetFollowups()); eUnits.forEach(u => u.resetFollowups());
           
-          pUnits.forEach(u => u.resetFollowups()); // 每回合重置追打次数
-          eUnits.forEach(u => u.resetFollowups());
+          let order = [...allUnits].filter(u=>u.isAlive()).sort((a,b)=>b.speed-a.speed);
+          for(let actor of order) {
+            if(!actor.isAlive()) continue;
+            let sk = Object.values(actor.skillSlots||{}).map(id=>skillsMap[id]).find(s=>s&&s.type!=='followup'&&s.type!=='passive') || skillsMap['sk_1'];
+            if(!sk) continue;
+            
+            let targets = allUnits.filter(u=>u.side!==actor.side && u.isAlive());
+            if(!targets.length) break;
+            let target = targets[0];
 
-          let actionOrder = [...allUnits].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed);
+            // 模拟伤害
+            let hit = Math.random() < (1 + actor.hitRate - target.dodgeRate);
+            if(hit) {
+              let dmg = actor.atk * (sk.multiplier||1);
+              dmg = Math.max(dmg * (1 - target.def/(target.def+cfg.DEF_CONSTANT)), dmg*0.1);
+              if(Math.random() < (actor.critRate - target.critResist)) dmg *= actor.critDmg;
+              target.takeDamage(Math.round(dmg));
+            }
 
-          for(let actor of actionOrder) {
-            if (!actor.isAlive()) continue;
-            let sk = simChooseSkill(actor, skillsMap);
-            if (!sk) continue;
-
-            // 选择目标(简化逻辑：随机选一个敌方或前排)
-            let targets = allUnits.filter(u => u.side !== actor.side && u.isAlive());
-            if (targets.length === 0) break;
-            let target = targets[0]; // 简化为打第一个
-
-            // 结算伤害
-            let dmg = simComputeDamage(actor, target, sk, config, globalData.elements, globalData.elementMatrix);
-            target.takeDamage(dmg);
-            actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
-            if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
-            actor.gainMp(config.MP_REGEN_PER_ROUND * 100);
-            actor.reduceCooldowns();
-
-            // 追打链递归（极简模拟版）
-            let checkFollowup = (tag, originalActor) => {
-              if (!tag) return;
-              let candidates = allUnits.filter(u => u.isAlive() && u.side === originalActor.side && u !== originalActor);
-              for (let cand of candidates) {
-                let fid = cand.skillSlots.followup;
-                if (fid && skillsMap[fid] && skillsMap[fid].comboTagIn === tag) {
-                  let maxT = skillsMap[fid].maxTriggers || 1;
-                  if ((cand.followupCounts[fid] || 0) < maxT) {
-                    cand.followupCounts[fid] = (cand.followupCounts[fid] || 0) + 1;
-                    followupsThisBattle++; // 统计一次追打
-                    
-                    let fTarget = allUnits.filter(u => u.side !== cand.side && u.isAlive())[0];
-                    if (fTarget) {
-                      let fDmg = simComputeDamage(cand, fTarget, skillsMap[fid], config, globalData.elements, globalData.elementMatrix);
-                      fTarget.takeDamage(fDmg);
-                      // 如果追打技能还附带下一个tag，继续往下传
-                      checkFollowup(skillsMap[fid].comboTagOut, cand);
+            // 模拟追打
+            let doF = (tag, original) => {
+              if(!tag) return;
+              let cands = allUnits.filter(u=>u.isAlive() && u.side===original.side && u!==original);
+              for(let c of cands) {
+                let fid = c.skillSlots.followup;
+                if(fid && skillsMap[fid] && skillsMap[fid].comboTagIn === tag) {
+                  if((c.followupCounts[fid]||0) < (skillsMap[fid].maxTriggers||1)) {
+                    c.followupCounts[fid] = (c.followupCounts[fid]||0) + 1;
+                    fCount++;
+                    let fTarget = allUnits.filter(u=>u.side!==c.side && u.isAlive())[0];
+                    if(fTarget) {
+                      let fd = c.atk * (skillsMap[fid].multiplier||1);
+                      fTarget.takeDamage(Math.round(Math.max(fd*0.5, 10)));
+                      doF(skillsMap[fid].comboTagOut, c);
                     }
-                    break; // 一回合一个tag只响应一次
+                    break;
                   }
                 }
               }
             };
-
-            // 触发主技能带来的后续
-            if (sk.comboTagOut) checkFollowup(sk.comboTagOut, actor);
+            if(sk.comboTagOut) doF(sk.comboTagOut, actor);
           }
           round++;
         }
-
-        if (eUnits.every(u => !u.isAlive())) wins++;
-        totalRounds += Math.min(round, config.MAX_ROUNDS);
-        totalFollowups += followupsThisBattle;
+        if(eUnits.every(u=>!u.isAlive())) wins++;
+        totalRounds += Math.min(round, cfg.MAX_ROUNDS);
+        totalFollowups += fCount;
       }
-
-      alert(`📊 100 次真實戰鬥模擬結果：\n-------------------------\n預估勝率：${wins}%\n平均戰鬥回合：${(totalRounds/simCount).toFixed(1)} 回合\n每場平均觸發追打：${(totalFollowups/simCount).toFixed(1)} 次`);
+      alert(`📊 100次模拟：\n胜率：${wins}%\n平均回合：${(totalRounds/100).toFixed(1)}\n平均追打：${(totalFollowups/100).toFixed(1)}次`);
     }
 
     function resetData() { localStorage.clear(); location.href = location.href + '?t=' + Date.now(); }
