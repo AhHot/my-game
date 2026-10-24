@@ -1,5 +1,5 @@
 // ==========================================
-// 读取同步数据
+// 数据读取与初始化
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
@@ -13,22 +13,27 @@ if (localStorage.getItem('my_game_items_sync')) { try { const d = JSON.parse(loc
 if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length = 0; LEVELS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_inventory_sync')); if (Array.isArray(d)) { INVENTORY.length = 0; INVENTORY.push(...d); } } catch(e){} }
 
+let GLOBAL_DATA = {};
 try {
-  const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
-  window.DROP_RATES = gc.dropRates;
-  window.GLOBAL_AFFIX_POOLS = gc.affixPools;
-  window.GLOBAL_AFFIX_VALUES = gc.affixValues;
+  GLOBAL_DATA = JSON.parse(localStorage.getItem('my_game_config') || '{}');
+  window.DROP_RATES = GLOBAL_DATA.dropRates;
+  window.GLOBAL_AFFIX_POOLS = GLOBAL_DATA.affixPools;
+  window.GLOBAL_AFFIX_VALUES = GLOBAL_DATA.affixValues;
+  window.EXP_TABLE = GLOBAL_DATA.expTable || [];
+  window.GROWTH_MODELS = GLOBAL_DATA.growthModels || [];
 } catch(e) {}
 
-// ==========================================
-// Unit 类
-// ==========================================
+
+// =========================================================================
+// 【模块一：核心数据层】包含：Unit计算、伤害逻辑、掉落算法、升级逻辑
+// =========================================================================
+
 class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     
-    // 装备槽兼容处理
+    // 装备槽兼容
     if (!this.equipment) this.equipment = {};
     if (this.equipment.armor && !this.equipment.body) { this.equipment.body = this.equipment.armor; delete this.equipment.armor; }
     if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
@@ -37,6 +42,10 @@ class Unit {
 
     if (!this.sizeX) this.sizeX = 1;
     if (!this.sizeY) this.sizeY = 1;
+    
+    // 兼容等级
+    this.level = this.level || 1;
+    this.exp = this.exp || 0;
 
     this.hitRate = this.hitRate || 0; 
     this.dodgeRate = this.dodgeRate || 0;
@@ -49,25 +58,34 @@ class Unit {
     this.critDmg = this.critDmg || 1.5;
     this.lifesteal = this.lifesteal || 0;
 
-    // 6大意境数值转化
-    const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
+    // 意境数值转化 (含成长)
+    let baseStats = JSON.parse(JSON.stringify(data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }));
+    let gm = window.GROWTH_MODELS.find(m => m.id === this.growthModel) || window.GROWTH_MODELS[0];
+    if (gm && this.level > 1) {
+      baseStats.fengRui += (gm.fengRui || 0) * (this.level - 1);
+      baseStats.hunHou += (gm.hunHou || 0) * (this.level - 1);
+      baseStats.lingDong += (gm.lingDong || 0) * (this.level - 1);
+      baseStats.jianRen += (gm.jianRen || 0) * (this.level - 1);
+      baseStats.guiMi += (gm.guiMi || 0) * (this.level - 1);
+      baseStats.jueQing += (gm.jueQing || 0) * (this.level - 1);
+    }
     
-    this.maxHp = (this.maxHp || 0) + stats.hunHou * CONFIG.hunHouToHp;
-    this.atk = (this.atk || 0) + stats.fengRui * CONFIG.fengRuiToAtk;
-    this.def = (this.def || 0) + stats.jianRen * CONFIG.jianRenToDef;
-    this.speed = (this.speed || 0) + stats.lingDong * CONFIG.lingDongToSpd;
+    this.maxHp = (this.maxHp || 0) + baseStats.hunHou * CONFIG.hunHouToHp;
+    this.atk = (this.atk || 0) + baseStats.fengRui * CONFIG.fengRuiToAtk;
+    this.def = (this.def || 0) + baseStats.jianRen * CONFIG.jianRenToDef;
+    this.speed = (this.speed || 0) + baseStats.lingDong * CONFIG.lingDongToSpd;
 
-    let critGain = (stats.jueQing * CONFIG.jueQingToCrit / 100);
+    let critGain = (baseStats.jueQing * CONFIG.jueQingToCrit / 100);
     this.critRate = this.critRate + Math.min(critGain, CONFIG.maxCritFromStats / 100);
     
-    let evaGain = (stats.lingDong * CONFIG.lingDongToEva / 100);
+    let evaGain = (baseStats.lingDong * CONFIG.lingDongToEva / 100);
     this.dodgeRate = this.dodgeRate + Math.min(evaGain, CONFIG.maxEvaFromStats / 100);
     
-    this.hitRate = this.hitRate + (stats.guiMi * CONFIG.guiMiToHit / 100);
-    this.critResist = this.critResist + (stats.jianRen * CONFIG.jianRenToRes / 100);
-    this.critDmg = this.critDmg + (stats.guiMi * CONFIG.guiMiToCritDmg / 100);
+    this.hitRate = this.hitRate + (baseStats.guiMi * CONFIG.guiMiToHit / 100);
+    this.critResist = this.critResist + (baseStats.jianRen * CONFIG.jianRenToRes / 100);
+    this.critDmg = this.critDmg + (baseStats.guiMi * CONFIG.guiMiToCritDmg / 100);
 
-    // 计算装备加成
+    // 装备加成
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
     
@@ -169,9 +187,6 @@ class Unit {
   }
 }
 
-// ==========================================
-// BattleLogic
-// ==========================================
 const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
     let pool = [];
@@ -228,20 +243,10 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
-// ==========================================
-// 随机掉落
-// ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   
-  const defaultDropRates = [
-    { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
-    { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
-    { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
-    { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
-    { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
-    { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
-  ];
+  const defaultDropRates = [ { q: 'white', min: 0, max: 100, m: 1.0, n: 1, tier: 1 } ];
   const dropRates = window.DROP_RATES || defaultDropRates;
 
   const r = Math.random() * 100;
@@ -255,29 +260,11 @@ function generateRandomInstance(templateId) {
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
   
-  const defaultPools = {
-    weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
-    armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
-    accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
-  };
+  const defaultPools = { weapon: ['atkFlat'], armor: ['defFlat'], accessory: ['hpFlat'] };
   const pools = window.GLOBAL_AFFIX_POOLS || defaultPools;
+  let pool = Array.isArray(pools[t.category]) ? [...pools[t.category]] : [...defaultPools[t.category]];
 
-  let pool = [];
-  if (t.category === 'armor') {
-    pool = Array.isArray(pools.armor) && pools.armor.length > 0 ? [...pools.armor] : [...defaultPools.armor];
-  } else if (t.category === 'weapon') {
-    pool = Array.isArray(pools.weapon) && pools.weapon.length > 0 ? [...pools.weapon] : [...defaultPools.weapon];
-  } else {
-    pool = Array.isArray(pools.accessory) && pools.accessory.length > 0 ? [...pools.accessory] : [...defaultPools.accessory];
-  }
-
-  const defaultVals = {
-    atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
-    atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
-    critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
-    dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
-    speed: { min: 1, max: 4 }
-  };
+  const defaultVals = { atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 } };
   const affixValues = window.GLOBAL_AFFIX_VALUES || defaultVals;
 
   let tp = [...pool];
@@ -291,37 +278,41 @@ function generateRandomInstance(templateId) {
     
     const cfg = affixValues[s] || defaultVals[s] || { min: 0, max: 0 };
     let v = 0;
-    
-    if (cfg.max >= cfg.min) {
-      v = Math.random() * (cfg.max - cfg.min) + cfg.min;
-    } else {
-      v = cfg.min;
-    }
+    if (cfg.max >= cfg.min) v = Math.random() * (cfg.max - cfg.min) + cfg.min;
+    else v = cfg.min;
 
-    if (intTypes.includes(s)) {
-      v = Math.round(v);
-    } else {
-      v = Math.round((v / 100) * 100) / 100;
-    }
+    if (intTypes.includes(s)) v = Math.round(v);
+    else v = Math.round((v / 100) * 100) / 100;
     
     ex.push({ stat: s, value: v });
   }
 
-  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
-  extraKeys.forEach(k => { 
-    if (t[k] && t[k] !== 0) {
-      const exIdx = ex.findIndex(e => e.stat === k);
-      if (exIdx !== -1) ex.splice(exIdx, 1);
-      ex.push({ stat: k, value: t[k] / 100 }); 
-    }
-  });
-
   return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '', count: 1 };
 }
 
-// ==========================================
-// 主菜单
-// ==========================================
+// 核心：给角色加经验并判定升级
+function addCharacterExp(char, amount) {
+  if (char.level >= 60) return; // 满级
+  char.exp = (char.exp || 0) + amount;
+  
+  let currentLv = char.level || 1;
+  let reqExp = window.EXP_TABLE[currentLv - 1] || 999999;
+  
+  while (char.exp >= reqExp && currentLv < 60) {
+    char.exp -= reqExp;
+    currentLv++;
+    reqExp = window.EXP_TABLE[currentLv - 1] || 999999;
+    // 可以在这里添加获得自由属性点的逻辑
+    // char.freePoints = (char.freePoints || 0) + 3; 
+  }
+  char.level = currentLv;
+}
+
+
+// =========================================================================
+// 【模块二：场景渲染层】包含：菜单、布阵、战斗画面、结算画面
+// =========================================================================
+
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
   create() {
@@ -340,20 +331,16 @@ class MainMenuScene extends Phaser.Scene {
   }
 }
 
-// ==========================================
-// 战前布阵
-// ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
-
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
 
     const lv = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(20, 20, `v12.3 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
+    this.add.text(20, 20, `v13.0 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
 
     const editBtn = this.add.text(CONFIG.WIDTH - 180, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -481,7 +468,7 @@ class BattleScene extends Phaser.Scene {
     }
 
     if (fighters.filter(f => f.side === 'enemy').length === 0) {
-      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } });
+      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', level: 1, element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: {} });
     }
 
     fighters.forEach(d => { const u = new Unit(d); this.allUnits.push(u); });
@@ -527,7 +514,7 @@ class BattleScene extends Phaser.Scene {
     const r = (cell / 2) * 0.85 * scale;
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-    const nameText = this.add.text(0, r + 10, unit.name, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     const bw = cell * scale * 0.85;
     const hpBg = this.add.rectangle(0, r + 32, bw + 4, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
     const hpBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xff4444).setOrigin(0, 0.5);
@@ -644,24 +631,17 @@ class BattleScene extends Phaser.Scene {
       if (heal > 0) { actor.heal(heal); this.showFloat(actor, `+${heal}`, '#2ecc71'); this.updateUnitView(actor); }
       if (actor.isAlive()) actor.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
       actor.reduceCooldowns(); this.updateUnitView(actor);
-      
-      // ==========================================
-      // 【核心追打鏈判定】支援下拉選單標籤
-      // ==========================================
       if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
-
       this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     });
   }
 
-  // 追打連鎖核心檢查
   checkFollowup(tag, original) {
     let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
     cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
     for (let u of cand) {
       const fid = u.skillSlots.followup;
       if (!fid || !SKILLS[fid]) continue;
-      // 檢查追打技能的 comboTagIn 是否符合當前發起的 tag (如 po_shi, zhen_chan 等)
       if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0;
         if (used < (SKILLS[fid].maxTriggers || 1)) {
@@ -690,11 +670,7 @@ class BattleScene extends Phaser.Scene {
         }
       });
       this.updateUnitView(actor);
-
-      // 【支援無限追打鏈傳遞】若追打技本身也帶有 comboTagOut，繼續向下引爆下一環追打
-      if (sk.comboTagOut) {
-        this.checkFollowup(sk.comboTagOut, actor);
-      }
+      if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
     });
   }
 
@@ -785,6 +761,19 @@ class ResultScene extends Phaser.Scene {
     
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex];
+      
+      // 1. 发经验
+      let totalExp = lv.rewardExp || 0; // 读取关卡经验
+      let levelUpInfo = [];
+      if(totalExp > 0) {
+        CHARACTERS.filter(c => c.side === 'player').forEach(c => {
+          const oldLv = c.level || 1;
+          addCharacterExp(c, totalExp);
+          if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`);
+        });
+      }
+      
+      // 2. 发装备
       if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
         try {
           const inst = generateRandomInstance(lv.rewardItemId);
@@ -800,19 +789,29 @@ class ResultScene extends Phaser.Scene {
             } else {
                INVENTORY.push(inst);
             }
-            
-            localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
             const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
             this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
-            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 10, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
           }
-        } catch (err) {
-          console.error("生成掉落物报错，已跳过：", err);
+        } catch (err) { console.error("掉落报错：", err); }
+      }
+
+      // 3. 显示经验与升级
+      if(totalExp > 0) {
+        this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 80, `全队获得 ${totalExp} 经验`, { fontSize: '24px', color: '#f1c40f' }).setOrigin(0.5);
+        if(levelUpInfo.length > 0) {
+           this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 120, levelUpInfo.join('，'), { fontSize: '20px', color: '#2ecc71' }).setOrigin(0.5);
         }
       }
+
+      // 保存数据
+      localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
+      localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
+
       if (this.currentLevelIndex < LEVELS.length - 1) { label = '➡️ 进入下一关'; action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); }
     }
-    const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 150, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+    
+    const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
     b.on('pointerdown', action);
   }
 }
