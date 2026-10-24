@@ -3,30 +3,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>游戏配置中心 (终极修复版)</title>
+  <title>游戏配置中心 (全功能完整版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
     h1 { font-size: 22px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
     
-    /* 顶部按钮区优化，不再被挤压 */
+    /* 顶部操作区 */
     .action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
     .action-bar .btn { padding: 10px; font-size: 14px; border-radius: 6px; border: none; color: #fff; font-weight: bold; cursor: pointer; text-align: center;}
     
+    /* 主 Tab */
     .tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
     .tab { flex: 1; min-width: 22%; padding: 10px; text-align: center; background: #16213e; border-radius: 6px; cursor: pointer; border: 1px solid #0f3460; font-size: 13px;}
     .tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
+    
+    /* 搜索与子 Tab */
     .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
     .search-bar input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #0f0f1a; color: #fff; font-size: 14px; }
-    
     .sub-tabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
     .sub-tab { flex: 1; min-width: 20%; padding: 8px; text-align: center; background: #0f3460; border-radius: 4px; cursor: pointer; font-size: 12px; border: 1px solid transparent; }
     .sub-tab.active { background: #e74c3c; border-color: #e74c3c; font-weight: bold; }
     
+    /* 卡片与表单 */
     .card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     .card-header h3 { color: #3498db; font-size: 16px; }
-    
     .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer;}
     .btn-grant { background: #e67e22; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer; margin-right:10px;}
     
@@ -35,14 +37,15 @@
     .form-item.full { grid-column: span 2; }
     .form-item label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
     .form-item input, .form-item select, .form-item textarea { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 13px; width: 100%; }
-    
     .sub-title { color: #f1c40f; font-size: 14px; margin-top: 15px; margin-bottom: 5px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 5px; grid-column: span 2;}
-    
+
+    /* 效果框 */
     .effect-box { background: #0f3460; padding: 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #3498db; position: relative; }
     .effect-title { font-size: 12px; color: #f1c40f; font-weight: bold; margin-bottom: 5px; display: flex; justify-content: space-between; }
     .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
     .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
 
+    /* 关卡编辑器 */
     .level-editor-layout { display: flex; flex-direction: column; gap: 15px; }
     .enemy-pool { background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
     .enemy-pool-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #222; cursor: pointer; transition: background 0.2s; }
@@ -58,11 +61,13 @@
     .unit-block .block-emoji { font-size: 32px; pointer-events: none; }
     .unit-block .block-del { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; cursor: pointer; z-index: 11; border: 2px solid #fff; }
     
+    /* 底部栏 */
     .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; padding: 15px; border-top: 1px solid #333; display: flex; gap: 10px; z-index: 100; }
     .btn { flex: 1; padding: 15px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; color: #fff; text-align: center; text-decoration: none; cursor:pointer;}
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
 
+    /* 全局表格 */
     table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 13px; }
     th, td { padding: 6px; text-align: left; border-bottom: 1px solid #222; }
     input[type="color"] { padding: 0; height: 30px; cursor: pointer; }
@@ -79,13 +84,14 @@
     .affix-pool-tab { padding: 6px 15px; background: #0f3460; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
     .affix-pool-tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
 
+    /* 预览框 */
     .preview-box { background: #111; border: 1px solid #444; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .preview-box span { color: #2ecc71; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (终极修复版)</h1>
+  <h1>⚙️ 配置中心 (全功能完整版)</h1>
   
   <div class="action-bar">
     <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 加载 MVP 队</button>
@@ -277,25 +283,53 @@
     }
 
     const DEFAULT_CHARS = [
-      { id: 'p_warrior', name: '战士', side: 'player', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '⚔️', element: 'fire', maxHp: 1000, atk: 100, def: 50, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '💀', element: 'dark', maxHp: 1000, atk: 100, def: 50, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
+      { id: 'p_warrior', name: '战士', side: 'player', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '⚔️', element: 'fire', maxHp: 1000, atk: 100, def: 50, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0, lifesteal: 0, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
+      { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '💀', element: 'dark', maxHp: 1000, atk: 100, def: 50, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, lifesteal: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
     ];
 
     const DEFAULT_SKILLS = [
-      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
-      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
-      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
+      { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
+      { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
+      { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
+      { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
     ];
 
-    const DEFAULT_STATUS = [ { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false } ];
+    const DEFAULT_STATUS = [ 
+      { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
+      { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true }
+    ];
+
     const DEFAULT_ITEMS = [ 
-      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100 }, 
-      { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000 } 
+      { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }, 
+      { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' } 
     ];
     const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '', rewardExp: 100 } ];
-    const DEFAULT_DROP_RATES = [ { q: 'white', min: 0, max: 100, m: 1.0, n: 1, tier: 1 } ];
-    const DEFAULT_AFFIX_POOLS = { weapon: ['atkFlat'], armor: ['defFlat'], accessory: ['hpFlat'] };
-    const DEFAULT_AFFIX_VALUES = { atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 } };
+    const DEFAULT_DROP_RATES = [
+      { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
+      { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
+      { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
+      { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
+      { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
+      { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
+    ];
+    const DEFAULT_AFFIX_POOLS = {
+      weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
+      armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
+      accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
+    };
+    const DEFAULT_AFFIX_VALUES = {
+      atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
+      atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
+      critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
+      dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
+      speed: { min: 1, max: 4 }
+    };
+    const AFFIX_NAMES = {
+      atkFlat: '攻击力(固定)', defFlat: '防御力(固定)', hpFlat: '生命值(固定)',
+      atkPercent: '攻击力(%)', defPercent: '防御力(%)', hpPercent: '生命值(%)',
+      critRate: '暴击率(%)', critDmg: '暴击伤害(%)', critResist: '抗暴率(%)',
+      dodgeRate: '闪避率(%)', hitRate: '命中率(%)', lifesteal: '吸血(%)', speed: '速度(固定)'
+    };
     const DEFAULT_GLOBAL_CONFIG = {
       config: {
         WIDTH: 1280, HEIGHT: 720, MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
@@ -309,8 +343,20 @@
       dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
       affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
       affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
-      elements: [{ id: 'fire', name: '火', icon: '🔥', color: '#ff5722' }],
-      elementMatrix: {}
+      elements: [
+        { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
+        { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
+        { id: 'wind', name: '风', icon: '🌪️', color: '#4caf50' },
+        { id: 'light', name: '光', icon: '✨', color: '#ffc107' },
+        { id: 'dark', name: '暗', icon: '🌑', color: '#9c27b0' }
+      ],
+      elementMatrix: {
+        fire: { wind: 1.5, water: 0.7 },
+        water: { fire: 1.5, wind: 0.7 },
+        wind: { water: 1.5, fire: 0.7 },
+        light: { dark: 1.5 },
+        dark: { light: 1.5 }
+      }
     };
 
     let currentTab = 'char';
@@ -345,7 +391,6 @@
       if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
     });
     
-    // 强力兜底，防止配置为空
     if (!globalData.growthModels || globalData.growthModels.length === 0) globalData.growthModels = JSON.parse(JSON.stringify(DEFAULT_GROWTH_MODELS));
     if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
     if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
@@ -426,25 +471,7 @@
       return html;
     }
 
-    // 核心预览计算引擎 (供实时刷新调用)
-    function updatePreviewUI(idx) {
-      const char = gameChars[idx];
-      const preview = calcPreviewStats(char);
-      const box = document.getElementById(`preview-box-${idx}`);
-      if (!box) return;
-      box.innerHTML = `
-        <div>气血: <span>${preview.maxHp}</span></div>
-        <div>攻击: <span>${preview.atk}</span></div>
-        <div>防御: <span>${preview.def}</span></div>
-        <div>速度: <span>${preview.speed.toFixed(1)}</span></div>
-        <div>暴击: <span>${(preview.critRate*100).toFixed(1)}%</span></div>
-        <div>闪避: <span>${(preview.dodgeRate*100).toFixed(1)}%</span></div>
-        <div>命中: <span>${(preview.hitRate*100).toFixed(1)}%</span></div>
-        <div>抗暴: <span>${(preview.critResist*100).toFixed(1)}%</span></div>
-        <div>暴伤: <span>${(preview.critDmg*100).toFixed(1)}%</span></div>
-      `;
-    }
-
+    // 核心预览计算引擎
     function calcPreviewStats(char) {
       let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
       let gm = globalData.growthModels.find(m => m.id === char.growthModel) || globalData.growthModels[0];
@@ -557,15 +584,15 @@
 
             <div class="sub-title" style="color:#00ff00;">🔍 当前转换面板预览 (含装备与等级)</div>
             <div class="preview-box full" id="preview-box-${index}">
-              <div>气血: <span>${preview.maxHp}</span></div>
-              <div>攻击: <span>${preview.atk}</span></div>
-              <div>防御: <span>${preview.def}</span></div>
-              <div>速度: <span>${preview.speed.toFixed(1)}</span></div>
-              <div>暴击: <span>${(preview.critRate*100).toFixed(1)}%</span></div>
-              <div>闪避: <span>${(preview.dodgeRate*100).toFixed(1)}%</span></div>
-              <div>命中: <span>${(preview.hitRate*100).toFixed(1)}%</span></div>
-              <div>抗暴: <span>${(preview.critResist*100).toFixed(1)}%</span></div>
-              <div>暴伤: <span>${(preview.critDmg*100).toFixed(1)}%</span></div>
+              <div>气血: <span id="prev-hp-${index}">${preview.maxHp}</span></div>
+              <div>攻击: <span id="prev-atk-${index}">${preview.atk}</span></div>
+              <div>防御: <span id="prev-def-${index}">${preview.def}</span></div>
+              <div>速度: <span id="prev-spd-${index}">${preview.speed.toFixed(1)}</span></div>
+              <div>暴击: <span id="prev-cr-${index}">${(preview.critRate*100).toFixed(1)}%</span></div>
+              <div>闪避: <span id="prev-eva-${index}">${(preview.dodgeRate*100).toFixed(1)}%</span></div>
+              <div>命中: <span id="prev-hit-${index}">${(preview.hitRate*100).toFixed(1)}%</span></div>
+              <div>抗暴: <span id="prev-res-${index}">${(preview.critResist*100).toFixed(1)}%</span></div>
+              <div>暴伤: <span id="prev-cd-${index}">${(preview.critDmg*100).toFixed(1)}%</span></div>
             </div>
 
             <div class="sub-title">旧属性面板 (保留不删)</div>
