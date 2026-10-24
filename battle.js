@@ -30,7 +30,6 @@ class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-    
     if (!this.equipment) this.equipment = {};
     if (this.equipment.armor && !this.equipment.body) { this.equipment.body = this.equipment.armor; delete this.equipment.armor; }
     if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
@@ -39,7 +38,6 @@ class Unit {
 
     if (!this.sizeX) this.sizeX = 1;
     if (!this.sizeY) this.sizeY = 1;
-    
     this.level = this.level || 1;
     this.exp = this.exp || 0;
 
@@ -413,7 +411,7 @@ class FormationScene extends Phaser.Scene {
 }
 
 // ==========================================
-// 场景：战斗画面 (带裁剪算法)
+// 场景：战斗画面 (修复裁剪算法版)
 // ==========================================
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
@@ -439,8 +437,8 @@ class BattleScene extends Phaser.Scene {
     const art = window.ART_CONFIG?.boardBg;
     let debugText = '未配置棋盘底图';
     if (art && art.url) {
-      if (this.textures.exists('art_boardBg')) debugText = `🟢 底图已生效 (路径正常)`;
-      else debugText = `🔴 底图路径错误: ${art.url}`;
+      if (this.textures.exists('art_boardBg')) debugText = `🟢 底图已生效`;
+      else debugText = `🔴 底图路径错误`;
     }
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT - 20, debugText, { fontSize: '16px', color: '#fff', backgroundColor: '#000', padding: {x:5,y:5} }).setOrigin(0.5).setDepth(999);
 
@@ -488,22 +486,33 @@ class BattleScene extends Phaser.Scene {
     
     const art = window.ART_CONFIG?.boardBg;
     if (this.textures.exists('art_boardBg')) {
-      const bgImg = this.add.image(0, 0, 'art_boardBg');
-      bgImg.setOrigin(0, 0); // 锚点固定在左上角
+      const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.85);
       
-      // 1. 计算缩放后的实际宽高 (完美复刻 CSS background-size)
-      const targetW = CONFIG.WIDTH * (art.scale || 1);
-      const ratio = bgImg.height / bgImg.width;
-      const targetH = targetW * ratio;
-      bgImg.setDisplaySize(targetW, targetH);
+      // 获取图片原始宽高
+      const iw = bgImg.width;
+      const ih = bgImg.height;
       
-      // 2. 计算偏移量 (完美复刻 CSS background-position)
-      const offsetX = (CONFIG.WIDTH - targetW) * ((art.posX ?? 50) / 100);
-      const offsetY = (CONFIG.HEIGHT - targetH) * ((art.posY ?? 50) / 100);
+      // 计算缩放基准。假设游戏屏幕宽 1280，高 720。
+      // scale=1 时，图片在屏幕上应该显示为多大？
+      // 我们让预览框(100x100)里显示的效果，直接映射到游戏(1280x720)里铺满。
+      // 为了保证图像不变形，我们按宽度对齐：如果用户调节了 scale，就缩放整个宽高。
+      const gameRatio = CONFIG.HEIGHT / CONFIG.WIDTH; // 720 / 1280 = 0.5625
+      
+      // 在预览框里(100x100)，图片是如何铺满的？
+      // CSS的 background-size: cover 逻辑。
+      let displayWidth = CONFIG.WIDTH * (art.scale || 1);
+      let displayHeight = displayWidth * (ih / iw);
+      
+      // 如果用户想在这个尺寸下进行裁剪，目标屏幕是 CONFIG.WIDTH x CONFIG.HEIGHT
+      bgImg.setDisplaySize(displayWidth, displayHeight);
+      
+      // 计算基于 0-100% 的偏移量
+      // 如果 posX=50%，表示图片中心对齐屏幕中心
+      // 如果 displayWidth > CONFIG.WIDTH，偏移量为负
+      let offsetX = (CONFIG.WIDTH - displayWidth) * ((art.posX ?? 50) / 100);
+      let offsetY = (CONFIG.HEIGHT - displayHeight) * ((art.posY ?? 50) / 100);
       
       bgImg.setPosition(offsetX, offsetY);
-      bgImg.setDepth(-10);
-      bgImg.setAlpha(0.8); // 为了让格子清晰，给 0.8 透明度
     }
 
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -536,39 +545,55 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = (cell / 2) * 0.85 * scale;
     
+    // --- 光环处理 ---
     if (this.textures.exists('art_unitHalo')) {
       const artHalo = window.ART_CONFIG.unitHalo || {};
       const halo = this.add.image(0, 0, 'art_unitHalo');
-      halo.setOrigin((artHalo.posX ?? 50) / 100, (artHalo.posY ?? 50) / 100);
-      let baseScaleX = (r * 2.5) / halo.width;
-      let baseScaleY = (r * 1.5) / halo.height;
-      halo.setScale(baseScaleX * (artHalo.scale || 1), baseScaleY * (artHalo.scale || 1));
+      
+      // 预览框 100x50。游戏内光环铺满角色底部。宽度为 r*2.5，高度为 r*1.5。
+      let targetW = r * 2.5 * (artHalo.scale || 1);
+      let targetH = targetW * (halo.height / halo.width);
+      halo.setDisplaySize(targetW, targetH);
+      
+      // 基于百分比偏移
+      let ox = (targetW - (r*2.5)) * ((artHalo.posX ?? 50) / 100); // 这里用 50 为中心点
+      let oy = (targetH - (r*1.5)) * ((artHalo.posY ?? 50) / 100);
+      
+      // 为了让光环在正中央，锚点居中，然后偏移
+      halo.setPosition(ox, oy + (r*0.2)); // 略微下沉
       c.add(halo);
     }
 
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color);
     if (!this.textures.exists('art_unitHalo')) circle.setStrokeStyle(3, 0xffffff, 0.9);
-    else circle.setAlpha(0.4);
+    else circle.setAlpha(0.2);
 
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    
+    // --- 血条处理 ---
     const bw = cell * scale * 0.85;
+    const bh = 8;
     
     let hpBg, hpBar;
     if (this.textures.exists('art_hpBg')) {
       hpBg = this.add.image(0, r + 32, 'art_hpBg');
-      hpBg.setDisplaySize(bw + 4, 12);
+      // 强制设定宽度为 bw+4，高度根据比例自适应
+      let targetW = bw + 4;
+      let targetH = targetW * (hpBg.height / hpBg.width);
+      hpBg.setDisplaySize(targetW, targetH);
     } else {
       hpBg = this.add.rectangle(0, r + 32, bw + 4, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
     }
 
     if (this.textures.exists('art_hpFill')) {
       hpBar = this.add.image(-bw/2, r + 32, 'art_hpFill').setOrigin(0, 0.5);
-      hpBar.baseWidth = bw;
-      hpBar.baseHeight = 8;
-      hpBar.setScale(bw / hpBar.width, 8 / hpBar.height);
+      let targetW = bw;
+      let targetH = targetW * (hpBar.height / hpBar.width);
+      hpBar.setDisplaySize(targetW, targetH);
+      hpBar.baseWidth = targetW;
     } else {
-      hpBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xff4444).setOrigin(0, 0.5);
+      hpBar = this.add.rectangle(-bw/2, r + 32, bw, bh, 0xff4444).setOrigin(0, 0.5);
       hpBar.baseWidth = bw;
     }
 
@@ -793,7 +818,7 @@ class BattleScene extends Phaser.Scene {
     
     let ratio = Math.max(0, u.hp / u.maxHp);
     if (v.hpBar.baseWidth) {
-      this.tweens.add({ targets: v.hpBar, scaleX: (v.hpBar.baseWidth / v.hpBar.width) * ratio, duration: 300 / this.speedMultiplier });
+      this.tweens.add({ targets: v.hpBar, scaleX: ratio, duration: 300 / this.speedMultiplier });
     } else {
       this.tweens.add({ targets: v.hpBar, scaleX: ratio, duration: 300 / this.speedMultiplier });
     }
