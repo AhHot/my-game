@@ -43,6 +43,30 @@ window.renderTabGlobal = function(container) {
       <h3 style="color:#f1c40f; margin-bottom:15px;">⚔️ 元素克制矩阵</h3>
       <div style="overflow-x:auto;"><table id="global-matrix-table" style="text-align:center;"></table></div>
     </div>
+
+    <!-- 新增：战棋美术素材 -->
+    <div class="card" style="border-color: #e67e22;">
+      <h3 style="color:#e67e22; margin-bottom:15px;">🖼️ 战棋美术素材 (填本地路径或网图URL)</h3>
+      <div class="form-grid">
+        <div class="form-item full">
+          <label>战棋棋盘底图 (正方形)</label>
+          <input type="text" id="art_board_bg" placeholder="例如: assets/battle/board_bg.png" value="${globalData.artConfig?.boardBg || ''}" onchange="window.updateArtConfig('boardBg', this.value)">
+        </div>
+        <div class="form-item">
+          <label>角色底图/光环</label>
+          <input type="text" id="art_unit_halo" placeholder="例如: assets/battle/unit_halo.png" value="${globalData.artConfig?.unitHalo || ''}" onchange="window.updateArtConfig('unitHalo', this.value)">
+        </div>
+        <div class="form-item">
+          <label>血条底框</label>
+          <input type="text" id="art_hp_bg" placeholder="例如: assets/battle/hp_bg.png" value="${globalData.artConfig?.hpBg || ''}" onchange="window.updateArtConfig('hpBg', this.value)">
+        </div>
+        <div class="form-item full">
+          <label>血条填充色/图</label>
+          <input type="text" id="art_hp_fill" placeholder="例如: assets/battle/hp_fill.png" value="${globalData.artConfig?.hpFill || ''}" onchange="window.updateArtConfig('hpFill', this.value)">
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex; gap:10px; margin-bottom:20px;">
       <button class="btn btn-play" onclick="saveData(); alert('全局设置已保存！')">💾 保存全局设置</button>
       <button class="btn btn-reset" onclick="if(confirm('恢复默认？')){ localStorage.removeItem('my_game_config'); location.reload(); }">⚠️ 恢复全部默认</button>
@@ -52,7 +76,13 @@ window.renderTabGlobal = function(container) {
   renderGlobalFields();
 };
 
+window.updateArtConfig = function(key, value) {
+  if (!globalData.artConfig) globalData.artConfig = {};
+  globalData.artConfig[key] = value;
+};
+
 function renderGlobalFields() {
+  // ... (原本的渲染代码保持不变，为了篇幅我折叠了，你在本地粘贴时，直接粘贴上面那段就行，下面的是给之前的元素填数据的) ...
   const fieldsBox = document.getElementById('global-config-fields');
   const fieldSchema = [
     { key: 'WIDTH', label: '游戏宽(px)', step: 10, min: 400 }, { key: 'HEIGHT', label: '游戏高(px)', step: 10, min: 400 },
