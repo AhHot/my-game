@@ -3,30 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>游戏配置中心 (养成全功能修复版)</title>
+  <title>游戏配置中心 (终极修复版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
-    h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
+    h1 { font-size: 22px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
+    
+    /* 顶部按钮区优化，不再被挤压 */
+    .action-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+    .action-bar .btn { padding: 10px; font-size: 14px; border-radius: 6px; border: none; color: #fff; font-weight: bold; cursor: pointer; text-align: center;}
+    
     .tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
-    .tab { flex: 1; min-width: 15%; padding: 10px; text-align: center; background: #16213e; border-radius: 6px; cursor: pointer; border: 1px solid #0f3460; font-size: 13px;}
+    .tab { flex: 1; min-width: 22%; padding: 10px; text-align: center; background: #16213e; border-radius: 6px; cursor: pointer; border: 1px solid #0f3460; font-size: 13px;}
     .tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
     .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
     .search-bar input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #0f0f1a; color: #fff; font-size: 14px; }
+    
     .sub-tabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
-    .sub-tab { flex: 1; min-width: 18%; padding: 8px; text-align: center; background: #0f3460; border-radius: 4px; cursor: pointer; font-size: 12px; border: 1px solid transparent; }
+    .sub-tab { flex: 1; min-width: 20%; padding: 8px; text-align: center; background: #0f3460; border-radius: 4px; cursor: pointer; font-size: 12px; border: 1px solid transparent; }
     .sub-tab.active { background: #e74c3c; border-color: #e74c3c; font-weight: bold; }
+    
     .card { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px; }
-    .card-header h3 { color: #3498db; }
+    .card-header h3 { color: #3498db; font-size: 16px; }
+    
     .btn-del { background: #e74c3c; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer;}
     .btn-grant { background: #e67e22; color: #fff; border: none; padding: 5px 10px; border-radius: 4px; font-size: 14px; cursor:pointer; margin-right:10px;}
-    .btn-grant:hover { background: #d35400; }
+    
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     .form-item { display: flex; flex-direction: column; }
     .form-item.full { grid-column: span 2; }
     .form-item label { font-size: 11px; color: #aaa; margin-bottom: 4px; }
-    .form-item input, .form-item select, .form-item textarea { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; font-size: 13px; width: 100%; }
+    .form-item input, .form-item select, .form-item textarea { background: #0f0f1a; color: #fff; border: 1px solid #444; padding: 8px; border-radius: 4px; font-size: 13px; width: 100%; }
+    
     .sub-title { color: #f1c40f; font-size: 14px; margin-top: 15px; margin-bottom: 5px; font-weight: bold; border-bottom: 1px dashed #444; padding-bottom: 5px; grid-column: span 2;}
     
     .effect-box { background: #0f3460; padding: 10px; border-radius: 4px; margin-bottom: 8px; border: 1px solid #3498db; position: relative; }
@@ -34,14 +43,12 @@
     .btn-remove-effect { background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;}
     .btn-add-effect { background: #2ecc71; color: #fff; border: none; padding: 8px; width: 100%; border-radius: 4px; margin-top: 5px; cursor: pointer; font-weight: bold;}
 
-    .level-editor-layout { display: flex; gap: 15px; }
-    @media (max-width: 768px) { .level-editor-layout { flex-direction: column; } }
-    .enemy-pool { flex: 1; background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
+    .level-editor-layout { display: flex; flex-direction: column; gap: 15px; }
+    .enemy-pool { background: #0f0f1a; padding: 10px; border-radius: 8px; max-height: 400px; overflow-y: auto; border: 1px solid #333;}
     .enemy-pool-item { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #222; cursor: pointer; transition: background 0.2s; }
     .enemy-pool-item:active { background: #3498db; }
-    .enemy-pool-item.error { background: #e74c3c; color: white; }
     
-    .grid-container { flex: 1; display: flex; justify-content: center; flex-direction: column;}
+    .grid-container { display: flex; justify-content: center; flex-direction: column; width: 100%;}
     .board-wrapper { position: relative; width: 100%; max-width: 400px; aspect-ratio: 1; background: #0f0f1a; border: 2px solid #333; border-radius: 8px; overflow: hidden; margin: 0 auto;}
     .bg-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
     .bg-cell { border: 1px solid #222; }
@@ -56,35 +63,35 @@
     .btn-play { background: #2ecc71; }
     .btn-reset { background: #e74c3c; }
 
-    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-    th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #222; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 13px; }
+    th, td { padding: 6px; text-align: left; border-bottom: 1px solid #222; }
     input[type="color"] { padding: 0; height: 30px; cursor: pointer; }
 
     .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
-    .checkbox-item { display: flex; align-items: center; gap: 4px; background: #0f0f1a; padding: 4px 8px; border-radius: 4px; border: 1px solid #333; cursor: pointer; font-size: 12px; }
+    .checkbox-item { display: flex; align-items: center; gap: 4px; background: #0f0f1a; padding: 6px 10px; border-radius: 4px; border: 1px solid #333; cursor: pointer; font-size: 12px; }
     .checkbox-item input { width: auto; }
     
-    .drop-rate-row { display: flex; align-items: center; gap: 10px; background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
+    .drop-rate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #0f0f1a; border: 1px solid #333; border-radius: 4px; padding: 10px; margin-bottom: 8px; }
     .drop-rate-label { width: 80px; font-weight: bold; }
-    .drop-rate-calc { width: 80px; text-align: right; font-weight: bold; }
+    .drop-rate-calc { width: 100px; text-align: right; font-weight: bold; }
 
     .affix-pool-tabs { display: flex; gap: 10px; margin-bottom: 10px; }
     .affix-pool-tab { padding: 6px 15px; background: #0f3460; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
     .affix-pool-tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
 
-    .preview-box { background: #111; border: 1px solid #444; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+    .preview-box { background: #111; border: 1px solid #444; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .preview-box span { color: #2ecc71; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>⚙️ 配置中心 (养成全功能修复版)</h1>
+  <h1>⚙️ 配置中心 (终极修复版)</h1>
   
-  <div style="display:flex; gap:10px; margin-bottom:15px; padding: 0 15px; flex-wrap: wrap;">
-    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 加载 MVP 5人队</button>
-    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真实模拟 100 次</button>
+  <div class="action-bar">
+    <button class="btn" style="background:#e67e22;" onclick="loadMVP5Team()">⚔️ 加载 MVP 队</button>
+    <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 模拟 100 次</button>
     <button class="btn" style="background:#3498db;" onclick="testLevelUpAll(10)">🔼 全员 +10级</button>
-    <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置全员 Lv.1</button>
+    <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置 Lv.1</button>
   </div>
 
   <div class="tabs">
@@ -100,7 +107,7 @@
 
   <!-- 角色 -->
   <div id="char-section">
-    <div class="search-bar"><input type="text" id="search-char" placeholder="🔍 搜索角色..." oninput="render()"></div>
+    <div class="search-bar"><input type="text" id="search-char" placeholder="🔍 搜索角色..." oninput="renderChars()"></div>
     <div class="sub-tabs">
       <div class="sub-tab active" id="tab-char-player" onclick="switchSubTab('char', 'player')">我方</div>
       <div class="sub-tab" id="tab-char-enemy" onclick="switchSubTab('char', 'enemy')">敌方</div>
@@ -111,7 +118,7 @@
 
   <!-- 技能 -->
   <div id="skill-section" style="display:none;">
-    <div class="search-bar"><input type="text" id="search-skill" placeholder="🔍 搜索技能..." oninput="render()"></div>
+    <div class="search-bar"><input type="text" id="search-skill" placeholder="🔍 搜索技能..." oninput="renderSkills()"></div>
     <div class="sub-tabs">
       <div class="sub-tab active" id="tab-skill-active" onclick="switchSubTab('skill', 'active')">主动/治疗</div>
       <div class="sub-tab" id="tab-skill-followup" onclick="switchSubTab('skill', 'followup')">追打</div>
@@ -123,14 +130,14 @@
 
   <!-- 状态 -->
   <div id="status-section" style="display:none;">
-    <div class="search-bar"><input type="text" id="search-status" placeholder="🔍 搜索状态..." oninput="render()"></div>
+    <div class="search-bar"><input type="text" id="search-status" placeholder="🔍 搜索状态..." oninput="renderStatuses()"></div>
     <div id="status-list"></div>
     <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="addStatus()">➕ 新增状态</button>
   </div>
 
   <!-- 物品 -->
   <div id="item-section" style="display:none;">
-    <div class="search-bar"><input type="text" id="search-item" placeholder="🔍 搜索物品..." oninput="render()"></div>
+    <div class="search-bar"><input type="text" id="search-item" placeholder="🔍 搜索物品..." oninput="renderItems()"></div>
     <div class="sub-tabs">
       <div class="sub-tab active" id="tab-item-weapon" onclick="switchSubTab('item', 'weapon')">武器</div>
       <div class="sub-tab" id="tab-item-armor" onclick="switchSubTab('item', 'armor')">防具</div>
@@ -153,16 +160,12 @@
   <div id="growth-section" style="display:none;">
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">📈 10大成长模型 (每级增加)</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">配置各种流派的每级属性成长。支持小数。</p>
       <div id="growth-models-list" class="form-grid"></div>
     </div>
-
     <div class="card">
-      <h3 style="color:#f1c40f; margin-bottom:15px;">📊 等级经验表 (Lv.1 - Lv.60)</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:10px;">1-30级平滑，31-50中幅，51-60大幅。</p>
+      <h3 style="color:#f1c40f; margin-bottom:15px;">📊 等级经验表</h3>
       <div id="exp-table-list" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; max-height:400px; overflow-y:auto; padding-right:10px;"></div>
     </div>
-    
     <button class="btn btn-play" style="width:100%;" onclick="saveGrowthConfig()">💾 保存成长与经验配置</button>
   </div>
 
@@ -289,7 +292,7 @@
       { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100 }, 
       { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000 } 
     ];
-    const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '' } ];
+    const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '', rewardExp: 100 } ];
     const DEFAULT_DROP_RATES = [ { q: 'white', min: 0, max: 100, m: 1.0, n: 1, tier: 1 } ];
     const DEFAULT_AFFIX_POOLS = { weapon: ['atkFlat'], armor: ['defFlat'], accessory: ['hpFlat'] };
     const DEFAULT_AFFIX_VALUES = { atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 } };
@@ -342,8 +345,9 @@
       if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
     });
     
-    if (!globalData.growthModels) globalData.growthModels = JSON.parse(JSON.stringify(DEFAULT_GROWTH_MODELS));
-    if (!globalData.expTable) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
+    // 强力兜底，防止配置为空
+    if (!globalData.growthModels || globalData.growthModels.length === 0) globalData.growthModels = JSON.parse(JSON.stringify(DEFAULT_GROWTH_MODELS));
+    if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
     if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
     if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
     if (!globalData.affixValues) globalData.affixValues = JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES));
@@ -375,7 +379,13 @@
       });
       
       if (tab === 'ui') loadUIConfig();
-      else render();
+      else if (tab === 'char') renderChars();
+      else if (tab === 'skill') renderSkills();
+      else if (tab === 'status') renderStatuses();
+      else if (tab === 'item') renderItems();
+      else if (tab === 'level') renderLevels();
+      else if (tab === 'growth') renderGrowth();
+      else if (tab === 'global') renderGlobal();
     }
 
     function switchSubTab(tab, sub) {
@@ -389,7 +399,9 @@
         const target = document.getElementById(`tab-${tab}-${sub}`);
         if (target) target.classList.add('active');
       }
-      render();
+      if(tab === 'char') renderChars();
+      else if(tab === 'skill') renderSkills();
+      else if(tab === 'item') renderItems();
     }
 
     function switchAffixTab(poolType) {
@@ -398,16 +410,6 @@
       const el = document.getElementById(`affix-tab-${poolType}`);
       if(el) el.classList.add('active');
       renderGlobal();
-    }
-
-    function render() {
-      if (currentTab === 'char') renderChars();
-      if (currentTab === 'skill') renderSkills();
-      if (currentTab === 'status') renderStatuses();
-      if (currentTab === 'item') renderItems();
-      if (currentTab === 'level') renderLevels();
-      if (currentTab === 'growth') renderGrowth();
-      if (currentTab === 'global') renderGlobal();
     }
 
     function getSkillOptions(selectedId) {
@@ -422,6 +424,25 @@
         html += `<option value="${el.id}" ${selectedId === el.id ? 'selected' : ''}>${el.icon || ''} ${el.name || el.id}</option>`;
       });
       return html;
+    }
+
+    // 核心预览计算引擎 (供实时刷新调用)
+    function updatePreviewUI(idx) {
+      const char = gameChars[idx];
+      const preview = calcPreviewStats(char);
+      const box = document.getElementById(`preview-box-${idx}`);
+      if (!box) return;
+      box.innerHTML = `
+        <div>气血: <span>${preview.maxHp}</span></div>
+        <div>攻击: <span>${preview.atk}</span></div>
+        <div>防御: <span>${preview.def}</span></div>
+        <div>速度: <span>${preview.speed.toFixed(1)}</span></div>
+        <div>暴击: <span>${(preview.critRate*100).toFixed(1)}%</span></div>
+        <div>闪避: <span>${(preview.dodgeRate*100).toFixed(1)}%</span></div>
+        <div>命中: <span>${(preview.hitRate*100).toFixed(1)}%</span></div>
+        <div>抗暴: <span>${(preview.critResist*100).toFixed(1)}%</span></div>
+        <div>暴伤: <span>${(preview.critDmg*100).toFixed(1)}%</span></div>
+      `;
     }
 
     function calcPreviewStats(char) {
@@ -506,12 +527,12 @@
             <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="updateChar(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>图标</label><input type="text" value="${char.emoji}" onchange="updateChar(${index}, 'emoji', this.value)"></div>
             
-            <div class="form-item"><label>等级 (Lv)</label><input type="number" min="1" max="60" value="${char.level || 1}" onchange="updateChar(${index}, 'level', parseInt(this.value))"></div>
+            <div class="form-item"><label>等级 (Lv)</label><input type="number" min="1" max="60" value="${char.level || 1}" oninput="updateCharRealTime(${index}, 'level', this.value)"></div>
             <div class="form-item"><label>当前经验</label><input type="number" value="${char.exp || 0}" onchange="updateChar(${index}, 'exp', parseInt(this.value))"></div>
             
             <div class="form-item full">
               <label style="color:#e67e22; font-weight:bold;">成长模型 (随等级自动加属性)</label>
-              <select onchange="updateChar(${index}, 'growthModel', this.value)">${gmOptions}</select>
+              <select onchange="updateCharRealTime(${index}, 'growthModel', this.value)">${gmOptions}</select>
             </div>
 
             <div class="form-item full">
@@ -527,15 +548,15 @@
             </div>
 
             <div class="sub-title">六大意境 (基础值)</div>
-            <div class="form-item"><label style="color:#e67e22;">锋锐 (攻击)</label><input type="number" value="${char.stats.fengRui || 0}" onchange="updateCharStat(${index}, 'fengRui', parseFloat(this.value))"></div>
-            <div class="form-item"><label style="color:#e74c3c;">浑厚 (气血)</label><input type="number" value="${char.stats.hunHou || 0}" onchange="updateCharStat(${index}, 'hunHou', parseFloat(this.value))"></div>
-            <div class="form-item"><label style="color:#2ecc71;">灵动 (速度/闪避)</label><input type="number" value="${char.stats.lingDong || 0}" onchange="updateCharStat(${index}, 'lingDong', parseFloat(this.value))"></div>
-            <div class="form-item"><label style="color:#3498db;">坚韧 (防御/韧性)</label><input type="number" value="${char.stats.jianRen || 0}" onchange="updateCharStat(${index}, 'jianRen', parseFloat(this.value))"></div>
-            <div class="form-item"><label style="color:#9b59b6;">诡秘 (命中/暴伤)</label><input type="number" value="${char.stats.guiMi || 0}" onchange="updateCharStat(${index}, 'guiMi', parseFloat(this.value))"></div>
-            <div class="form-item"><label style="color:#f1c40f;">绝情 (暴击)</label><input type="number" value="${char.stats.jueQing || 0}" onchange="updateCharStat(${index}, 'jueQing', parseFloat(this.value))"></div>
+            <div class="form-item"><label style="color:#e67e22;">锋锐 (攻击)</label><input type="number" value="${char.stats.fengRui || 0}" oninput="updateCharStatRealTime(${index}, 'fengRui', this.value)"></div>
+            <div class="form-item"><label style="color:#e74c3c;">浑厚 (气血)</label><input type="number" value="${char.stats.hunHou || 0}" oninput="updateCharStatRealTime(${index}, 'hunHou', this.value)"></div>
+            <div class="form-item"><label style="color:#2ecc71;">灵动 (速度/闪避)</label><input type="number" value="${char.stats.lingDong || 0}" oninput="updateCharStatRealTime(${index}, 'lingDong', this.value)"></div>
+            <div class="form-item"><label style="color:#3498db;">坚韧 (防御/韧性)</label><input type="number" value="${char.stats.jianRen || 0}" oninput="updateCharStatRealTime(${index}, 'jianRen', this.value)"></div>
+            <div class="form-item"><label style="color:#9b59b6;">诡秘 (命中/暴伤)</label><input type="number" value="${char.stats.guiMi || 0}" oninput="updateCharStatRealTime(${index}, 'guiMi', this.value)"></div>
+            <div class="form-item"><label style="color:#f1c40f;">绝情 (暴击)</label><input type="number" value="${char.stats.jueQing || 0}" oninput="updateCharStatRealTime(${index}, 'jueQing', this.value)"></div>
 
             <div class="sub-title" style="color:#00ff00;">🔍 当前转换面板预览 (含装备与等级)</div>
-            <div class="preview-box full">
+            <div class="preview-box full" id="preview-box-${index}">
               <div>气血: <span>${preview.maxHp}</span></div>
               <div>攻击: <span>${preview.atk}</span></div>
               <div>防御: <span>${preview.def}</span></div>
@@ -547,8 +568,16 @@
               <div>暴伤: <span>${(preview.critDmg*100).toFixed(1)}%</span></div>
             </div>
 
-            <div class="sub-title">旧属性与技能配置</div>
+            <div class="sub-title">旧属性面板 (保留不删)</div>
+            <div class="form-item"><label>暴击(%)</label><input type="number" step="0.1" value="${(char.critRate*100).toFixed(1)}" oninput="updateCharRealTime(${index}, 'critRate', parseFloat(this.value)/100)"></div>
+            <div class="form-item"><label>暴伤(倍)</label><input type="number" step="0.1" value="${char.critDmg||1.5}" oninput="updateCharRealTime(${index}, 'critDmg', parseFloat(this.value))"></div>
+            <div class="form-item"><label>抗暴(%)</label><input type="number" step="0.1" value="${(char.critResist*100).toFixed(1)}" oninput="updateCharRealTime(${index}, 'critResist', parseFloat(this.value)/100)"></div>
+            <div class="form-item"><label>命中(%)</label><input type="number" step="0.1" value="${(char.hitRate*100).toFixed(1)}" oninput="updateCharRealTime(${index}, 'hitRate', parseFloat(this.value)/100)"></div>
+            <div class="form-item"><label>闪避(%)</label><input type="number" step="0.1" value="${(char.dodgeRate*100).toFixed(1)}" oninput="updateCharRealTime(${index}, 'dodgeRate', parseFloat(this.value)/100)"></div>
+            <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(char.lifesteal*100).toFixed(1)}" oninput="updateCharRealTime(${index}, 'lifesteal', parseFloat(this.value)/100)"></div>
+            
             <div class="form-item full">
+              <label>技能装配</label>
               <div class="skill-slot">
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">普攻:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'normal', this.value)">${getSkillOptions(char.skillSlots.normal)}</select></div>
                 <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">招式:</span><select style="flex:1;" onchange="updateSkillSlot(${index}, 'skill', this.value)">${getSkillOptions(char.skillSlots.skill)}</select></div>
@@ -640,6 +669,9 @@
             <div class="form-item"><label>名称</label><input type="text" value="${skill.name}" onchange="updateSkill(${index}, 'name', this.value)"></div>
             <div class="form-item"><label>分类</label><select onchange="updateSkill(${index}, 'type', this.value)">${skillTypes.map(t => `<option value="${t.val}" ${skill.type === t.val ? 'selected' : ''}>${t.label}</option>`).join('')}</select></div>
             
+            <div class="form-item full"><label>技能图标 (Icon URL)</label><input type="text" value="${skill.iconImg||''}" placeholder="assets/skills/icon.png" onchange="updateSkill(${index}, 'iconImg', this.value)"></div>
+            <div class="form-item full"><label>技能详细介绍 (Desc)</label><textarea rows="2" onchange="updateSkill(${index}, 'desc', this.value)" placeholder="例如：挥剑斩击，若命中可引动破势...">${skill.desc||''}</textarea></div>
+
             <div class="form-item" style="grid-column: span 2;">
               <label style="color:#f1c40f; font-weight:bold;">技能元素属性</label>
               <select onchange="updateSkill(${index}, 'element', this.value)">
@@ -1445,14 +1477,22 @@
     function updateChar(index, key, value) { 
       gameChars[index][key] = value; 
       saveData(); 
-      if (['level', 'growthModel'].includes(key)) render(); 
     }
-    function updateCharPct(index, key, value) { gameChars[index][key] = parseFloat(value) / 100; saveData(); }
-    function updateCharStat(index, statKey, value) {
-      if (!gameChars[index].stats) gameChars[index].stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
-      gameChars[index].stats[statKey] = isNaN(value) ? 0 : value;
+    
+    function updateCharRealTime(index, key, value) {
+      if (key === 'level') value = parseInt(value) || 1;
+      gameChars[index][key] = value;
       saveData();
+      updatePreviewUI(index); 
     }
+
+    function updateCharStatRealTime(index, statKey, value) {
+      if (!gameChars[index].stats) gameChars[index].stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+      gameChars[index].stats[statKey] = isNaN(parseFloat(value)) ? 0 : parseFloat(value);
+      saveData();
+      updatePreviewUI(index);
+    }
+
     function updateItemPct(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); }
     function updateSkillSlot(c, s, v) { gameChars[c].skillSlots[s] = v; saveData(); }
     
@@ -1472,50 +1512,50 @@
         if (newType === 'debuff' || newType === 'control') st.statValue = -Math.abs(st.statValue);
         else st.statValue = Math.abs(st.statValue);
       }
-      saveData(); render();
+      saveData(); renderStatuses();
     }
     
     function updateSkill(index, key, value) { 
       gameSkills[index][key] = value; 
       saveData(); 
-      if (['name', 'type', 'isAura', 'element'].includes(key)) render(); 
+      if (['name', 'type', 'isAura', 'element'].includes(key)) renderSkills(); 
     }
 
     function addSkillEffect(skillIdx) {
       if (!gameSkills[skillIdx].effects) gameSkills[skillIdx].effects = [];
       gameSkills[skillIdx].effects.push({ type: 'status', value: gameStatuses[0]?.id || '', chance: 1.0, targetSide: 'sameAsMain', targetRule: 'sameAsMain' });
-      saveData(); render();
+      saveData(); renderSkills();
     }
     function removeSkillEffect(skillIdx, effIdx) {
       gameSkills[skillIdx].effects.splice(effIdx, 1);
-      saveData(); render();
+      saveData(); renderSkills();
     }
     function updateEffect(skillIdx, effIdx, key, value) {
       gameSkills[skillIdx].effects[effIdx][key] = value;
       saveData();
-      if (key === 'type') render(); 
+      if (key === 'type') renderSkills(); 
     }
 
     function updateStatus(index, key, value) { gameStatuses[index][key] = value; saveData(); }
     function updateItem(index, key, value) { 
       gameItems[index][key] = value; 
       saveData(); 
-      if (['category', 'useEffect'].includes(key)) render(); 
+      if (['category', 'useEffect'].includes(key)) renderItems(); 
     }
     function updateLevel(index, key, value) { gameLevels[index][key] = value; saveData(); }
 
-    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, level:1, exp:0, freePoints:0, growthModel:'m1', emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); saveData(); render(); }
-    function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); render(); } }
+    function addChar() { gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: subTab.char, level:1, exp:0, freePoints:0, growthModel:'m1', emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); saveData(); renderChars(); }
+    function deleteChar(index) { if (confirm('确定删除？')) { gameChars.splice(index, 1); saveData(); renderChars(); } }
     
     function addSkill() { 
       let type = subTab.skill === 'followup' ? 'followup' : subTab.skill === 'passive' ? 'passive' : 'skill';
       gameSkills.push({ id:'skill_'+Date.now(), name:'新招式', type:type, element:'fire', targetSide:'enemy', targetRule:'frontRow', multiplier:1.0, healMultiplier:0, mpCost:10, cooldown:0, comboTagOut:'', comboTagIn:'', maxTriggers:1, passiveType:'atkAdd', passiveValue:0, isAura:false, auraRange:0, effects:[] }); 
-      saveData(); render(); 
+      saveData(); renderSkills(); 
     }
-    function deleteSkill(index) { if (confirm('确定删除？')) { gameSkills.splice(index, 1); saveData(); render(); } }
+    function deleteSkill(index) { if (confirm('确定删除？')) { gameSkills.splice(index, 1); saveData(); renderSkills(); } }
     
-    function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0, isStun:false }); saveData(); render(); }
-    function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); render(); } }
+    function addStatus() { gameStatuses.push({ id:'status_'+Date.now(), name:'新状态', type:'debuff', duration:1, statMod:'none', statValue:0, isDot:false, dotValue:0, isStun:false }); saveData(); renderStatuses(); }
+    function deleteStatus(index) { if (confirm('确定删除？')) { gameStatuses.splice(index, 1); saveData(); renderStatuses(); } }
     
     function addItem() { 
       const isEquip = ['weapon', 'armor', 'accessory'].includes(subTab.item);
@@ -1533,35 +1573,35 @@
         atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, 
         atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 
       }); 
-      saveData(); render(); 
+      saveData(); renderItems(); 
     }
-    function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); render(); } }
+    function deleteItem(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); renderItems(); } }
     
-    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '', rewardExp: 0 }); saveData(); render(); }
-    function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); render(); } }
+    function addLevel() { gameLevels.push({ id:'lv_'+Date.now(), name:'新关卡', enemyList: [], rewardItemId: '', rewardExp: 0 }); saveData(); renderLevels(); }
+    function deleteLevel(index) { if (confirm('确定删除？')) { gameLevels.splice(index, 1); saveData(); renderLevels(); } }
 
-    // 修正：一键升级补发自由点数
     function testLevelUpAll(amount) {
+      let log = "";
       gameChars.filter(c => c.side === 'player').forEach(c => { 
         let oldLv = c.level || 1;
-        c.level = oldLv + amount; 
-        if(c.level > 60) c.level = 60; 
+        c.level = Math.min(60, oldLv + amount); 
         let actualAdded = c.level - oldLv;
-        c.freePoints = (c.freePoints || 0) + (actualAdded * 3); // 每级给 3 点
-        c.exp = 0; // 清空经验，避免溢出卡级
+        c.freePoints = (c.freePoints || 0) + (actualAdded * 3); 
+        c.exp = 0; 
+        log += `${c.name}: Lv.${oldLv} -> Lv.${c.level}，获得 ${actualAdded * 3} 点\n`;
       });
-      saveData(); render(); alert(`已给所有玩家角色增加 ${amount} 级，并发放对应点数！`);
+      saveData(); renderChars(); 
+      alert(`✅ 升级成功！\n${log}\n请去角色页面查看数值变化。`);
     }
     function testResetLevel() {
       gameChars.filter(c => c.side === 'player').forEach(c => { 
         c.level = 1; 
         c.exp = 0; 
-        c.freePoints = 0; // 重置点数
+        c.freePoints = 0; 
       });
-      saveData(); render(); alert(`已重置所有玩家角色至 Lv.1，点数归零！`);
+      saveData(); renderChars(); alert(`✅ 已重置所有玩家角色至 Lv.1，点数归零！`);
     }
-    
-    // 省略模拟战斗，逻辑和之前一样
+
     function runFastSimulation() {
       const cfg = globalData.config;
       const skillsMap = {}; gameSkills.forEach(sk => skillsMap[sk.id] = sk);
@@ -1603,11 +1643,13 @@
       gameSkills = mvpSkills;
       gameChars = mvpChars;
       gameLevels = [{ id: 'lv_mvp', name: 'MVP关卡', enemyList: [{ uid: 'e1', id: 'boss_1', x: 2, y: 2 }], rewardItemId: '', rewardExp: 100 }];
-      saveData(); render(); alert("MVP 队伍已加载！请去角色页看看加点是否正常。");
+      saveData(); renderChars(); alert("MVP 队伍已加载！请去角色页看看加点是否正常。");
     }
 
     function resetData() { localStorage.clear(); location.href = location.href + '?t=' + Date.now(); }
-    render();
+    
+    // 初始渲染
+    renderChars();
   </script>
 </body>
 </html>
