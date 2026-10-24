@@ -266,6 +266,31 @@
     <script src="battle.js"></script>
 
     <script>
+        // ====== 新增：用于计算角色最终六维（含等级成长）的工具函数 ======
+        function getFinalStatsForUI(char) {
+            let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
+            let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
+            let lv = char.level || 1;
+            
+            // 1. 加上成长属性
+            if (gm && lv > 1) {
+                baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
+                baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
+                baseStats.lingDong += (gm.lingDong || 0) * (lv-1);
+                baseStats.jianRen += (gm.jianRen || 0) * (lv-1);
+                baseStats.guiMi += (gm.guiMi || 0) * (lv-1);
+                baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
+            }
+            // 向下取整，保持显示整洁
+            baseStats.fengRui = Math.floor(baseStats.fengRui);
+            baseStats.hunHou = Math.floor(baseStats.hunHou);
+            baseStats.lingDong = Math.floor(baseStats.lingDong);
+            baseStats.jianRen = Math.floor(baseStats.jianRen);
+            baseStats.guiMi = Math.floor(baseStats.guiMi);
+            baseStats.jueQing = Math.floor(baseStats.jueQing);
+            return baseStats;
+        }
+
         let selectedChar = null;
         let currentUnit = null;
         let currentTab = 'inv';
@@ -341,10 +366,11 @@
             
             if (typeof CHARACTERS === 'undefined') return;
 
-            // 读取全局配置里的经验表
+            // 读取全局配置里的经验表与成长模型
             try {
                 const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
                 globalExpTable = gc.expTable || [];
+                window.GROWTH_MODELS = gc.growthModels || [];
             } catch(e) {}
 
             renderCharList();
@@ -417,7 +443,8 @@
             const fp = selectedChar.freePoints || 0;
             document.getElementById('ui-free-points').innerText = `剩余点数: ${fp}`;
             
-            const stats = selectedChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+            // 【关键修改】使用 getFinalStatsForUI 显示实时六维
+            const stats = getFinalStatsForUI(selectedChar);
             const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
             
             let statsHtml = '';
@@ -566,6 +593,7 @@
             }
         }
 
+        // 渲染技能
         function renderSkills() {
             const box = document.getElementById('skill-container');
             box.innerHTML = '';
