@@ -217,7 +217,6 @@ function addCharacterExp(char, amount) {
   }
   char.level = currentLv; return leveledUp;
 }
-
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
   create() {
@@ -284,7 +283,8 @@ class FormationScene extends Phaser.Scene {
     list.forEach((c, i) => { this.tweens.add({ targets: c, x: left + 40 + (i % 4) * 120, y: 180 + Math.floor(i / 4) * 120, duration: 200 }); });
   }
 }
-// ===== 核心：加入强制尺寸限制的 BattleScene =====
+
+// ===== 核心：加入真正的图片裁剪算法 =====
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
@@ -353,48 +353,92 @@ class BattleScene extends Phaser.Scene {
     else { x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
-    
-    // 【核心修复】：强制锁定角色大小，无论格子多大都不超过 60 像素半径
-    const r = Math.min((cell / 2) * 0.85 * scale, 60);
+    const r = Math.min((cell / 2) * 0.85 * scale, 60); // 限制最大 60 像素
     
     if (this.textures.exists('art_unitHalo')) {
       const artHalo = window.ART_CONFIG.unitHalo || {};
       const halo = this.add.image(0, 0, 'art_unitHalo');
-      // 【核心修复】：强制光环最大宽度 150，高度 80，绝不可能撑爆屏幕
-      halo.setDisplaySize(Math.min(r * 2.5, 150), Math.min(r * 1.5, 80));
+      const tw = Math.min(r * 2.5, 150);
+      const th = Math.min(r * 1.5, 80);
+      
+      // 裁剪光环
+      const imgRatio = halo.width / halo.height;
+      const targetRatio = tw / th;
+      let dw, dh;
+      if (imgRatio > targetRatio) { dh = th * (artHalo.scale||1); dw = dh * imgRatio; }
+      else { dw = tw * (artHalo.scale||1); dh = dw / imgRatio; }
+      let ox = (tw - dw) * ((artHalo.posX ?? 50) / 100);
+      let oy = (th - dh) * ((artHalo.posY ?? 50) / 100);
+      
+      halo.setCrop(-ox / (dw / halo.width), -oy / (dh / halo.height), tw / (dw / halo.width), th / (dh / halo.height));
+      halo.setDisplaySize(tw, th);
       halo.setOrigin(0.5, 0.5); 
       c.add(halo);
     }
     
-    // 同样强制限制圆的大小
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color);
     if (!this.textures.exists('art_unitHalo')) circle.setStrokeStyle(3, 0xffffff, 0.9); else circle.setAlpha(0.2);
 
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    // 【核心修复】：强制血条最大宽度为 120 像素
     const bw = Math.min(cell * scale * 0.85, 120); 
     let hpBg, hpBar;
+    
+    // 【精确裁剪 HP背景条】
     if (this.textures.exists('art_hpBg')) {
-      hpBg = this.add.image(0, r + 32, 'art_hpBg');
-      hpBg.setDisplaySize(bw + 4, 12);
+      hpBg = this.add.image(-bw/2, r + 32, 'art_hpBg').setOrigin(0, 0.5);
+      const art = window.ART_CONFIG.hpBg || {};
+      const targetH = 12;
+      let dw = bw * (art.scale||1);
+      let dh = dw * (hpBg.height / hpBg.width);
+      let ox = (bw - dw) * ((art.posX ?? 50) / 100);
+      let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
+      
+      let cw = bw / (dw / hpBg.width);
+      let ch = targetH / (dh / hpBg.height);
+      let cx = -ox / (dw / hpBg.width);
+      let cy = -oy / (dh / hpBg.height);
+      
+      hpBg.setCrop(cx, cy, cw, ch);
+      hpBg.setDisplaySize(bw, targetH);
     } else {
-      hpBg = this.add.rectangle(0, r + 32, bw + 4, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
+      hpBg = this.add.rectangle(-bw/2, r + 32, bw, 12, 0x000000).setOrigin(0, 0.5).setStrokeStyle(1, 0xffffff, 0.4);
     }
+
+    // 【精确裁剪 HP填充条】
     if (this.textures.exists('art_hpFill')) {
       hpBar = this.add.image(-bw/2, r + 32, 'art_hpFill').setOrigin(0, 0.5);
-      hpBar.setDisplaySize(bw, 8);
+      const art = window.ART_CONFIG.hpFill || {};
+      const targetH = 12;
+      let dw = bw * (art.scale||1);
+      let dh = dw * (hpBar.height / hpBar.width);
+      let ox = (bw - dw) * ((art.posX ?? 50) / 100);
+      let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
+      
+      let cw = bw / (dw / hpBar.width);
+      let ch = targetH / (dh / hpBar.height);
+      let cx = -ox / (dw / hpBar.width);
+      let cy = -oy / (dh / hpBar.height);
+      
+      hpBar.setCrop(cx, cy, cw, ch);
+      hpBar.setDisplaySize(bw, targetH);
+      
+      // 保存裁剪参数，方便掉血时改变宽度
+      hpBar.baseCropX = cx;
+      hpBar.baseCropY = cy;
+      hpBar.baseCropW = cw;
+      hpBar.baseCropH = ch;
       hpBar.maxWidth = bw;
     } else {
       hpBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xff4444).setOrigin(0, 0.5);
       hpBar.maxWidth = bw;
     }
 
-    const hpText = this.add.text(0, r + 32, '', { fontSize: '11px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    const hpText = this.add.text(-bw/2 + bw/2, r + 32, '', { fontSize: '11px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     const shieldBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xdddddd, 0.85).setOrigin(0, 0.5); shieldBar.setVisible(false);
     const shieldText = this.add.text(0, r + 18, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold', backgroundColor: '#555', padding: {x:2,y:1} }).setOrigin(0.5);
-    const mpBg = this.add.rectangle(0, r + 45, bw + 4, 7, 0x000000);
+    const mpBg = this.add.rectangle(-bw/2, r + 45, bw, 7, 0x000000).setOrigin(0, 0.5);
     const mpBar = this.add.rectangle(-bw/2, r + 45, bw, 5, 0x3498DB).setOrigin(0, 0.5);
     const mpText = this.add.text(bw/2, r + 45, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
@@ -519,11 +563,22 @@ class BattleScene extends Phaser.Scene {
     this.logTexts.forEach(t => t.destroy()); this.logTexts = [];
     this.logHistory.forEach((l, i) => { const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51); this.logTexts.push(t); });
   }
+  
+  // 【修复】掉血时，改变裁剪宽度而不是强行挤压图片
   updateUnitView(u) {
     const v = this.unitViews.get(u); if (!v) return;
     let ratio = Math.max(0, u.hp / u.maxHp);
-    if (v.hpBar.maxWidth) { v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; } 
-    else { this.tweens.add({ targets: v.hpBar, scaleX: ratio, duration: 300 / this.speedMultiplier }); }
+    
+    if (v.hpBar.baseCropW) { 
+      // 如果是图片，通过改变裁剪宽度和显示宽度来实现掉血
+      v.hpBar.setCrop(v.hpBar.baseCropX, v.hpBar.baseCropY, v.hpBar.baseCropW * ratio, v.hpBar.baseCropH);
+      v.hpBar.setDisplaySize(v.hpBar.maxWidth * ratio, 12);
+    } else if (v.hpBar.maxWidth) { 
+      v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
+    } else { 
+      this.tweens.add({ targets: v.hpBar, scaleX: ratio, duration: 300 / this.speedMultiplier }); 
+    }
+    
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
     if (u.shield > 0) { v.shieldBar.setVisible(true); this.tweens.add({ targets: v.shieldBar, scaleX: Math.min(1, u.shield / u.maxHp), duration: 300 / this.speedMultiplier }); v.shieldText.setText(`${u.shield}`); } 
