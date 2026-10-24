@@ -283,9 +283,6 @@ class BattleScene extends Phaser.Scene {
   preload() {
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
-    if (art.unitHalo && art.unitHalo.url) this.load.image('art_unitHalo', art.unitHalo.url);
-    if (art.hpBg && art.hpBg.url) this.load.image('art_hpBg', art.hpBg.url);
-    if (art.hpFill && art.hpFill.url) this.load.image('art_hpFill', art.hpFill.url);
   }
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
@@ -316,7 +313,7 @@ class BattleScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const art = window.ART_CONFIG?.boardBg;
     if (this.textures.exists('art_boardBg')) {
-      const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.85);
+      const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.6);
       const iw = bgImg.width, ih = bgImg.height;
       const boxW = CONFIG.WIDTH, boxH = CONFIG.HEIGHT;
       const drawW = boxW * (art.scale || 1); const drawH = drawW * (ih / iw);
@@ -326,14 +323,34 @@ class BattleScene extends Phaser.Scene {
     }
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
-    this.drawGrid(enemyLeft, gridTop, cell, 0xE74C3C, 0.6); this.drawGrid(playerLeft, gridTop, cell, 0x3498DB, 0.6);
-    this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#E74C3C', fontStyle: 'bold' });
-    this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#3498DB', fontStyle: 'bold' });
+    this.drawGrid(enemyLeft, gridTop, cell, true);
+    this.drawGrid(playerLeft, gridTop, cell, false);
+    this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#CC99FF', fontStyle: 'bold' });
+    this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#FF8888', fontStyle: 'bold' });
     this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
   }
-  drawGrid(x, y, cell, color, alpha) {
-    const g = this.add.graphics(); g.lineStyle(2, color, alpha);
-    for (let i = 0; i <= CONFIG.GRID_SIZE; i++) { g.lineBetween(x, y + i * cell, x + CONFIG.GRID_SIZE * cell, y + i * cell); g.lineBetween(x + i * cell, y, x + i * cell, y + CONFIG.GRID_SIZE * cell); }
+  
+  // 核心：美化网格绘制
+  drawGrid(startX, startY, cell, isEnemy) {
+    for(let y=0; y<CONFIG.GRID_SIZE; y++) {
+      for(let x=0; x<CONFIG.GRID_SIZE; x++) {
+        const g = this.add.graphics();
+        const px = startX + x * cell;
+        const py = startY + y * cell;
+        
+        // 交错底色
+        const isEven = (x + y) % 2 === 0;
+        const fillColor = isEnemy ? 0xCC99FF : 0xFF8888;
+        const fillAlpha = isEven ? 0.15 : 0.05;
+        const strokeAlpha = isEven ? 0.4 : 0.2;
+
+        g.fillStyle(fillColor, fillAlpha);
+        g.fillRoundedRect(px + 2, py + 2, cell - 4, cell - 4, 6);
+        
+        g.lineStyle(1.5, fillColor, strokeAlpha);
+        g.strokeRoundedRect(px + 2, py + 2, cell - 4, cell - 4, 6);
+      }
+    }
   }
 
   createUnitView(unit) {
@@ -342,69 +359,37 @@ class BattleScene extends Phaser.Scene {
     else { x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
-    const r = Math.min((cell / 2) * 0.85 * scale, 60); 
+    const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     
-    if (this.textures.exists('art_unitHalo')) {
-      const artHalo = window.ART_CONFIG.unitHalo || {};
-      const halo = this.add.image(0, 0, 'art_unitHalo');
-      const tw = Math.min(r * 2.5, 150); const th = Math.min(r * 1.5, 80);
-      const imgRatio = halo.width / halo.height; const targetRatio = tw / th;
-      let dw, dh;
-      if (imgRatio > targetRatio) { dh = th * (artHalo.scale||1); dw = dh * imgRatio; } else { dw = tw * (artHalo.scale||1); dh = dw / imgRatio; }
-      let ox = (tw - dw) * ((artHalo.posX ?? 50) / 100); let oy = (th - dh) * ((artHalo.posY ?? 50) / 100);
-      halo.setCrop(-ox / (dw / halo.width), -oy / (dh / halo.height), tw / (dw / halo.width), th / (dh / halo.height));
-      halo.setDisplaySize(tw, th); halo.setOrigin(0.5, 0.5); c.add(halo);
-    }
+    // 角色底部立体底座（椭圆）
+    const isEnemy = unit.side === 'enemy';
+    const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
+    const baseH = r * 0.8;
+    const baseW = r * 2.2;
     
-    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color);
-    if (!this.textures.exists('art_unitHalo')) circle.setStrokeStyle(3, 0xffffff, 0.9); else circle.setAlpha(0.2);
+    const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25);
+    baseEllipse.setStrokeStyle(2, baseColor, 0.8);
+    c.add(baseEllipse);
+
+    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
     const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-    const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    const bw = Math.min(cell * scale * 0.85, 120); 
-    let hpBg, hpBar;
-    
-    if (this.textures.exists('art_hpBg')) {
-      hpBg = this.add.image(-bw/2, r + 32, 'art_hpBg').setOrigin(0, 0.5);
-      const art = window.ART_CONFIG.hpBg || {}; const targetH = 12;
-      let dw = bw * (art.scale||1); let dh = dw * (hpBg.height / hpBg.width);
-      let ox = (bw - dw) * ((art.posX ?? 50) / 100); let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
-      hpBg.setCrop(-ox / (dw / hpBg.width), -oy / (dh / hpBg.height), bw / (dw / hpBg.width), targetH / (dh / hpBg.height));
-      hpBg.setDisplaySize(bw, targetH);
-    } else {
-      hpBg = this.add.rectangle(-bw/2, r + 32, bw, 12, 0x000000).setOrigin(0, 0.5).setStrokeStyle(1, 0xffffff, 0.4);
-    }
+    // 纯代码血条
+    const bw = Math.min(cell * scale * 0.85, 100); 
+    const hpBg = this.add.rectangle(-bw/2, r + 32, bw + 4, 10, 0x000000, 0.8).setOrigin(0, 0.5).setStrokeStyle(1, 0x555555);
+    const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, isEnemy ? 0xCC99FF : 0xFF4444).setOrigin(0, 0.5);
+    hpBar.maxWidth = bw;
 
-    if (this.textures.exists('art_hpFill')) {
-      hpBar = this.add.image(-bw/2, r + 32, 'art_hpFill').setOrigin(0, 0.5);
-      const art = window.ART_CONFIG.hpFill || {}; const targetH = 12;
-      let dw = bw * (art.scale||1); let dh = dw * (hpBar.height / hpBar.width);
-      let ox = (bw - dw) * ((art.posX ?? 50) / 100); let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
-      
-      // 记录基础裁剪参数，用于满血/掉血的计算
-      hpBar.baseSrcX = -ox / (dw / hpBar.width);
-      hpBar.baseSrcY = -oy / (dh / hpBar.height);
-      hpBar.maxSrcW = bw / (dw / hpBar.width);
-      hpBar.maxSrcH = targetH / (dh / hpBar.height);
-      hpBar.maxW = bw;
-      
-      hpBar.setCrop(hpBar.baseSrcX, hpBar.baseSrcY, hpBar.maxSrcW, hpBar.maxSrcH);
-      hpBar.setDisplaySize(bw, targetH);
-    } else {
-      hpBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xff4444).setOrigin(0, 0.5);
-      hpBar.maxWidth = bw;
-    }
-
-    const hpText = this.add.text(-bw/2 + bw/2, r + 32, '', { fontSize: '11px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-    const shieldBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xdddddd, 0.85).setOrigin(0, 0.5); shieldBar.setVisible(false);
+    const hpText = this.add.text(0, r + 32, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     const shieldText = this.add.text(0, r + 18, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold', backgroundColor: '#555', padding: {x:2,y:1} }).setOrigin(0.5);
-    const mpBg = this.add.rectangle(-bw/2, r + 45, bw, 7, 0x000000).setOrigin(0, 0.5);
-    const mpBar = this.add.rectangle(-bw/2, r + 45, bw, 5, 0x3498DB).setOrigin(0, 0.5);
-    const mpText = this.add.text(bw/2, r + 45, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
+    const mpBg = this.add.rectangle(-bw/2, r + 44, bw + 4, 5, 0x000000, 0.8).setOrigin(0, 0.5);
+    const mpBar = this.add.rectangle(-bw/2 + 2, r + 44, bw, 3, 0x3498DB).setOrigin(0, 0.5);
+    const mpText = this.add.text(bw/2 + 5, r + 44, '', { fontSize: '9px', color: '#88ccff' }).setOrigin(0, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
-    c.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    c.bringToTop(shieldBar); c.bringToTop(shieldText); c.bringToTop(hpText);
-    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, shieldBar, mpBar, statusText, hpText, shieldText, mpText });
+    
+    c.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, shieldBar: null, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -438,7 +423,7 @@ class BattleScene extends Phaser.Scene {
       const origX = v.container.x; const origY = v.container.y; const target = targets[0]; const tv = this.unitViews.get(target);
       if (tv && sk.multiplier > 0) {
         const dirX = tv.container.x > origX ? 1 : -1; const dirY = tv.container.y > origY ? 1 : -1;
-        this.tweens.add({ targets: v.container, x: origX + (40 * dirX), y: origY + (40 * dirY), duration: 150 / this.speedMultiplier, yoyo: true, ease: 'Quad.easeOut' });
+        this.tweens.add({ targets: v.container, x: origX + (30 * dirX), y: origY + (30 * dirY), duration: 150 / this.speedMultiplier, yoyo: true, ease: 'Quad.easeOut' });
       } else { this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.1, scaleY: v.container.scaleY * 1.1, duration: 150 / this.speedMultiplier, yoyo: true }); }
     }
     this.addLog(`${actor.name} 使用【${sk.name}】`, sk.type === 'ultimate' ? '#e74c3c' : '#fff');
@@ -524,25 +509,13 @@ class BattleScene extends Phaser.Scene {
     this.logHistory.forEach((l, i) => { const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51); this.logTexts.push(t); });
   }
   
-  // 【核心修复】：彻底抛弃遮罩，采用原图裁剪宽度直接改变
+  // 极简血条更新（代码画的，绝对不崩）
   updateUnitView(u) {
     const v = this.unitViews.get(u); if (!v) return;
     let ratio = Math.max(0, u.hp / u.maxHp);
-    
-    if (v.hpBar.baseSrcW) { 
-      // 图片血条：直接改变裁剪宽度和显示宽度，左端原点固定，完美从右边减少
-      v.hpBar.setCrop(v.hpBar.baseSrcX, v.hpBar.baseSrcY, v.hpBar.baseSrcW * ratio, v.hpBar.baseSrcH);
-      v.hpBar.setDisplaySize(v.hpBar.maxW * ratio, 12);
-    } else if (v.hpBar.maxWidth) { 
-      v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
-    } else { 
-      this.tweens.add({ targets: v.hpBar, scaleX: ratio, duration: 300 / this.speedMultiplier }); 
-    }
-    
+    v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
-    if (u.shield > 0) { v.shieldBar.setVisible(true); this.tweens.add({ targets: v.shieldBar, scaleX: Math.min(1, u.shield / u.maxHp), duration: 300 / this.speedMultiplier }); v.shieldText.setText(`${u.shield}`); } 
-    else { v.shieldBar.setVisible(false); v.shieldText.setText(''); }
     v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
     if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
   }
