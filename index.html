@@ -6,10 +6,80 @@
     <title>中大型策略战棋</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; }
-        #game { width: 100%; height: 100%; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
+        #game { width: 100%; height: 100%; position: absolute; inset: 0; z-index: 0; }
         
-        /* ================= 全屏 UI 遮罩 ================= */
+        /* ================= 主畫面 UI 佈局 (二次元手遊質感) ================= */
+        .main-bg {
+            position: absolute; inset: 0;
+            background-size: cover; background-position: center;
+            transition: background-image 0.5s ease-in-out;
+            z-index: 1; pointer-events: none;
+        }
+        .main-bg::after {
+            content: ''; position: absolute; inset: 0;
+            background: radial-gradient(circle at center, rgba(11, 12, 16, 0.1) 0%, rgba(11, 12, 16, 0.65) 100%);
+        }
+
+        /* 頂部快捷列 */
+        .top-bar-overlay {
+            position: absolute; top: 0; left: 0; right: 0; height: 65px;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 30px; z-index: 100; pointer-events: auto;
+            background: linear-gradient(to bottom, rgba(15, 15, 26, 0.85) 0%, transparent 100%);
+        }
+        .top-title { font-size: 20px; font-weight: bold; color: #f1c40f; display: flex; align-items: center; gap: 8px; }
+        .btn-editor-quick {
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25);
+            padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #fff; cursor: pointer;
+            backdrop-filter: blur(6px); transition: all 0.2s;
+        }
+        .btn-editor-quick:hover { background: #3498db; border-color: #3498db; }
+
+        /* 左側動態功能側欄 */
+        .left-sidebar {
+            position: absolute; left: 30px; top: 90px; display: flex;
+            flex-direction: column; gap: 12px; z-index: 100; pointer-events: auto;
+        }
+        .menu-btn {
+            width: 150px; padding: 12px 16px;
+            background: rgba(15, 15, 26, 0.75); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.12); border-left: 4px solid #3498db;
+            border-radius: 0 8px 8px 0; color: #fff; font-size: 14px; font-weight: bold;
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+            transition: all 0.25s ease; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .menu-btn:hover {
+            width: 165px; background: rgba(52, 152, 219, 0.35); border-color: #3498db;
+        }
+
+        /* 右側主線推進大卡片 */
+        .main-right-section {
+            position: absolute; right: 40px; top: 90px; bottom: 40px;
+            width: 340px; display: flex; flex-direction: column; justify-content: space-between;
+            z-index: 100; pointer-events: auto;
+        }
+        .main-stage-card {
+            background: rgba(22, 33, 62, 0.85); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px;
+            padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            display: flex; flex-direction: column; gap: 15px; position: relative; overflow: hidden;
+        }
+        .main-stage-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: #f1c40f;
+        }
+        .stage-tag { font-size: 12px; color: #f1c40f; font-weight: bold; letter-spacing: 1px; }
+        .stage-title { font-size: 22px; font-weight: bold; color: #fff; line-height: 1.3; }
+        .stage-desc { font-size: 12px; color: #aaa; line-height: 1.6; height: 60px; overflow: hidden; }
+        .btn-battle {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: #fff; border: none; padding: 14px; border-radius: 6px;
+            font-size: 16px; font-weight: bold; cursor: pointer; text-align: center;
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4); transition: all 0.2s;
+        }
+        .btn-battle:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(231, 76, 60, 0.6); }
+
+        /* ================= 全屏 UI 遮罩 (原本角色/背包 UI) ================= */
         #fullscreen-ui {
             display: none; position: absolute; 
             /* 强制 1280x720 缩放 */
@@ -179,9 +249,38 @@
     </style>
 </head>
 <body>
+    <!-- 戰棋遊戲畫布容器 -->
     <div id="game"></div>
+
+    <!-- 全螢幕解鎖背景圖 -->
+    <div class="main-bg" id="main-bg"></div>
+
+    <!-- 頂部導航浮層 -->
+    <div class="top-bar-overlay">
+        <div class="top-title">⚔️ 江湖大廳</div>
+        <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
+    </div>
+
+    <!-- 左側動態功能側欄 -->
+    <div class="left-sidebar" id="left-sidebar"></div>
+
+    <!-- 右側核心推進大卡片 -->
+    <div class="main-right-section">
+        <div class="main-stage-card">
+            <div>
+                <div class="stage-tag">當前江湖主線</div>
+                <div class="stage-title" id="index-stage-title">第一章：青城山變</div>
+            </div>
+            <div class="stage-desc" id="index-stage-desc">
+                探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。
+            </div>
+            <button class="btn-battle" onclick="window.location.href='story_menu.html'">⚔️ 進入江湖 / 劇本選擇</button>
+        </div>
+    </div>
+
     <div id="global-toast"></div>
 
+    <!-- 角色與背包 UI 彈窗 -->
     <div id="fullscreen-ui" onclick="event.stopPropagation()">
         <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
 
@@ -265,13 +364,67 @@
     <script src="battle.js"></script>
 
     <script>
-        // ====== 新增：用于计算角色最终六维（含等级成长）的工具函数 ======
+        // ====== 主畫面動態 UI 配置讀取 ======
+        let currentBgIndex = 0;
+        let mainConfig = null;
+
+        function initIndexMainUI() {
+            mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
+                bgList: [
+                    { name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
+                ],
+                buttons: {
+                    story: { title: '江湖歷程', icon: '📜', active: true },
+                    character: { title: '人物編隊', icon: '👥', active: true },
+                    backpack: { title: '背包裝備', icon: '🎒', active: true }
+                }
+            };
+
+            // 設定背景圖
+            if (mainConfig.bgList && mainConfig.bgList.length > 0) {
+                document.getElementById('main-bg').style.backgroundImage = `url('${mainConfig.bgList[currentBgIndex].url}')`;
+            }
+
+            // 讀取劇本資料填入右側卡片
+            const storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
+            if (storyData && storyData.books && storyData.books.length > 0) {
+                const firstBook = storyData.books[0];
+                const tEl = document.getElementById('index-stage-title');
+                const dEl = document.getElementById('index-stage-desc');
+                if(tEl) tEl.innerText = firstBook.title;
+                if(dEl) dEl.innerText = firstBook.desc;
+            }
+
+            // 渲染左側動態選單
+            renderIndexLeftSidebar();
+        }
+
+        function renderIndexLeftSidebar() {
+            const sidebar = document.getElementById('left-sidebar');
+            if (!sidebar) return;
+            sidebar.innerHTML = '';
+
+            // 江湖歷程按鈕
+            const sb = document.createElement('div');
+            sb.className = 'menu-btn';
+            sb.innerHTML = `<span>📜</span> <span>江湖歷程</span>`;
+            sb.onclick = () => window.location.href = 'story_menu.html';
+            sidebar.appendChild(sb);
+
+            // 角色與背包按鈕 (打開你原有的 UI 彈窗)
+            const cb = document.createElement('div');
+            cb.className = 'menu-btn';
+            cb.innerHTML = `<span>👥</span> <span>角色與背包</span>`;
+            cb.onclick = () => window.openCharacterUI();
+            sidebar.appendChild(cb);
+        }
+
+        // ====== 原有：用於計算角色最終六維（含等級成長）的工具函數 ======
         function getFinalStatsForUI(char) {
             let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
             let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
             let lv = char.level || 1;
             
-            // 1. 加上成长属性
             if (gm && lv > 1) {
                 baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
                 baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
@@ -280,7 +433,6 @@
                 baseStats.guiMi += (gm.guiMi || 0) * (lv-1);
                 baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
             }
-            // 向下取整，保持显示整洁
             baseStats.fengRui = Math.floor(baseStats.fengRui);
             baseStats.hunHou = Math.floor(baseStats.hunHou);
             baseStats.lingDong = Math.floor(baseStats.lingDong);
@@ -298,7 +450,6 @@
 
         const uiContainer = document.getElementById('fullscreen-ui');
 
-        // 1. 整体等比缩放
         function resizeUIToGame() {
             if (!window.game || !window.game.canvas) return;
             
@@ -314,7 +465,6 @@
         }
         window.addEventListener('resize', resizeUIToGame);
 
-        // 全局简易提示
         function showToast(msg, color = '#2ecc71') {
             const toast = document.getElementById('global-toast');
             toast.innerText = msg;
@@ -323,13 +473,11 @@
             setTimeout(() => { toast.style.display = 'none'; }, 2000);
         }
 
-        // 获取升级所需经验
         function getExpNeeded(level) {
             if(level >= 60) return 9999999;
             return globalExpTable[level - 1] || 100;
         }
 
-        // 给角色加经验并处理升级
         function addCharacterExp(char, amount) {
             if (char.level >= 60) return;
             char.exp = (char.exp || 0) + amount;
@@ -341,7 +489,6 @@
             while (char.exp >= reqExp && currentLv < 60) {
                 char.exp -= reqExp;
                 currentLv++;
-                // 每次升级送 3 点自由点
                 char.freePoints = (char.freePoints || 0) + 3;
                 reqExp = getExpNeeded(currentLv);
                 leveledUp = true;
@@ -350,13 +497,9 @@
             return leveledUp;
         }
 
-        // 打开界面
         window.openCharacterUI = function() {
             resizeUIToGame(); 
-            
-            setTimeout(() => {
-                uiContainer.style.display = 'flex';
-            }, 10);
+            setTimeout(() => { uiContainer.style.display = 'flex'; }, 10);
 
             if (window.game && window.game.scene) {
                 const activeScenes = window.game.scene.getScenes(true);
@@ -365,7 +508,6 @@
             
             if (typeof CHARACTERS === 'undefined') return;
 
-            // 读取全局配置里的经验表与成长模型
             try {
                 const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
                 globalExpTable = gc.expTable || [];
@@ -387,7 +529,6 @@
             }
         }
 
-        // 渲染头像
         function renderCharList() {
             const box = document.getElementById('ui-char-list');
             box.innerHTML = '';
@@ -403,7 +544,6 @@
             });
         }
 
-        // 切换角色
         function selectCharacter(charData) {
             selectedChar = charData;
             currentUnit = new Unit(selectedChar); 
@@ -418,12 +558,10 @@
             refreshRightPanel();
         }
 
-        // 渲染左侧面板 (包含经验、加点)
         function refreshLeftPanel() {
             document.getElementById('ui-char-name').innerText = selectedChar.name;
             document.getElementById('ui-char-level').innerText = `Lv. ${selectedChar.level || 1}`;
             
-            // 经验条
             const cLv = selectedChar.level || 1;
             const cExp = selectedChar.exp || 0;
             const reqExp = getExpNeeded(cLv);
@@ -432,17 +570,14 @@
             document.getElementById('ui-exp-text').innerText = cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`;
             document.getElementById('ui-exp-fill').style.width = `${pct}%`;
 
-            // 核心数值
             document.getElementById('ui-hp').innerText = currentUnit.maxHp;
             document.getElementById('ui-atk').innerText = currentUnit.atk;
             document.getElementById('ui-def').innerText = currentUnit.def;
             document.getElementById('ui-spd').innerText = currentUnit.speed.toFixed(1);
 
-            // 加点区
             const fp = selectedChar.freePoints || 0;
             document.getElementById('ui-free-points').innerText = `剩余点数: ${fp}`;
             
-            // 【关键修改】使用 getFinalStatsForUI 显示实时六维
             const stats = getFinalStatsForUI(selectedChar);
             const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
             
@@ -459,7 +594,6 @@
 
             renderEquipSlots();
 
-            // 详细属性弹窗
             document.getElementById('detail-atk').innerHTML = `
                 <div class="detail-item"><span>暴击率</span> <b>${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
                 <div class="detail-item"><span>暴击伤害</span> <b>${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
@@ -475,7 +609,6 @@
             `;
         }
 
-        // 加点逻辑
         function allocatePoint(statKey) {
             if (!selectedChar.freePoints || selectedChar.freePoints <= 0) return;
             
@@ -484,10 +617,9 @@
             selectedChar.stats[statKey] = (selectedChar.stats[statKey] || 0) + 1;
             
             saveGameData();
-            selectCharacter(selectedChar); // 重新计算并刷新 UI
+            selectCharacter(selectedChar);
         }
 
-        // 装备槽
         function renderEquipSlots() {
             const container = document.getElementById('ui-equip-slots');
             container.innerHTML = '';
@@ -552,7 +684,6 @@
             renderInventory();
         }
 
-        // 渲染背包
         function renderInventory() {
             const grid = document.getElementById('inventory-grid');
             grid.innerHTML = '';
@@ -592,7 +723,6 @@
             }
         }
 
-        // 渲染技能
         function renderSkills() {
             const box = document.getElementById('skill-container');
             box.innerHTML = '';
@@ -636,7 +766,6 @@
             if (!hasSkill) box.innerHTML = '<div style="color:#888; text-align:center; margin-top:50px; font-size:20px;">该角色尚未装备技能</div>';
         }
 
-        // ================= 物品详情与操作 =================
         function showTooltip(inst, itemTpl, isEquipped) {
             const tooltip = document.getElementById('item-tooltip');
             const content = document.getElementById('tooltip-content');
@@ -730,7 +859,6 @@
             tooltip.style.display = 'block';
         }
 
-        // 使用道具逻辑（支持升级动画）
         function useItem(inst, itemTpl) {
             let leveledUp = false;
             
@@ -781,6 +909,11 @@
             localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
             localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
         }
+
+        // 初始化主介面動態 UI
+        window.addEventListener('DOMContentLoaded', () => {
+            initIndexMainUI();
+        });
     </script>
 </body>
 </html>
