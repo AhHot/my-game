@@ -1,5 +1,5 @@
 // ==========================================
-// 讀取同步數據
+// 读取同步数据
 // ==========================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
@@ -21,13 +21,14 @@ try {
 } catch(e) {}
 
 // ==========================================
-// Unit 類
+// Unit 类
 // ==========================================
 class Unit {
   constructor(data) {
     Object.assign(this, data);
     if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     
+    // 装备槽兼容处理
     if (!this.equipment) this.equipment = {};
     if (this.equipment.armor && !this.equipment.body) { this.equipment.body = this.equipment.armor; delete this.equipment.armor; }
     if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
@@ -48,6 +49,7 @@ class Unit {
     this.critDmg = this.critDmg || 1.5;
     this.lifesteal = this.lifesteal || 0;
 
+    // 6大意境数值转化
     const stats = data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     
     this.maxHp = (this.maxHp || 0) + stats.hunHou * CONFIG.hunHouToHp;
@@ -65,6 +67,7 @@ class Unit {
     this.critResist = this.critResist + (stats.jianRen * CONFIG.jianRenToRes / 100);
     this.critDmg = this.critDmg + (stats.guiMi * CONFIG.guiMiToCritDmg / 100);
 
+    // 计算装备加成
     let eqAtkAdd = 0, eqDefAdd = 0, eqHpAdd = 0;
     let eqAtkPct = 0, eqDefPct = 0, eqHpPct = 0;
     
@@ -95,6 +98,7 @@ class Unit {
 
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
+    // 被动技能
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
     this.passives.forEach(sk => {
       if (sk.isAura) return;
@@ -209,6 +213,9 @@ const BattleLogic = {
     let usable = avail.filter(sk => {
       const cd = actor.cooldowns[sk.id] || 0;
       if (actor.mp < (sk.mpCost || 0) || cd > 0) return false;
+      if (sk.healMultiplier > 0 && sk.multiplier === 0) {
+        if (!allUnits.filter(u => u.side === actor.side && u.isAlive()).some(u => u.hp < u.maxHp)) return false;
+      }
       return true;
     });
     const w = { ultimate: 3, skill: 2, normal: 1 };
@@ -216,39 +223,227 @@ const BattleLogic = {
     if (usable.length > 0) return usable[0];
     const fb = Object.values(SKILLS).find(s => s.type === 'normal');
     if (fb) return fb;
-    return { id: 'default_atk', name: '普通攻擊', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] };
+    return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] };
   },
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); }
 };
 
 // ==========================================
-// 隨機掉落
+// 随机掉落
 // ==========================================
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: 'white', baseAtk: 50, baseDef: 10, baseHp: 100, extras: [], equippedBy: '', count: 1 };
+  
+  const defaultDropRates = [
+    { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
+    { q: 'green', min: 30, max: 60, m: 1.05, n: 1, tier: 1 },
+    { q: 'blue', min: 60, max: 85, m: 1.15, n: 2, tier: 2 },
+    { q: 'purple', min: 85, max: 95, m: 1.3, n: 3, tier: 2 },
+    { q: 'orange', min: 95, max: 99, m: 1.5, n: 4, tier: 3 },
+    { q: 'red', min: 99, max: 100, m: 1.8, n: 5, tier: 3 }
+  ];
+  const dropRates = window.DROP_RATES || defaultDropRates;
+
+  const r = Math.random() * 100;
+  let config = dropRates.find(d => r >= d.min && r < d.max) || dropRates[0];
+
+  const q = config.q;
+  const m = config.m;
+  const n = config.n;
+
+  const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
+  const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
+  const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
+  
+  const defaultPools = {
+    weapon: ['atkFlat', 'atkPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'speed'],
+    armor: ['hpFlat', 'defFlat', 'hpPercent', 'defPercent', 'critResist', 'dodgeRate', 'speed'],
+    accessory: ['atkFlat', 'defFlat', 'hpFlat', 'atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'critResist', 'dodgeRate', 'hitRate', 'lifesteal', 'speed']
+  };
+  const pools = window.GLOBAL_AFFIX_POOLS || defaultPools;
+
+  let pool = [];
+  if (t.category === 'armor') {
+    pool = Array.isArray(pools.armor) && pools.armor.length > 0 ? [...pools.armor] : [...defaultPools.armor];
+  } else if (t.category === 'weapon') {
+    pool = Array.isArray(pools.weapon) && pools.weapon.length > 0 ? [...pools.weapon] : [...defaultPools.weapon];
+  } else {
+    pool = Array.isArray(pools.accessory) && pools.accessory.length > 0 ? [...pools.accessory] : [...defaultPools.accessory];
+  }
+
+  const defaultVals = {
+    atkFlat: { min: 10, max: 50 }, defFlat: { min: 10, max: 30 }, hpFlat: { min: 100, max: 500 },
+    atkPercent: { min: 4.0, max: 8.0 }, defPercent: { min: 4.0, max: 8.0 }, hpPercent: { min: 4.0, max: 8.0 },
+    critRate: { min: 4.0, max: 8.0 }, critDmg: { min: 15.0, max: 25.0 }, critResist: { min: 4.0, max: 8.0 },
+    dodgeRate: { min: 4.0, max: 8.0 }, hitRate: { min: 5.0, max: 10.0 }, lifesteal: { min: 1.0, max: 4.0 },
+    speed: { min: 1, max: 4 }
+  };
+  const affixValues = window.GLOBAL_AFFIX_VALUES || defaultVals;
+
+  let tp = [...pool];
+  const ex = [];
+  const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
+
+  for (let i = 0; i < n; i++) {
+    if (tp.length === 0) break;
+    const idx = Math.floor(Math.random() * tp.length);
+    const s = tp.splice(idx, 1)[0]; 
+    
+    const cfg = affixValues[s] || defaultVals[s] || { min: 0, max: 0 };
+    let v = 0;
+    
+    if (cfg.max >= cfg.min) {
+      v = Math.random() * (cfg.max - cfg.min) + cfg.min;
+    } else {
+      v = cfg.min;
+    }
+
+    if (intTypes.includes(s)) {
+      v = Math.round(v);
+    } else {
+      v = Math.round((v / 100) * 100) / 100;
+    }
+    
+    ex.push({ stat: s, value: v });
+  }
+
+  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
+  extraKeys.forEach(k => { 
+    if (t[k] && t[k] !== 0) {
+      const exIdx = ex.findIndex(e => e.stat === k);
+      if (exIdx !== -1) ex.splice(exIdx, 1);
+      ex.push({ stat: k, value: t[k] / 100 }); 
+    }
+  });
+
+  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: ex, equippedBy: '', count: 1 };
 }
 
 // ==========================================
-// 主菜單與場景類別
+// 主菜单
 // ==========================================
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
-    this.add.text(CONFIG.WIDTH / 2, 200, '中大型策略戰棋', { fontSize: '64px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
-    const b = this.add.text(CONFIG.WIDTH / 2, 500, '⚔️ 開始推圖', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
+    this.add.text(CONFIG.WIDTH / 2, 200, '中大型策略战棋', { fontSize: '64px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, 280, 'Main Menu', { fontSize: '24px', color: '#aaa' }).setOrigin(0.5);
+    
+    const b = this.add.text(CONFIG.WIDTH / 2, 500, '⚔️ 开始推图', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
     b.on('pointerdown', () => this.scene.start('FormationScene', { levelIndex: 0 }));
-    const e = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 編輯器', { fontSize: '20px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    
+    const e = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '20px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     e.on('pointerdown', () => { window.location.href = 'editor.html'; });
+
+    const invBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
+    invBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
   }
 }
 
+// ==========================================
+// 战前布阵
+// ==========================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) { this.currentLevelIndex = data.levelIndex || 0; }
+
   create() {
-    this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex });
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
+    const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
+
+    const lv = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
+    this.add.text(20, 20, `v12.3 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
+
+    const editBtn = this.add.text(CONFIG.WIDTH - 180, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
+    editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
+
+    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
+    refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
+
+    const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
+    teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
+
+    this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+
+    const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
+    for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
+      g.lineBetween(gridLeft, gridTop + i * cell, gridLeft + gridW, gridTop + i * cell);
+      g.lineBetween(gridLeft + i * cell, gridTop, gridLeft + i * cell, gridTop + gridW);
+    }
+    const bg = this.add.graphics(); bg.fillStyle(0x16213e, 0.8);
+    bg.fillRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
+    bg.lineStyle(2, 0x3498DB, 0.5); bg.strokeRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
+    this.add.text(standbyLeft, 110, '待命区', { fontSize: '20px', color: '#aaa' });
+
+    const startBtn = this.add.text(CONFIG.WIDTH - 150, CONFIG.HEIGHT - 60, '⚔️ 开始战斗', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive();
+    startBtn.on('pointerdown', () => {
+      const n = CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length;
+      if (n === 0) { alert('至少需要上阵1名角色！'); return; }
+      this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex });
+    });
+
+    this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
+    const playerChars = CHARACTERS.filter(c => c.side === 'player');
+    playerChars.forEach(d => { d.gridX = -1; d.gridY = -1; });
+
+    this.unitContainers = [];
+    playerChars.forEach(data => {
+      const c = this.add.container(0, 0);
+      const circle = this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      const emoji = this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5);
+      const nameText = this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+      c.add([circle, emoji, nameText]); c.setSize(80, 80);
+      c.setInteractive({ draggable: true }); this.input.setDraggable(c);
+      c.unitData = data; c.isOnGrid = false;
+      this.unitContainers.push(c);
+
+      c.on('dragstart', () => {
+        if (c.isOnGrid) {
+          for (let y = data.gridY; y < data.gridY + data.sizeY; y++)
+            for (let x = data.gridX; x < data.gridX + data.sizeX; x++)
+              this.gridState[y][x] = null;
+        }
+        c.setDepth(100);
+      });
+      c.on('drag', (p, dx, dy) => { c.x = dx; c.y = dy; });
+      c.on('dragend', () => {
+        c.setDepth(0);
+        let col = Math.floor((c.x - gridLeft) / cell), row = Math.floor((c.y - gridTop) / cell);
+        let ok = true;
+        if (col < 0 || col + data.sizeX > CONFIG.GRID_SIZE || row < 0 || row + data.sizeY > CONFIG.GRID_SIZE) ok = false;
+        if (ok) {
+          for (let y = row; y < row + data.sizeY; y++)
+            for (let x = col; x < col + data.sizeX; x++)
+              if (this.gridState[y][x]) ok = false;
+        }
+        if (ok) {
+          for (let y = row; y < row + data.sizeY; y++)
+            for (let x = col; x < col + data.sizeX; x++)
+              this.gridState[y][x] = data;
+          data.gridX = col; data.gridY = row; c.isOnGrid = true;
+          const s = Math.max(data.sizeX, data.sizeY);
+          c.setScale(1 + (s - 1) * 0.15);
+          c.x = gridLeft + col * cell + (cell * data.sizeX) / 2;
+          c.y = gridTop + row * cell + (cell * data.sizeY) / 2;
+        } else {
+          data.gridX = -1; data.gridY = -1; c.isOnGrid = false; c.setScale(1);
+        }
+        this.layoutStandby(standbyLeft);
+      });
+    });
+    this.layoutStandby(standbyLeft);
+  }
+
+  layoutStandby(left) {
+    const list = this.unitContainers.filter(c => !c.isOnGrid);
+    const n = this.unitContainers.filter(c => c.isOnGrid).length;
+    this.countText.setText(`当前上阵: ${n} / 5`).setColor(n >= 5 ? '#e74c3c' : '#f1c40f');
+    const cols = 4, w = 120, h = 120;
+    list.forEach((c, i) => {
+      this.tweens.add({ targets: c, x: left + 40 + (i % cols) * w, y: 180 + Math.floor(i / cols) * h, duration: 200 });
+    });
   }
 }
 
@@ -260,18 +455,33 @@ class BattleScene extends Phaser.Scene {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
     this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
 
+    const sBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
+    sBtn.on('pointerdown', () => {
+      this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1;
+      sBtn.setText(`⏩ ${this.speedMultiplier}x 速度`);
+      sBtn.setBackgroundColor(this.speedMultiplier === 2 ? '#e67e22' : '#2980b9');
+    });
+    const skip = this.add.text(CONFIG.WIDTH - 20, 20, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive().setDepth(200);
+    skip.on('pointerdown', () => { if (this.isSkipping || this.battleEnded) return; this.isSkipping = true; this.fastForward(); });
+
     const lv = LEVELS[this.currentLevelIndex] || { enemyList: [] };
     const fighters = [];
-    CHARACTERS.filter(c => c.side === 'player').forEach(c => fighters.push({ ...c }));
+    CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => fighters.push({ ...c }));
+
     if (Array.isArray(lv.enemyList)) {
       lv.enemyList.forEach(item => {
         const orig = CHARACTERS.find(c => c.id === item.id);
-        if (orig) { const inst = JSON.parse(JSON.stringify(orig)); inst.gridX = item.x; inst.gridY = item.y; fighters.push(inst); }
+        if (orig) {
+          const inst = JSON.parse(JSON.stringify(orig));
+          inst.gridX = item.x;
+          inst.gridY = item.y;
+          fighters.push(inst);
+        }
       });
     }
 
     if (fighters.filter(f => f.side === 'enemy').length === 0) {
-      fighters.push({ id: 'e_fb', name: '木樁', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 50000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, gridX: 1, gridY: 0, skillSlots: {} });
+      fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', emoji: '🪵', element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, dmgIncrease: 0, dmgReduction: 0, dmgTakenIncrease: 0, trueDmg: 0, lifesteal: 0, gridX: 1, gridY: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: { normal: '', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } });
     }
 
     fighters.forEach(d => { const u = new Unit(d); this.allUnits.push(u); });
@@ -279,6 +489,7 @@ class BattleScene extends Phaser.Scene {
     this.allUnits.forEach(u => this.createUnitView(u));
 
     this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
+    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 620, 600, 80, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
     this.logHistory = []; this.logTexts = [];
     this.time.delayedCall(800, () => this.startBattle());
   }
@@ -286,30 +497,51 @@ class BattleScene extends Phaser.Scene {
   drawBattlefield() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
-    this.enemyLeft = 100; this.playerLeft = CONFIG.WIDTH - 100 - gridW; this.gridTop = 150;
+    const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
+    this.drawGrid(enemyLeft, gridTop, cell, 0xE74C3C, 0.2);
+    this.drawGrid(playerLeft, gridTop, cell, 0x3498DB, 0.2);
+    this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#E74C3C' });
+    this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#3498DB' });
+    this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
+  }
+  drawGrid(x, y, cell, color, alpha) {
+    const g = this.add.graphics(); g.lineStyle(2, color, alpha);
+    for (let i = 0; i <= CONFIG.GRID_SIZE; i++) {
+      g.lineBetween(x, y + i * cell, x + CONFIG.GRID_SIZE * cell, y + i * cell);
+      g.lineBetween(x + i * cell, y, x + i * cell, y + CONFIG.GRID_SIZE * cell);
+    }
   }
 
   createUnitView(unit) {
     const cell = CONFIG.CELL_SIZE;
-    let x = unit.side === 'enemy' ? (this.enemyLeft + unit.gridX * cell + cell/2) : (this.playerLeft + unit.gridX * cell + cell/2);
-    let y = this.gridTop + unit.gridY * cell + cell/2;
-
-    const c = this.add.container(x, y);
-    const r = (cell / 2) * 0.85;
-    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-    
-    let avatarVisual;
-    if (unit.avatar && unit.avatar.trim() !== '') {
-      avatarVisual = this.add.image(0, 0, unit.id + '_avatar').setDisplaySize(r * 1.8, r * 1.8);
+    let x, y;
+    if (unit.side === 'enemy') {
+      x = this.enemyLeft + unit.gridX * cell + (cell * unit.sizeX) / 2;
+      y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2;
     } else {
-      avatarVisual = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.2) + 'px' }).setOrigin(0.5);
+      x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2;
+      y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2;
     }
-
-    const nameText = this.add.text(0, r + 10, unit.name, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-    const hpText = this.add.text(0, r + 32, `${unit.hp}/${unit.maxHp}`, { fontSize: '11px', color: '#fff' }).setOrigin(0.5);
-
-    c.add([circle, avatarVisual, nameText, hpText]);
-    this.unitViews.set(unit, { container: c, circle, hpText });
+    const c = this.add.container(x, y);
+    const scale = Math.max(unit.sizeX, unit.sizeY);
+    const r = (cell / 2) * 0.85 * scale;
+    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+    const nameText = this.add.text(0, r + 10, unit.name, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    const bw = cell * scale * 0.85;
+    const hpBg = this.add.rectangle(0, r + 32, bw + 4, 12, 0x000000).setStrokeStyle(1, 0xffffff, 0.4);
+    const hpBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xff4444).setOrigin(0, 0.5);
+    const hpText = this.add.text(0, r + 32, '', { fontSize: '11px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    const shieldBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xdddddd, 0.85).setOrigin(0, 0.5); shieldBar.setVisible(false);
+    const shieldText = this.add.text(0, r + 18, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold', backgroundColor: '#555', padding: {x:2,y:1} }).setOrigin(0.5);
+    const mpBg = this.add.rectangle(0, r + 45, bw + 4, 7, 0x000000);
+    const mpBar = this.add.rectangle(-bw/2, r + 45, bw, 5, 0x3498DB).setOrigin(0, 0.5);
+    const mpText = this.add.text(bw/2, r + 45, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
+    const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
+    c.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    c.bringToTop(shieldBar); c.bringToTop(shieldText); c.bringToTop(hpText);
+    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, shieldBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.updateUnitView(unit);
   }
 
   startBattle() { if (this.isSkipping || this.battleEnded) return; this.round = 1; this.allUnits.forEach(u => u.resetFollowups()); this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); this.actionIndex = 0; this.nextAction(); }
@@ -321,86 +553,278 @@ class BattleScene extends Phaser.Scene {
     if (p.length === 0) return this.endBattle('defeat');
     if (e.length === 0) return this.endBattle('victory');
     if (this.round > CONFIG.MAX_ROUNDS) return this.endBattle('timeout');
-
     if (this.actionIndex >= this.actionOrder.length) {
       this.round++; this.roundText.setText(`第 ${this.round} 回合`);
-      this.allUnits.forEach(u => { if (u.isAlive()) { u.resetFollowups(); u.tickStatuses(); } });
+      this.allUnits.forEach(u => {
+        if (!u.isAlive()) return;
+        u.resetFollowups();
+        const old = u.hp; u.tickStatuses();
+        if (u.hp < old) this.showDamage(u, { damage: old - u.hp, isCrit: false }, '#ff00ff');
+        this.updateUnitView(u);
+      });
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.endBattle('defeat');
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.endBattle('victory');
       this.actionOrder = BattleLogic.buildActionOrder(this.allUnits);
       this.actionIndex = 0;
-      this.time.delayedCall(800, () => this.nextAction());
+      this.time.delayedCall(800 / this.speedMultiplier, () => this.nextAction());
       return;
     }
-
     const actor = this.actionOrder[this.actionIndex++];
-    if (!actor.isAlive()) return this.nextAction();
+    if (!actor.isAlive()) return this.time.delayedCall(80 / this.speedMultiplier, () => this.nextAction());
+    this.allUnits.forEach(u => u.applyAura(this.allUnits));
+    this.allUnits.forEach(u => this.updateUnitView(u));
     this.execute(actor);
   }
 
   execute(actor) {
     if (this.battleEnded) return;
+    if (actor.skipTurn) {
+      actor.skipTurn = false;
+      const i = actor.statuses.findIndex(s => STATUSES[s.id]?.isStun);
+      if (i !== -1) actor.statuses.splice(i, 1);
+      this.updateUnitView(actor);
+      this.addLog(`${actor.name} 眩晕跳过`, '#f1c40f');
+      const c = this.unitViews.get(actor).container;
+      this.tweens.add({ targets: c, angle: 10, yoyo: true, repeat: 3, duration: 100 });
+      return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
+    }
     const sk = BattleLogic.chooseSkill(actor, this.allUnits);
-    if (!sk) return this.nextAction();
+    if (!sk) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     const targets = BattleLogic.selectTargets(actor, sk, this.allUnits);
-    if (targets.length === 0) return this.nextAction();
+    if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
+    const v = this.unitViews.get(actor);
+    if (v) this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.1, scaleY: v.container.scaleY * 1.1, duration: 150 / this.speedMultiplier, yoyo: true });
+    this.addLog(`${actor.name} 使用【${sk.name}】`, sk.type === 'ultimate' ? '#e74c3c' : '#fff');
 
-    this.addLog(`${actor.name} 使用【${sk.name}】`);
-
-    this.time.delayedCall(450, () => {
+    this.time.delayedCall(450 / this.speedMultiplier, () => {
+      actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
+      if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
+      let heal = 0;
       targets.forEach(t => {
-        const r = BattleLogic.computeDamage(actor, t, sk);
-        if (r.isMiss) { this.addLog(`${t.name} 閃避了攻擊`); }
-        else {
-          t.takeDamage(r.damage);
-          this.showDamage(t, r);
-          this.updateUnitView(t);
-          this.addLog(`${actor.name} 對 ${t.name} 造成 ${r.damage} 傷害`);
-          
-          // 觸發追打鏈
-          if (sk.comboTagOut) {
-            this.checkFollowup(sk.comboTagOut, actor);
+        if (sk.healMultiplier > 0) {
+          const h = Math.round(actor.atk * sk.healMultiplier); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71');
+          this.addLog(`${actor.name} 为 ${t.name} 回血 ${h}`, '#2ecc71');
+        } else if (sk.shieldMultiplier > 0) {
+          const s = Math.round(actor.atk * sk.shieldMultiplier); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd');
+          this.addLog(`${actor.name} 为 ${t.name} 套盾 ${s}`, '#ddd');
+        } else {
+          const r = BattleLogic.computeDamage(actor, t, sk);
+          if (r.isMiss) { this.showFloat(t, 'MISS', '#aaa'); this.addLog(`${t.name} 闪避了攻击`, '#aaa'); }
+          else {
+            t.takeDamage(r.damage);
+            if (r.lifestealAmount > 0) heal += r.lifestealAmount;
+            this.showDamage(t, r);
+            this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
           }
         }
+        this.updateUnitView(t);
       });
-      this.time.delayedCall(CONFIG.ACTION_DELAY, () => this.nextAction());
+      if (sk.effects && sk.effects.length > 0) {
+        sk.effects.forEach(eff => {
+          if (Math.random() > eff.chance) return;
+          let et = [];
+          if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') et = targets;
+          else {
+            let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u.side !== actor.side && u.isAlive()) : eff.targetSide === 'player' ? this.allUnits.filter(u => u.side === actor.side && u.isAlive()) : [actor];
+            if (eff.targetRule === 'all') et = pool;
+            else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
+            else et = [pool[0]];
+          }
+          et.forEach(t => {
+            if (!t || !t.isAlive()) return;
+            if (eff.type === 'status') { t.addStatus(eff.value); this.showFloat(t, `+${STATUSES[eff.value]?.name || ''}`, '#0ff'); this.updateUnitView(t); }
+            else if (eff.type === 'heal_pct') { const h = Math.round(actor.atk * eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
+            else if (eff.type === 'heal_flat') { const h = Math.round(eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
+            else if (eff.type === 'shield_pct') { const s = Math.round(actor.atk * eff.value); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.updateUnitView(t); }
+            else if (eff.type === 'shield_flat') { const s = Math.round(eff.value); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.updateUnitView(t); }
+            else if (eff.type === 'mp') { t.gainMp(eff.value); this.showFloat(t, `MP+${eff.value}%`, '#8cf'); this.updateUnitView(t); }
+          });
+        });
+      }
+      if (heal > 0) { actor.heal(heal); this.showFloat(actor, `+${heal}`, '#2ecc71'); this.updateUnitView(actor); }
+      if (actor.isAlive()) actor.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
+      actor.reduceCooldowns(); this.updateUnitView(actor);
+      
+      // ==========================================
+      // 【核心追打鏈判定】支援下拉選單標籤
+      // ==========================================
+      if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
+
+      this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     });
   }
 
-  // 支援遞迴的追打檢查
-  checkFollowup(tag, originalActor) {
-    if (!tag) return;
-    let candidates = this.allUnits.filter(u => u.isAlive() && u.side === originalActor.side);
-    candidates.sort((a, b) => (a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX));
-
-    for (let u of candidates) {
-      const fid = u.skillSlots?.followup;
+  // 追打連鎖核心檢查
+  checkFollowup(tag, original) {
+    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
+    cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
+    for (let u of cand) {
+      const fid = u.skillSlots.followup;
       if (!fid || !SKILLS[fid]) continue;
-      const skill = SKILLS[fid];
-      if (skill.comboTagIn === tag) {
+      // 檢查追打技能的 comboTagIn 是否符合當前發起的 tag (如 po_shi, zhen_chan 等)
+      if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0;
-        if (used < (skill.maxTriggers || 1)) {
+        if (used < (SKILLS[fid].maxTriggers || 1)) {
           u.followupCounts[fid] = used + 1;
-          this.doFollowup(u, skill);
+          this.doFollowup(u, SKILLS[fid]);
           break;
         }
       }
     }
   }
 
-  doFollowup(actor, skill) {
-    const targets = BattleLogic.selectTargets(actor, skill, this.allUnits);
+  doFollowup(actor, sk) {
+    const targets = BattleLogic.selectTargets(actor, sk, this.allUnits);
     if (targets.length === 0) return;
-    this.addLog(`⚡ ${actor.name} 追打【${skill.name}】`, '#fc0');
+    const v = this.unitViews.get(actor);
+    if (v) { this.showFloat(actor, '⚡追打', '#fc0'); this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.1, scaleY: v.container.scaleY * 1.1, duration: 150 / this.speedMultiplier, yoyo: true }); }
+    this.addLog(`⚡ ${actor.name} 追打【${sk.name}】`, '#fc0');
+    this.time.delayedCall(300 / this.speedMultiplier, () => {
+      actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
+      targets.forEach(t => {
+        const r = BattleLogic.computeDamage(actor, t, sk);
+        if (!r.isMiss) { 
+          t.takeDamage(r.damage); 
+          this.showDamage(t, r); 
+          this.updateUnitView(t); 
+        }
+      });
+      this.updateUnitView(actor);
 
-    targets.forEach(t => {
-      const r = BattleLogic.computeDamage(actor, t, skill);
-      if (r.isMiss) {
-        this.addLog(`❌ ${t.name} 閃避了追打，連擊中斷！`);
-      } else {
-        t.takeDamage(r.damage);
-        this.showDamage(t, r);
-        this.updateUnitView(t);
+      // 【支援無限追打鏈傳遞】若追打技本身也帶有 comboTagOut，繼續向下引爆下一環追打
+      if (sk.comboTagOut) {
+        this.checkFollowup(sk.comboTagOut, actor);
+      }
+    });
+  }
 
-        // 遞迴觸發下一個追打
-        if (skill.comboTagOut) {
-          this.time.delayedCall(300, () => {
-            this.checkFollowup(skill.c
+  showDamage(u, r, c) {
+    const v = this.unitViews.get(u); if (!v) return;
+    const col = c || (r.isCrit ? '#fc0' : '#f55');
+    const s = r.isCrit ? '38px' : '26px';
+    const t = this.add.text(v.container.x, v.container.y - 70, r.isCrit ? `-${r.damage} 暴击` : `-${r.damage}`, { fontSize: s, color: col, fontStyle: 'bold', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(100);
+    this.tweens.add({ targets: t, y: t.y - 90, alpha: 0, duration: 900 / this.speedMultiplier, onComplete: () => t.destroy() });
+  }
+  showFloat(u, txt, col) {
+    const v = this.unitViews.get(u); if (!v) return;
+    const t = this.add.text(v.container.x, v.container.y - 30, txt, { fontSize: '24px', color: col, fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(100);
+    this.tweens.add({ targets: t, y: t.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => t.destroy() });
+  }
+  addLog(txt, col = '#fff') {
+    this.logHistory.unshift({ text: txt, color: col });
+    if (this.logHistory.length > 4) this.logHistory.pop();
+    this.logTexts.forEach(t => t.destroy()); this.logTexts = [];
+    this.logHistory.forEach((l, i) => {
+      const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51);
+      this.logTexts.push(t);
+    });
+  }
+  updateUnitView(u) {
+    const v = this.unitViews.get(u); if (!v) return;
+    this.tweens.add({ targets: v.hpBar, scaleX: Math.max(0, u.hp / u.maxHp), duration: 300 / this.speedMultiplier });
+    v.hpText.setText(`${u.hp}/${u.maxHp}`);
+    this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier });
+    v.mpText.setText(`${u.mp}%`);
+    if (u.shield > 0) {
+      v.shieldBar.setVisible(true);
+      this.tweens.add({ targets: v.shieldBar, scaleX: Math.min(1, u.shield / u.maxHp), duration: 300 / this.speedMultiplier });
+      v.shieldText.setText(`${u.shield}`);
+    } else { v.shieldBar.setVisible(false); v.shieldText.setText(''); }
+    v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
+    if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
+  }
+
+  fastForward() {
+    let r = 0;
+    while (r < CONFIG.MAX_ROUNDS) {
+      const p = this.allUnits.filter(u => u.side === 'player' && u.isAlive());
+      const e = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
+      if (p.length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
+      if (e.length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
+      this.allUnits.forEach(u => { if (u.isAlive()) u.tickStatuses(); });
+      this.allUnits.forEach(u => u.applyAura(this.allUnits));
+      const order = BattleLogic.buildActionOrder(this.allUnits);
+      for (let a of order) {
+        if (!a.isAlive() || a.skipTurn) continue;
+        const sk = BattleLogic.chooseSkill(a, this.allUnits); if (!sk) continue;
+        const t = BattleLogic.selectTargets(a, sk, this.allUnits);
+        a.mp = Math.max(0, a.mp - (sk.mpCost || 0));
+        t.forEach(x => {
+          if (sk.healMultiplier > 0) x.heal(Math.round(a.atk * sk.healMultiplier));
+          else if (sk.shieldMultiplier > 0) x.addShield(Math.round(a.atk * sk.shieldMultiplier));
+          else { const res = BattleLogic.computeDamage(a, x, sk); if (!res.isMiss) x.takeDamage(res.damage); }
+        });
+        if (a.isAlive()) a.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
+      }
+      r++;
+    }
+    this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
+  }
+
+  endBattle(type) {
+    this.battleEnded = true;
+    const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
+    const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
+    const t = this.add.text(CONFIG.WIDTH / 2, 250, txt[type], { fontSize: '60px', color: col[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
+    this.tweens.add({ targets: t, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 800 });
+    const b = this.add.text(CONFIG.WIDTH / 2, 450, '👉 点击继续', { fontSize: '28px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive().setDepth(201);
+    b.on('pointerdown', () => this.scene.start('ResultScene', { type, levelIndex: this.currentLevelIndex }));
+  }
+}
+
+class ResultScene extends Phaser.Scene {
+  constructor() { super('ResultScene'); }
+  init(d) { this.resultType = d.type; this.currentLevelIndex = d.levelIndex || 0; }
+  create() {
+    this.cameras.main.setBackgroundColor('#1a1a2e');
+    const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
+    const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
+    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    let label = '🔄 重新挑战';
+    let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex });
+    
+    if (this.resultType === 'victory') {
+      const lv = LEVELS[this.currentLevelIndex];
+      if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
+        try {
+          const inst = generateRandomInstance(lv.rewardItemId);
+          if (inst) {
+            const tpl = ITEMS[inst.itemId];
+            if (tpl && !['weapon', 'armor', 'accessory'].includes(tpl.category)) {
+               const existing = INVENTORY.find(i => i.itemId === tpl.id && !i.equippedBy);
+               if (existing && existing.count < (tpl.maxStack || 1)) {
+                   existing.count = (existing.count || 1) + 1;
+               } else {
+                   INVENTORY.push(inst);
+               }
+            } else {
+               INVENTORY.push(inst);
+            }
+            
+            localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
+            const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
+            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 30, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+          }
+        } catch (err) {
+          console.error("生成掉落物报错，已跳过：", err);
+        }
+      }
+      if (this.currentLevelIndex < LEVELS.length - 1) { label = '➡️ 进入下一关'; action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); }
+    }
+    const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 150, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+    b.on('pointerdown', action);
+  }
+}
+
+window.addEventListener('storage', (e) => {
+  if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') {
+    if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload();
+  }
+});
+
+window.game = new Phaser.Game({
+  type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
+  scene: [MainMenuScene, FormationScene, BattleScene, TeamScene, ResultScene],
+});
