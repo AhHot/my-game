@@ -353,14 +353,13 @@ class BattleScene extends Phaser.Scene {
     else { x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
-    const r = Math.min((cell / 2) * 0.85 * scale, 60); // 限制最大 60 像素
+    const r = Math.min((cell / 2) * 0.85 * scale, 60); 
     
     if (this.textures.exists('art_unitHalo')) {
       const artHalo = window.ART_CONFIG.unitHalo || {};
       const halo = this.add.image(0, 0, 'art_unitHalo');
       const tw = Math.min(r * 2.5, 150);
       const th = Math.min(r * 1.5, 80);
-      
       // 裁剪光环
       const imgRatio = halo.width / halo.height;
       const targetRatio = tw / th;
@@ -383,53 +382,37 @@ class BattleScene extends Phaser.Scene {
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '18px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
     const bw = Math.min(cell * scale * 0.85, 120); 
-    let hpBg, hpBar;
+    let hpBg, hpBar, hpMask;
     
-    // 【精确裁剪 HP背景条】
+    // 裁剪 HP 背景条
     if (this.textures.exists('art_hpBg')) {
       hpBg = this.add.image(-bw/2, r + 32, 'art_hpBg').setOrigin(0, 0.5);
       const art = window.ART_CONFIG.hpBg || {};
       const targetH = 12;
-      let dw = bw * (art.scale||1);
-      let dh = dw * (hpBg.height / hpBg.width);
-      let ox = (bw - dw) * ((art.posX ?? 50) / 100);
-      let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
-      
-      let cw = bw / (dw / hpBg.width);
-      let ch = targetH / (dh / hpBg.height);
-      let cx = -ox / (dw / hpBg.width);
-      let cy = -oy / (dh / hpBg.height);
-      
-      hpBg.setCrop(cx, cy, cw, ch);
+      let dw = bw * (art.scale||1); let dh = dw * (hpBg.height / hpBg.width);
+      let ox = (bw - dw) * ((art.posX ?? 50) / 100); let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
+      hpBg.setCrop(-ox / (dw / hpBg.width), -oy / (dh / hpBg.height), bw / (dw / hpBg.width), targetH / (dh / hpBg.height));
       hpBg.setDisplaySize(bw, targetH);
     } else {
       hpBg = this.add.rectangle(-bw/2, r + 32, bw, 12, 0x000000).setOrigin(0, 0.5).setStrokeStyle(1, 0xffffff, 0.4);
     }
 
-    // 【精确裁剪 HP填充条】
+    // 裁剪 HP 填充条
     if (this.textures.exists('art_hpFill')) {
       hpBar = this.add.image(-bw/2, r + 32, 'art_hpFill').setOrigin(0, 0.5);
       const art = window.ART_CONFIG.hpFill || {};
       const targetH = 12;
-      let dw = bw * (art.scale||1);
-      let dh = dw * (hpBar.height / hpBar.width);
-      let ox = (bw - dw) * ((art.posX ?? 50) / 100);
-      let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
-      
-      let cw = bw / (dw / hpBar.width);
-      let ch = targetH / (dh / hpBar.height);
-      let cx = -ox / (dw / hpBar.width);
-      let cy = -oy / (dh / hpBar.height);
-      
-      hpBar.setCrop(cx, cy, cw, ch);
+      let dw = bw * (art.scale||1); let dh = dw * (hpBar.height / hpBar.width);
+      let ox = (bw - dw) * ((art.posX ?? 50) / 100); let oy = (targetH - dh) * ((art.posY ?? 50) / 100);
+      hpBar.setCrop(-ox / (dw / hpBar.width), -oy / (dh / hpBar.height), bw / (dw / hpBar.width), targetH / (dh / hpBar.height));
       hpBar.setDisplaySize(bw, targetH);
       
-      // 保存裁剪参数，方便掉血时改变宽度
-      hpBar.baseCropX = cx;
-      hpBar.baseCropY = cy;
-      hpBar.baseCropW = cw;
-      hpBar.baseCropH = ch;
-      hpBar.maxWidth = bw;
+      // 使用黑色遮罩处理掉血（完美解决挤压和裁剪冲突）
+      hpMask = this.add.rectangle(bw/2, 0, 0, targetH, 0x111111).setOrigin(0, 0.5);
+      hpBar.mask = new Phaser.Display.Masks.GeometryMask(this, this.add.graphics().fillRect(-bw/2, r+32-targetH/2, bw, targetH));
+      // 简化方案：直接用遮挡覆盖右侧
+      hpMask.y = r + 32;
+      hpMask.x = -bw/2;
     } else {
       hpBar = this.add.rectangle(-bw/2, r + 32, bw, 8, 0xff4444).setOrigin(0, 0.5);
       hpBar.maxWidth = bw;
@@ -442,9 +425,10 @@ class BattleScene extends Phaser.Scene {
     const mpBar = this.add.rectangle(-bw/2, r + 45, bw, 5, 0x3498DB).setOrigin(0, 0.5);
     const mpText = this.add.text(bw/2, r + 45, '', { fontSize: '10px', color: '#88ccff' }).setOrigin(1, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
-    c.add([circle, emoji, nameText, hpBg, hpBar, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    
+    c.add([circle, emoji, nameText, hpBg, hpBar, hpMask, shieldBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
     c.bringToTop(shieldBar); c.bringToTop(shieldText); c.bringToTop(hpText);
-    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, shieldBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, hpMask, shieldBar, mpBar, statusText, hpText, shieldText, mpText, maxW: bw });
     this.updateUnitView(unit);
   }
 
@@ -564,16 +548,17 @@ class BattleScene extends Phaser.Scene {
     this.logHistory.forEach((l, i) => { const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51); this.logTexts.push(t); });
   }
   
-  // 【修复】掉血时，改变裁剪宽度而不是强行挤压图片
+  // 【核心修复】：采用纯色遮罩盖住，绝不改变原图尺寸
   updateUnitView(u) {
     const v = this.unitViews.get(u); if (!v) return;
     let ratio = Math.max(0, u.hp / u.maxHp);
     
-    if (v.hpBar.baseCropW) { 
-      // 如果是图片，通过改变裁剪宽度和显示宽度来实现掉血
-      v.hpBar.setCrop(v.hpBar.baseCropX, v.hpBar.baseCropY, v.hpBar.baseCropW * ratio, v.hpBar.baseCropH);
-      v.hpBar.setDisplaySize(v.hpBar.maxWidth * ratio, 12);
+    if (v.hpMask) {
+      // 图片血条：调整黑色遮罩的宽度和位置
+      v.hpMask.displayWidth = v.maxW * (1 - ratio);
+      v.hpMask.x = -v.maxW/2 + v.maxW * ratio;
     } else if (v.hpBar.maxWidth) { 
+      // 纯色血条：直接缩放
       v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
     } else { 
       this.tweens.add({ targets: v.hpBar, scaleX: ratio, duration: 300 / this.speedMultiplier }); 
