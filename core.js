@@ -129,7 +129,7 @@ function loadAllData() {
   try { inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []; } catch(e) { inventory = []; }
   try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); } catch(e) { globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); }
 
-  // 强力兜底，防止配置为空
+  // 🛡️ 終極守門員：確保後台的所有配置都完整存在，絕不讓數據漏掉
   if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
   Object.keys(DEFAULT_GLOBAL_CONFIG.config).forEach(k => {
     if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
@@ -138,9 +138,16 @@ function loadAllData() {
   if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
   if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
   if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
-  if (!globalData.affixValues) globalData.affixValues = JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES));
   if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
   if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
+
+  // 🛡️ 核心修復：逐一檢查「詞條數值池」，只要缺了任何一條，自動補齊！
+  if (!globalData.affixValues) globalData.affixValues = {};
+  Object.keys(DEFAULT_AFFIX_VALUES).forEach(k => {
+    if (!globalData.affixValues[k] || typeof globalData.affixValues[k].min === 'undefined') {
+      globalData.affixValues[k] = JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES[k]));
+    }
+  });
 
   // 兼容旧数据
   gameChars.forEach(c => {
@@ -152,6 +159,9 @@ function loadAllData() {
     if (!c.growthModel) c.growthModel = 'm1';
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
+
+  // 🛡️ 加載完畢後，強制保存一次，確保剛剛補齊的數值立刻寫進瀏覽器！
+  saveData(); 
 }
 
 function saveData() {
@@ -228,7 +238,7 @@ function generateRandomInstance(templateId) {
     }
   });
 
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras, equippedBy: '', count: 1 };
+  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras: extras, equippedBy: '', count: 1 };
 }
 
 // 启动时加载数据
