@@ -8,6 +8,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
 
+        /* 🌟 確保遊戲底圖樣式 (center/cover) 與編輯器完全一致 */
         .page-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(0.4); z-index: 1; }
         .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
 
@@ -58,6 +59,8 @@
             autoScaleUI();
             const config = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || {
                 bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
+                topNavLeftText: '返回大廳',
+                topNavRightText: '俠客傳記 ▶▶',
                 layout: {
                     topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
                     leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
