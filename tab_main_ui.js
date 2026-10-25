@@ -1,20 +1,22 @@
-// tab_main_ui.js - 主畫面與 UI 配置模組 (修復容器高度與排版塌陷)
+// tab_main_ui.js - 主畫面與 UI 配置模組 (支援左側按鈕自定義與右側主線卡片配置)
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
     bgList: [
       { id: 'bg_01', name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true },
       { id: 'bg_02', name: '江南煙雨', url: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1200&auto=format&fit=crop', unlocked: false }
     ],
+    stageCard: {
+      tag: '當前江湖主線',
+      title: '第一章：青城山變',
+      desc: '探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。'
+    },
     buttons: {
       story: { title: '江湖歷程', icon: '📜', active: true },
       character: { title: '角色與背包', icon: '👥', active: true },
-      quest: { title: '江湖任務', icon: '📋', active: false, statusText: '敬請期待' },
-      shop: { title: '珍寶商店', icon: '🛒', active: false, statusText: '敬請期待' },
       settings: { title: '系統設置', icon: '⚙️', active: true }
     }
   };
 
-  // 外層加入固定最大高度與內部捲軸，確保新增背景時絕不把下方選項推出去
   container.innerHTML = `
     <div class="card" style="max-height: 80vh; overflow-y: auto; padding-right: 5px;">
       <div class="card-header" style="position: sticky; top: 0; background: #1a1c29; z-index: 10; padding-bottom: 10px;">
@@ -22,7 +24,7 @@ window.renderTabMainUI = function(container) {
         <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px;" onclick="saveMainConfigDirect()">💾 儲存主畫面設定</button>
       </div>
       <p style="font-size:13px; color:#aaa; margin-bottom:15px;">
-        在此設定遊戲主畫面 (index.html) 的背景圖片庫，以及各個功能按鈕的顯示狀態與圖標預留。
+        在此設定遊戲主畫面 (index.html) 的背景、右側主線卡片資訊，以及左側功能按鈕的圖標、名稱與開關。
       </p>
 
       <!-- 背景圖管理區 -->
@@ -32,9 +34,30 @@ window.renderTabMainUI = function(container) {
 
       <hr style="border:none; border-top:1px solid #333; margin:20px 0;">
 
-      <!-- 功能按鈕開關區 -->
-      <div class="sub-title">🔘 主介面按鈕顯示與狀態控制</div>
-      <div id="btn-list-editor" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:8px;"></div>
+      <!-- 右側主線卡片設定區 -->
+      <div class="sub-title">📜 大廳右側主線卡片配置</div>
+      <div style="background:#0f0f1a; border:1px solid #333; padding:12px; border-radius:6px; display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1;">
+            <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">標籤 (Tag)</label>
+            <input type="text" id="stage-card-tag" value="${mainConfig.stageCard?.tag || '當前江湖主線'}" style="background:#16213e; color:#f1c40f; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px;" oninput="updateStageCardField('tag', this.value)">
+          </div>
+          <div style="flex:2;">
+            <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">主標題 (Title)</label>
+            <input type="text" id="stage-card-title" value="${mainConfig.stageCard?.title || ''}" style="background:#16213e; color:#fff; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px;" oninput="updateStageCardField('title', this.value)">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">說明文字 (Description)</label>
+          <textarea id="stage-card-desc" rows="2" style="background:#16213e; color:#aaa; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px; resize:vertical;" oninput="updateStageCardField('desc', this.value)">${mainConfig.stageCard?.desc || ''}</textarea>
+        </div>
+      </div>
+
+      <hr style="border:none; border-top:1px solid #333; margin:20px 0;">
+
+      <!-- 左側功能按鈕編輯區 -->
+      <div class="sub-title">🔘 左側功能按鈕編輯與狀態控制</div>
+      <div id="btn-list-editor" style="display:flex; flex-direction:column; gap:10px; margin-top:8px;"></div>
     </div>
   `;
 
@@ -73,15 +96,15 @@ function renderBtnList(config) {
   Object.keys(config.buttons).forEach(key => {
     const btn = config.buttons[key];
     const item = document.createElement('div');
-    item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:10px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;";
+    item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:10px; border-radius:6px; display:flex; gap:10px; align-items:center;";
     item.innerHTML = `
-      <div>
-        <span style="font-size:16px; margin-right:6px;">${btn.icon}</span>
-        <strong style="color:#fff; font-size:13px;">${btn.title}</strong>
-        <span style="font-size:11px; color:#888; margin-left:5px;">(${key})</span>
+      <input type="text" value="${btn.icon}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; width:40px; text-align:center; font-size:16px;" oninput="updateBtnField('${key}', 'icon', this.value)" title="圖標">
+      <div style="flex:1;">
+        <input type="text" value="${btn.title}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; width:100%; font-size:12px;" oninput="updateBtnField('${key}', 'title', this.value)" title="按鈕名稱">
       </div>
-      <label style="font-size:12px; color:#3498db; cursor:pointer;">
-        <input type="checkbox" ${btn.active ? 'checked' : ''} onchange="updateBtnActive('${key}', this.checked)"> 啟用/開放
+      <span style="font-size:11px; color:#888;">(${key})</span>
+      <label style="font-size:12px; color:#3498db; cursor:pointer; display:flex; align-items:center; gap:4px;">
+        <input type="checkbox" ${btn.active ? 'checked' : ''} onchange="updateBtnField('${key}', 'active', this.checked)"> 啟用
       </label>
     `;
     container.appendChild(item);
@@ -96,10 +119,17 @@ window.updateBgField = function(index, field, value) {
   }
 };
 
-window.updateBtnActive = function(key, active) {
+window.updateStageCardField = function(field, value) {
+  let config = JSON.parse(localStorage.getItem('my_game_main_config')) || {};
+  if (!config.stageCard) config.stageCard = {};
+  config.stageCard[field] = value;
+  localStorage.setItem('my_game_main_config', JSON.stringify(config));
+};
+
+window.updateBtnField = function(key, field, value) {
   let config = JSON.parse(localStorage.getItem('my_game_main_config'));
   if (config && config.buttons[key]) {
-    config.buttons[key].active = active;
+    config.buttons[key][field] = value;
     localStorage.setItem('my_game_main_config', JSON.stringify(config));
   }
 };
@@ -130,5 +160,5 @@ window.saveMainConfigDirect = function() {
   if (config) {
     localStorage.setItem('my_game_main_config', JSON.stringify(config));
   }
-  alert('✅ 主畫面 UI 配置已成功儲存！');
+  alert('✅ 主畫面 UI 配置與右側主線卡片設定已成功儲存！');
 };
