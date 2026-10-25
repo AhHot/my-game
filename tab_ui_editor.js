@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復 Tab 同步與顯隱開關失效問題)
+// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復座標調整面板遺失問題)
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
@@ -31,7 +31,7 @@ window.renderTabUIEditor = function(container) {
   container.innerHTML = `
     <div class="card" style="background:#111217; border:1px solid #222;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (已修復 Tab 同步與顯隱開關)</h3>
+        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
           <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
@@ -51,7 +51,7 @@ window.renderTabUIEditor = function(container) {
           <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
             <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (點擊左側 Tab 可即時同步右側管理面板)</div>
+          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (在「調整區塊座標」模式下可拖拽或開關顯示)</div>
         </div>
 
         <!-- 右側動態控制面板 -->
@@ -101,7 +101,6 @@ function renderWYSIWYGCanvas() {
   // 渲染所有佈局區塊
   Object.keys(layout).forEach(key => {
     const comp = layout[key];
-    // 若設定為不顯示，且不是在「調整座標」模式下，則跳過不渲染
     if (!comp.visible && !isLayoutMode) return;
 
     const el = document.createElement('div');
@@ -123,14 +122,12 @@ function renderWYSIWYGCanvas() {
         const item = document.createElement('div');
         item.style.cssText = `padding: 12px 18px; background: ${isActive ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255,255,255,0.05)'}; border-left: 4px solid ${isActive ? '#00ffff' : 'transparent'}; color: ${isActive ? '#fff' : '#888'}; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;`;
         item.innerHTML = `<span>● ${cat.name}</span> ${isActive ? '<span style="color:#00ffff;">◆</span>' : ''}`;
-        
-        // 🌟 核心修復：點擊 Tab 時，同時更新當前 ID 並「即時刷新畫布與右側控制面板」
         item.onclick = (e) => {
           e.stopPropagation();
           data.activeTabId = cat.id;
           renderWYSIWYGCanvas();
           if (window.selectedUIModule === 'chapters') {
-            renderModuleControlPanel(); // 同步刷新右側章節管理面板
+            renderModuleControlPanel();
           }
         };
         el.appendChild(item);
@@ -139,7 +136,7 @@ function renderWYSIWYGCanvas() {
       el.style.display = 'flex'; el.style.gap = '20px'; el.style.overflowX = 'auto'; el.style.alignItems = 'center'; el.style.padding = '10px';
       const chapList = data.chapters[currentCatId] || [];
       if (chapList.length === 0) {
-        el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類【${(data.categories.find(c=>c.id===currentCatId)||{}).name||''}】尚無章節，請至右側面板新增</div>`;
+        el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類尚無章節</div>`;
       } else {
         chapList.forEach(c => {
           const card = document.createElement('div');
@@ -157,7 +154,7 @@ function renderWYSIWYGCanvas() {
     } else if (key === 'bottomNav') {
       el.style.background = 'rgba(10, 11, 15, 0.95)';
       el.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
       data.bottomButtons.forEach((btnName, idx) => {
         const btn = document.createElement('div');
         btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
