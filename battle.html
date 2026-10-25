@@ -7,11 +7,21 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
+        
+        /* 🌟 核心等比縮放容器（與 index.html 相同架構，確保手機觸控與拖動 100% 精準） */
+        #game-scale-container {
+            position: absolute; top: 0; left: 0;
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
+            z-index: 10;
+        }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
     </style>
 </head>
 <body>
-    <div id="game"></div>
+    <div id="game-scale-container">
+        <div id="game"></div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
@@ -20,32 +30,43 @@
     <script src="tab_char.js"></script>
 
     <script>
-        // 取得網址帶過來的關卡索引 (例如 battle.html?levelIndex=0)
+        function resizeGameUI() {
+            const container = document.getElementById('game-scale-container');
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            const scale = Math.min(scaleX, scaleY);
+            
+            container.style.transform = `scale(${scale})`;
+            const scaledWidth = 1280 * scale;
+            const scaledHeight = 720 * scale;
+            container.style.left = (window.innerWidth - scaledWidth) / 2 + 'px';
+            container.style.top = (window.innerHeight - scaledHeight) / 2 + 'px';
+        }
+
+        window.addEventListener('resize', resizeGameUI);
+
         const urlParams = new URLSearchParams(window.location.search);
         const targetLevelIndex = parseInt(urlParams.get('levelIndex') || '0');
 
-        // 獨立的 Phaser 遊戲實例：注意這裡的 scene 陣列中完全沒有 MainMenuScene！
-        // 它會直接從 FormationScene (戰前布陣) 開始運行
+        // 🌟 初始化 Phaser 遊戲，採用標準縮放模式
         window.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'game',
             backgroundColor: '#0f0f1a',
             scale: {
-                mode: Phaser.Scale.FIT,
-                autoCenter: Phaser.Scale.CENTER_BOTH,
+                mode: Phaser.Scale.NONE,
                 width: 1280,
                 height: 720
             },
             scene: [FormationScene, BattleScene, ResultScene],
         });
 
-        // 監聽遊戲初始化完成後，直接切入指定的關卡布陣
         window.addEventListener('load', () => {
+            resizeGameUI();
             if (window.game && window.game.scene) {
-                // 確保稍微延遲等待場景就緒，直接啟動布陣
                 setTimeout(() => {
                     window.game.scene.start('FormationScene', { levelIndex: targetLevelIndex });
-                }, 200);
+                }, 100);
             }
         });
     </script>
