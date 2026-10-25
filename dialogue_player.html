@@ -207,6 +207,7 @@
             }
             loadNode(currentNodeIndex);
         }
+        
 
         function loadNode(nIdx) {
             if (nIdx >= currentBook.nodes.length) {
@@ -216,10 +217,11 @@
 
             let node = currentBook.nodes[nIdx];
 
-            if (node.type === 'battle') {
-                localStorage.setItem('my_game_current_level_index', node.levelIndex || 0);
-                window.location.href = 'index.html?autoFormation=1';
-                return;
+                if (node.type === 'battle') {
+    window.location.href = `battle.html?levelIndex=${node.levelIndex || 0}`;
+    return;
+}
+
             }
 
             if (node.type === 'cg') {
@@ -393,7 +395,7 @@
 
         function finishStorySequence() {
             alert('劇情播放完畢！');
-            window.location.href = 'index.html';
+            window.location.href = 'battle.html?levelIndex=0';
         }
 
         function openHistory(event) {
