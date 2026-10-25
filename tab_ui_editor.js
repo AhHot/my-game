@@ -1,6 +1,5 @@
-// tab_ui_editor.js - 強制掛載防禦版
+// tab_ui_editor.js - 所見即所得全能編輯器 (已修復頂部導覽文字即時綁定)
 window.renderTabUIEditor = function(container) {
-  // 自動尋找頁面上正確的內容容器
   let targetContainer = container;
   if (!targetContainer || !(targetContainer instanceof HTMLElement)) {
     targetContainer = document.getElementById('app-content') || document.getElementById('main-content') || document.querySelector('.content') || document.body;
@@ -8,7 +7,8 @@ window.renderTabUIEditor = function(container) {
 
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
-    topNavLeftText: '返回',
+    topNavLeftText: '返回大廳',
+    topNavRightText: '俠客傳記 ▶▶',
     layout: {
       topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
       leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
@@ -35,9 +35,11 @@ window.renderTabUIEditor = function(container) {
   let fullData = defaultFullData;
   if (savedRaw) {
     try { 
-      fullData = JSON.parse(savedRaw); 
+      let parsed = JSON.parse(savedRaw);
+      fullData = Object.assign({}, defaultFullData, parsed);
+      if (parsed.layout) fullData.layout = Object.assign({}, defaultFullData.layout, parsed.layout);
     } catch(e) { 
-      console.error('解析配置失敗，使用預設值', e); 
+      console.error('解析配置失敗', e); 
     }
   }
 
@@ -339,8 +341,8 @@ function renderModuleControlPanel() {
       
       <div style="background:#0f1218; padding:8px; border-radius:4px; margin-bottom:10px; border:1px solid #333;">
         <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">頂部導覽列文字</div>
-        <input type="text" value="${data.topNavLeftText || '返回大廳'}" placeholder="左側按鈕文字" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavLeftText=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-        <input type="text" value="${data.topNavRightText || '俠客傳記 ▶▶'}" placeholder="右側按鈕文字" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavRightText=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+        <input type="text" id="input-topnav-left" value="${data.topNavLeftText || '返回大廳'}" placeholder="左側按鈕文字" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="window.uiFullData.topNavLeftText=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+        <input type="text" id="input-topnav-right" value="${data.topNavRightText || '俠客傳記 ▶▶'}" placeholder="右側按鈕文字" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="window.uiFullData.topNavRightText=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
       </div>
 
       <div style="background:#0f1218; padding:8px; border-radius:4px; border:1px solid #333;">
