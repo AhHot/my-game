@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復儲存重置與顯隱連動 Bug)
+// tab_ui_editor.js - 所見即所得全能編輯器 (已修復顯隱開關即時保存、頂部與底部導覽編輯功能)
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
@@ -24,15 +24,10 @@ window.renderTabUIEditor = function(container) {
     activeTabId: 'main'
   };
 
-  // 🌟 嚴格防禦性讀取：優先讀取 localStorage，若無才使用預設值，絕對不允許空白覆蓋
   let savedRaw = localStorage.getItem('my_game_ui_full_config');
   let fullData = defaultFullData;
   if (savedRaw) {
-    try {
-      fullData = JSON.parse(savedRaw);
-    } catch(e) {
-      console.error('解析 UI 佈局配置失敗，使用預設值', e);
-    }
+    try { fullData = JSON.parse(savedRaw); } catch(e) { console.error(e); }
   }
 
   window.uiFullData = fullData;
@@ -41,32 +36,30 @@ window.renderTabUIEditor = function(container) {
   container.innerHTML = `
     <div class="card" style="background:#111217; border:1px solid #222;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (已修復存檔重置與顯隱)</h3>
+        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
           <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
         </div>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
-        <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('bg')">🖼️ 0. 設定底圖</button>
-        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('layout')">📐 1. 調整座標與顯隱</button>
-        <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('categories')">🏷️ 2. 管理 Tab</button>
-        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('chapters')">📚 3. 管理章節卡片</button>
+      <div style="display: flex; gap: 6px; margin-bottom: 15px; flex-wrap: wrap;">
+        <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('bg')">🖼️ 底圖</button>
+        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('layout')">📐 座標與顯隱</button>
+        <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('categories')">🏷️ 左側Tab</button>
+        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('chapters')">📚 章節卡片</button>
+        <button class="btn" style="background:${window.selectedUIModule==='navs'?'#e84393':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('navs')">🧭 上下導覽列</button>
       </div>
 
       <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-        <!-- 預覽與互動畫布 -->
         <div style="position: relative; flex: 1; min-width: 300px;">
           <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
             <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (在「調整座標與顯隱」模式下可拖拽或開關顯示)</div>
+          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (1280x720 等比縮放)</div>
         </div>
 
-        <!-- 右側動態控制面板 -->
-        <div style="width: 340px; background: #161a23; border: 1px solid #333; padding: 15px; border-radius: 8px;" id="module-editor-panel">
-        </div>
+        <div style="width: 340px; background: #161a23; border: 1px solid #333; padding: 15px; border-radius: 8px;" id="module-editor-panel"></div>
       </div>
     </div>
   `;
@@ -103,21 +96,18 @@ function renderWYSIWYGCanvas() {
   const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
   const isLayoutMode = window.selectedUIModule === 'layout';
 
-  // 底圖渲染
   const bgDiv = document.createElement('div');
   bgDiv.style.cssText = `position: absolute; inset:0; background: url('${data.bgUrl || ''}') center/cover; filter: brightness(0.4); z-index:1;`;
   canvas.appendChild(bgDiv);
 
-  // 渲染所有佈局區塊
   Object.keys(layout).forEach(key => {
     const comp = layout[key];
-    // 🌟 核心修復：在編輯器 layout 模式下，即使勾選不顯示也以半透明 (opacity: 0.3) 呈現，方便使用者找回並重新勾選顯示
     if (!comp.visible && !isLayoutMode) return;
 
     const el = document.createElement('div');
     el.style.cssText = `
       position: absolute; left: ${comp.x}px; top: ${comp.y}px; width: ${comp.w}px; height: ${comp.h}px;
-      z-index: 10; opacity: ${comp.visible ? 1 : 0.3}; transition: opacity 0.2s;
+      z-index: 10; opacity: ${comp.visible ? 1 : 0.25}; transition: opacity 0.2s;
     `;
 
     if (key === 'topNav') {
@@ -125,7 +115,7 @@ function renderWYSIWYGCanvas() {
       el.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
       el.style.display = 'flex'; el.style.justifyContent = 'space-between'; el.style.alignItems = 'center'; el.style.padding = '0 30px';
       el.style.color = '#fff'; el.style.fontSize = '14px'; el.style.fontWeight = 'bold';
-      el.innerHTML = `<div>◀ 返回大廳 &nbsp;&nbsp; 🏠 主頁</div><div>俠客傳記 ▶▶</div>`;
+      el.innerHTML = `<div>◀ ${data.topNavLeftText || '返回大廳'}</div><div>${data.topNavRightText || '俠客傳記 ▶▶'}</div>`;
     } else if (key === 'leftTab') {
       el.style.display = 'flex'; el.style.flexDirection = 'column'; el.style.gap = '10px';
       data.categories.forEach(cat => {
@@ -137,9 +127,7 @@ function renderWYSIWYGCanvas() {
           e.stopPropagation();
           data.activeTabId = cat.id;
           renderWYSIWYGCanvas();
-          if (window.selectedUIModule === 'chapters') {
-            renderModuleControlPanel();
-          }
+          if (window.selectedUIModule === 'chapters') renderModuleControlPanel();
         };
         el.appendChild(item);
       });
@@ -272,9 +260,9 @@ function renderModuleControlPanel() {
     `;
   } else if (mod === 'layout') {
     panel.innerHTML = `
-      <h4 style="color:#3498db; margin-bottom:10px;">📐 區塊座標、尺寸與顯隱管理</h4>
+      <h4 style="color:#3498db; margin-bottom:10px;">📐 座標、尺寸與顯隱管理</h4>
       <button class="btn" style="background:#2ecc71; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewCustomUIComponent()">➕ 新增自定義 UI 組件</button>
-      <div style="max-height:350px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+      <div style="max-height:330px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
         ${Object.keys(data.layout).map(k => {
           const comp = data.layout[k];
           const isCustom = k.startsWith('custom_');
@@ -283,7 +271,7 @@ function renderModuleControlPanel() {
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
                 <span style="font-size:12px; color:#f1c40f; font-weight:bold;">${comp.name}</span>
                 <div style="display:flex; gap:6px; align-items:center;">
-                  <label style="font-size:11px; color:#aaa; cursor:pointer;"><input type="checkbox" ${comp.visible ? 'checked' : ''} onchange="data.layout['${k}'].visible=this.checked; renderWYSIWYGCanvas();"> 顯示</label>
+                  <label style="font-size:11px; color:#aaa; cursor:pointer;"><input type="checkbox" ${comp.visible ? 'checked' : ''} onchange="window.uiFullData.layout['${k}'].visible=this.checked; renderWYSIWYGCanvas(); saveUIPageConfigSilently();"> 顯示</label>
                   ${isCustom ? `<button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteCustomUIComponent('${k}')">刪</button>` : ''}
                 </div>
               </div>
@@ -319,7 +307,6 @@ function renderModuleControlPanel() {
 
     panel.innerHTML = `
       <h4 style="color:#1abc9c; margin-bottom:10px;">📚 管理【${currentCatObj.name}】的章節卡片</h4>
-      <div style="font-size:11px; color:#aaa; margin-bottom:8px;">提示：在預覽畫布點擊不同的左側 Tab，右側面板會即時切換。</div>
       <button class="btn" style="background:#3498db; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewChapterCard('${currentCatId}')">➕ 新增【${currentCatObj.name}】章節卡片</button>
       <div style="display:flex; flex-direction:column; gap:10px; max-height:330px; overflow-y:auto;">
         ${chapList.map((chap, idx) => `
@@ -328,11 +315,34 @@ function renderModuleControlPanel() {
               <span style="font-size:12px; color:#00ffff; font-weight:bold;">#${idx + 1} 章節</span>
               <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteChapterCard('${currentCatId}', ${idx})">刪除</button>
             </div>
-            <input type="text" value="${chap.title}" placeholder="章節標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas();">
+            <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas();">
             <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas();">
             <input type="text" value="${chap.progress}" placeholder="通關進度" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas();">
           </div>
         `).join('')}
+      </div>
+    `;
+  } else if (mod === 'navs') {
+    panel.innerHTML = `
+      <h4 style="color:#e84393; margin-bottom:10px;">🧭 上下方導覽列設定</h4>
+      
+      <div style="background:#0f1218; padding:8px; border-radius:4px; margin-bottom:10px; border:1px solid #333;">
+        <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">頂部導覽列文字</div>
+        <input type="text" value="${data.topNavLeftText || '返回大廳'}" placeholder="左側按鈕文字" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavLeftText=this.value; renderWYSIWYGCanvas();">
+        <input type="text" value="${data.topNavRightText || '俠客傳記 ▶▶'}" placeholder="右側按鈕文字" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavRightText=this.value; renderWYSIWYGCanvas();">
+      </div>
+
+      <div style="background:#0f1218; padding:8px; border-radius:4px; border:1px solid #333;">
+        <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">底部功能按鈕管理</div>
+        <button class="btn" style="background:#2ecc71; width:100%; font-size:11px; padding:4px; margin-bottom:6px;" onclick="addNewBottomNavBtn()">➕ 新增底部按鈕</button>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto;">
+          ${(data.bottomButtons || []).map((bName, idx) => `
+            <div style="display:flex; gap:4px; align-items:center;">
+              <input type="text" value="${bName}" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.bottomButtons[${idx}]=this.value; renderWYSIWYGCanvas();">
+              <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteBottomNavBtn(${idx})">刪</button>
+            </div>
+          `).join('')}
+        </div>
       </div>
     `;
   }
@@ -353,7 +363,7 @@ window.deleteCustomUIComponent = function(key) {
 };
 
 window.addNewCategoryItem = function() {
-  const name = prompt('請輸入新 Tab 名稱（如：支線冒險）：');
+  const name = prompt('請輸入新 Tab 名稱：');
   if (!name) return;
   const newId = 'cat_' + Date.now();
   window.uiFullData.categories.push({ id: newId, name: name });
@@ -385,9 +395,26 @@ window.deleteChapterCard = function(catId, idx) {
   renderWYSIWYGCanvas(); renderModuleControlPanel();
 };
 
+window.addNewBottomNavBtn = function() {
+  const name = prompt('請輸入底部按鈕名稱：', '新功能');
+  if (!name) return;
+  if (!window.uiFullData.bottomButtons) window.uiFullData.bottomButtons = [];
+  window.uiFullData.bottomButtons.push(name);
+  renderWYSIWYGCanvas(); renderModuleControlPanel();
+};
+
+window.deleteBottomNavBtn = function(idx) {
+  window.uiFullData.bottomButtons.splice(idx, 1);
+  renderWYSIWYGCanvas(); renderModuleControlPanel();
+};
+
+window.saveUIPageConfigSilently = function() {
+  localStorage.setItem('my_game_ui_full_config', JSON.stringify(window.uiFullData));
+};
+
 window.saveUIPageConfig = function() {
   localStorage.setItem('my_game_ui_full_config', JSON.stringify(window.uiFullData));
-  alert('✅ 介面佈局、顯隱狀態與全 Tab 章節卡片資料已成功儲存！');
+  alert('✅ 介面設定、顯隱狀態與所有導覽設定已成功儲存！');
 };
 
 window.resetUIPageConfig = function() {
