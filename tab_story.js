@@ -1,9 +1,7 @@
 // ==========================================
-// 模組：全新升級與修復的劇情與劇本編輯器 (tab_story.js)
-// 完整修復新增、刪除、分頁篩選與關卡節點串聯無反應的問題
+// 模組：修復關卡讀取與串聯的劇情編輯器 (tab_story.js)
 // ==========================================
 window.renderTabStory = function(container) {
-  // 確保全域有 story_data 儲存
   if (!localStorage.getItem('my_game_story_data')) {
     const defaultStory = {
       tabs: [
@@ -20,7 +18,7 @@ window.renderTabStory = function(container) {
           desc: '青城派遭逢百年難得一見的浩劫，掌門不知去向，江湖風雲再起……',
           cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
           progress: '4/7',
-          stages: [0], // 對應 LEVELS 的索引
+          stages: [0],
           tag: '章節進度 57%'
         }
       ]
@@ -31,14 +29,14 @@ window.renderTabStory = function(container) {
   container.innerHTML = `
     <div class="card">
       <div class="card-header">
-        <h3>📖 劇本與篇章配置中心 (修復版)</h3>
+        <h3>📖 劇本與篇章配置中心</h3>
         <div>
           <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px; margin-right:8px;" onclick="window.saveStoryDataDirect()">💾 儲存並同步</button>
           <button class="btn" style="background:#3498db; padding:6px 12px; font-size:12px;" onclick="window.addStoryBook()">➕ 新增篇章</button>
         </div>
       </div>
       <p style="font-size:13px; color:#aaa; margin-bottom:15px;">
-        在此編輯各大劇本篇章，並可將左側關卡編輯器製作好的戰棋關卡（LEVELS）直接串聯至指定章節中。
+        在此編輯各大劇本篇章，並可將左側關卡編輯器製作好的戰棋關卡直接串聯至指定章節中。
       </p>
 
       <!-- 分類標籤快速過濾 -->
@@ -67,7 +65,7 @@ function reloadStoryEditorUI() {
   const filteredBooks = [];
   
   storyData.books.forEach((book, idx) => {
-    book._originalIndex = idx; // 記住原本在陣列中的真實索引
+    book._originalIndex = idx;
     if (filter === 'all' || book.tabId === filter) {
       filteredBooks.push(book);
     }
@@ -78,23 +76,32 @@ function reloadStoryEditorUI() {
     return;
   }
 
+  // 取得編輯器中的關卡清單 (支援 gameLevels 或 localStorage 備份)
+  let currentLevels = [];
+  if (typeof gameLevels !== 'undefined' && Array.isArray(gameLevels)) {
+    currentLevels = gameLevels;
+  } else {
+    try {
+      currentLevels = JSON.parse(localStorage.getItem('my_game_levels_sync')) || [];
+    } catch(e) {}
+  }
+
   filteredBooks.forEach((book) => {
     const index = book._originalIndex;
     
-    // 讀取現有的遊戲關卡清單 (LEVELS)
     let levelOptions = `<option value="">-- 選擇要串聯的戰棋關卡 --</option>`;
-    if (typeof LEVELS !== 'undefined' && LEVELS.length > 0) {
-      LEVELS.forEach((lv, lvIdx) => {
+    if (currentLevels.length > 0) {
+      currentLevels.forEach((lv, lvIdx) => {
         levelOptions += `<option value="${lvIdx}">關卡 #${lvIdx+1}: ${lv.name || '未命名關卡'}</option>`;
       });
     } else {
-      levelOptions += `<option value="" disabled>尚未建立任何戰棋關卡</option>`;
+      levelOptions += `<option value="" disabled>尚未建立任何戰棋關卡 (請先至關卡編輯器建立)</option>`;
     }
 
     let stagesHtml = '';
     if (book.stages && book.stages.length > 0) {
       book.stages.forEach((stgIdx, sIdx) => {
-        let lvName = (typeof LEVELS !== 'undefined' && LEVELS[stgIdx]) ? LEVELS[stgIdx].name : `關卡索引 [${stgIdx}]`;
+        let lvName = currentLevels[stgIdx] ? currentLevels[stgIdx].name : `關卡索引 [${stgIdx}]`;
         stagesHtml += `
           <div style="display:flex; justify-content:space-between; align-items:center; background:#16213e; padding:6px 10px; border-radius:4px; margin-bottom:4px; font-size:12px; border:1px solid #333;">
             <span style="color:#2ecc71;">📍 節點 #${sIdx+1} → ${lvName}</span>
@@ -168,7 +175,6 @@ function reloadStoryEditorUI() {
   });
 }
 
-// 篩選分頁切換
 window.filterStoryTab = function(tabId, btn) {
   window._currentStoryFilter = tabId;
   document.querySelectorAll('#story-tab-filter .btn').forEach(b => {
@@ -183,7 +189,6 @@ window.filterStoryTab = function(tabId, btn) {
   reloadStoryEditorUI();
 };
 
-// 即時更新欄位並寫入 LocalStorage
 window.updateBookField = function(index, field, value) {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
   if (storyData && storyData.books[index]) {
@@ -192,7 +197,6 @@ window.updateBookField = function(index, field, value) {
   }
 };
 
-// 新增關卡節點到指定篇章
 window.addStageToBook = function(bookIndex) {
   const select = document.getElementById(`select-level-add-${bookIndex}`);
   if (!select || select.value === "") {
@@ -208,7 +212,6 @@ window.addStageToBook = function(bookIndex) {
   }
 };
 
-// 從篇章中移除關卡節點
 window.removeStageFromBook = function(bookIndex, stageIndex) {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
   if (storyData && storyData.books[bookIndex] && storyData.books[bookIndex].stages) {
@@ -218,7 +221,6 @@ window.removeStageFromBook = function(bookIndex, stageIndex) {
   }
 };
 
-// 新增空白篇章
 window.addStoryBook = function() {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { tabs: [], books: [] };
   storyData.books.push({
@@ -236,7 +238,6 @@ window.addStoryBook = function() {
   reloadStoryEditorUI();
 };
 
-// 刪除篇章
 window.deleteStoryBook = function(index) {
   if (!confirm('⚠️ 確定要刪除這個劇本篇章嗎？')) return;
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
@@ -247,7 +248,6 @@ window.deleteStoryBook = function(index) {
   }
 };
 
-// 手動儲存按鈕
 window.saveStoryDataDirect = function() {
   alert('✅ 劇本與關卡節點串聯資料已成功儲存至本地！');
 };
