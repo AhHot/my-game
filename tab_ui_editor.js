@@ -1,7 +1,9 @@
-// tab_ui_editor.js - 所見即所得全能編輯器 (已修復畫面消失與渲染報錯)
+// tab_ui_editor.js - 強制掛載防禦版
 window.renderTabUIEditor = function(container) {
-  if (!container) {
-    container = document.getElementById('app-content') || document.body;
+  // 自動尋找頁面上正確的內容容器
+  let targetContainer = container;
+  if (!targetContainer || !(targetContainer instanceof HTMLElement)) {
+    targetContainer = document.getElementById('app-content') || document.getElementById('main-content') || document.querySelector('.content') || document.body;
   }
 
   let defaultFullData = {
@@ -43,8 +45,8 @@ window.renderTabUIEditor = function(container) {
   window.uiFullData = fullData;
   if (!window.selectedUIModule) window.selectedUIModule = 'layout';
 
-  container.innerHTML = `
-    <div class="card" style="background:#111217; border:1px solid #222; padding:15px; border-radius:8px; color:#fff;">
+  targetContainer.innerHTML = `
+    <div class="card" style="background:#111217; border:1px solid #222; padding:15px; border-radius:8px; color:#fff; width:100%; box-sizing:border-box;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:15px;">
         <h3 style="color:#00ffff; margin:0;">🎨 劇本介面全能編輯器</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -93,8 +95,7 @@ function autoFitEditorCanvasScale() {
 
 window.switchEditorModule = function(mod) {
   window.selectedUIModule = mod;
-  const targetContainer = document.getElementById('app-content') || document.body;
-  window.renderTabUIEditor(targetContainer);
+  window.renderTabUIEditor();
 };
 
 function renderWYSIWYGCanvas() {
@@ -164,7 +165,7 @@ function renderWYSIWYGCanvas() {
     } else if (key === 'bottomNav') {
       el.style.background = 'rgba(10, 11, 15, 0.95)';
       el.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems: 'center'; el.style.gap = '30px';
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
       data.bottomButtons.forEach((btnName, idx) => {
         const btn = document.createElement('div');
         btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
@@ -174,7 +175,7 @@ function renderWYSIWYGCanvas() {
     } else {
       el.style.background = 'rgba(255, 165, 0, 0.2)';
       el.style.border = '2px dashed orange';
-      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems: 'center';
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
       el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
       el.innerHTML = `<span>${comp.name}</span>`;
     }
@@ -431,5 +432,5 @@ window.saveUIPageConfig = function() {
 window.resetUIPageConfig = function() {
   if (!confirm('⚠️ 確定重置所有設定嗎？')) return;
   localStorage.removeItem('my_game_ui_full_config');
-  window.renderTabUIEditor(document.getElementById('app-content') || document.body);
+  window.renderTabUIEditor();
 };
