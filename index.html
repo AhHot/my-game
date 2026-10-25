@@ -151,59 +151,37 @@
         function initIndexMainUI() {
             resizeGameUI();
 
-            mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
-                bgList: [
-                    { name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
-                ],
-                stageCard: {
-                    tag: '當前江湖主線',
-                    title: '第一章：青城山變',
-                    desc: '探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。'
-                },
-                buttons: {
-                    story: { title: '江湖歷程', icon: '📜', active: true },
-                    character: { title: '角色與背包', icon: '👥', active: true },
-                    settings: { title: '系統設置', icon: '⚙️', active: true }
+            // 強制從 localStorage 讀取最新儲存的配置，若無則給預設值
+            const savedConfig = localStorage.getItem('my_game_main_config');
+            if (savedConfig) {
+                try {
+                    mainConfig = JSON.parse(savedConfig);
+                } catch (e) {
+                    console.error('解析主畫面配置失敗', e);
                 }
-            };
+            }
+
+            if (!mainConfig) {
+                mainConfig = {
+                    bgList: [
+                        { name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
+                    ],
+                    stageCard: {
+                        tag: '當前江湖主線',
+                        title: '第一章：青城山變',
+                        desc: '探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。'
+                    },
+                    buttons: {
+                        story: { title: '江湖歷程', icon: '📜', active: true, action: 'story' },
+                        character: { title: '角色與背包', icon: '👥', active: true, action: 'character' },
+                        settings: { title: '系統設置', icon: '⚙️', active: true, action: 'settings' }
+                    }
+                };
+            }
 
             updateBackgroundDisplay();
             updateStageCardDisplay();
-                    function renderIndexLeftSidebar() {
-            const sidebar = document.getElementById('left-sidebar');
-            if (!sidebar) return;
-            sidebar.innerHTML = '';
-
-            const btnConfigs = mainConfig.buttons || {};
-
-            Object.keys(btnConfigs).forEach(key => {
-                const btnData = btnConfigs[key];
-                if (!btnData.active) return;
-
-                let callback = () => {};
-                const act = btnData.action || key; // 相容性處理
-
-                if (act === 'character' || key === 'character' || key === 'profile') {
-                    callback = () => {
-                        if (typeof window.openCharacterUI === 'function') {
-                            window.openCharacterUI();
-                        } else {
-                            alert('角色背包系統載入中，請稍後...');
-                        }
-                    };
-                } else if (act === 'story' || key === 'story') {
-                    callback = () => { window.location.href = 'story_menu.html'; };
-                } else if (act === 'settings' || key === 'settings') {
-                    callback = () => { showToast('目前可在配置中心進行詳細設置', '#3498db'); };
-                } else {
-                    callback = () => { showToast(btnData.title + ' 功能即將開放', '#e67e22'); };
-                }
-
-                const menuBtn = createMenuButton(btnData.icon || '📌', btnData.title || '選單', callback);
-                sidebar.appendChild(menuBtn);
-            });
-        }
-;
+            renderIndexLeftSidebar();
         }
 
         function updateBackgroundDisplay() {
@@ -259,23 +237,25 @@
                 if (!btnData.active) return; // 若未啟用則跳過
 
                 let callback = () => {};
-                if (key === 'story') {
-                    callback = () => { window.location.href = 'story_menu.html'; };
-                } else if (key === 'character' || key === 'profile') {
+                const act = btnData.action || key;
+
+                if (act === 'character' || key === 'character' || key === 'profile') {
                     callback = () => {
                         if (typeof window.openCharacterUI === 'function') {
                             window.openCharacterUI();
                         } else {
-                            console.error('角色背包系統尚未載入');
+                            alert('角色背包系統載入中，請稍後...');
                         }
                     };
-                } else if (key === 'settings') {
+                } else if (act === 'story' || key === 'story') {
+                    callback = () => { window.location.href = 'story_menu.html'; };
+                } else if (act === 'settings' || key === 'settings') {
                     callback = () => { showToast('目前可在配置中心進行詳細設置', '#3498db'); };
                 } else {
-                    callback = () => { showToast(btnData.title + ' 敬請期待', '#e67e22'); };
+                    callback = () => { showToast(btnData.title + ' 功能即將開放', '#e67e22'); };
                 }
 
-                const menuBtn = createMenuButton(btnData.icon || '📌', btnData.title || key, callback);
+                const menuBtn = createMenuButton(btnData.icon || '📌', btnData.title || '選單', callback);
                 sidebar.appendChild(menuBtn);
             });
         }
