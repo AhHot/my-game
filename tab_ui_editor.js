@@ -1,9 +1,7 @@
-// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (含底圖自訂)
+// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已升級：實機自適應等比縮放與精準觸控)
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
-    // 介面底圖 URL
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
-    // 佈局座標與尺寸 (1280x720)
     layout: {
       topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
       leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
@@ -18,8 +16,7 @@ window.renderTabUIEditor = function(container) {
     chapters: {
       main: [
         { id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop' },
-        { id: 'm2', title: '第二章：江南煙雨', progress: '0/8', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop' },
-        { id: 'm3', title: '第三章：漠北孤煙', progress: '0/6', cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=1000&auto=format&fit=crop' }
+        { id: 'm2', title: '第二章：江南煙雨', progress: '0/8', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop' }
       ],
       sub: []
     },
@@ -29,32 +26,32 @@ window.renderTabUIEditor = function(container) {
 
   let fullData = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || defaultFullData;
   window.uiFullData = fullData;
-  window.selectedUIModule = 'layout';
+  if (!window.selectedUIModule) window.selectedUIModule = 'layout';
 
   container.innerHTML = `
     <div class="card" style="background:#111217; border:1px solid #222;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (支援底圖、Tab與多章節管理)</h3>
+        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (實機自適應 1280x720 預覽)</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
           <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
         </div>
       </div>
 
-      <div style="display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap;">
-        <button class="btn" style="background:#e67e22; font-size:12px; flex:1;" onclick="switchEditorModule('bg')">🖼️ 0. 設定介面底圖</button>
-        <button class="btn" style="background:#3498db; font-size:12px; flex:1;" onclick="switchEditorModule('layout')">📐 1. 調整區塊座標</button>
-        <button class="btn" style="background:#9b59b6; font-size:12px; flex:1;" onclick="switchEditorModule('categories')">🏷️ 2. 管理左側 Tab</button>
-        <button class="btn" style="background:#1abc9c; font-size:12px; flex:1;" onclick="switchEditorModule('chapters')">📚 3. 管理右側章節卡片</button>
+      <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
+        <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('bg')">🖼️ 0. 設定底圖</button>
+        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('layout')">📐 1. 調整區塊座標</button>
+        <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('categories')">🏷️ 2. 管理 Tab</button>
+        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('chapters')">📚 3. 管理章節卡片</button>
       </div>
 
       <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-        <!-- 預覽畫布 -->
-        <div style="position: relative; flex: 1; min-width: 320px;">
-          <div id="wysiwyg-viewport" style="width: 100%; max-width: 896px; height: 504px; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
-            <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform: scale(0.7); transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
+        <!-- 🌟 核心：自動計算容器寬度並進行 16:9 (1280x720) 自適應縮放的預覽畫布 -->
+        <div style="position: relative; flex: 1; min-width: 300px; width: 100%;">
+          <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
+            <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 所見即所得預覽畫布 (1280x720)</div>
+          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 實機比例預覽 (畫布已依螢幕寬度 100% 自動等比縮放，切換「1. 調整區塊座標」即可拖拽)</div>
         </div>
 
         <!-- 右側動態控制面板 -->
@@ -66,12 +63,28 @@ window.renderTabUIEditor = function(container) {
 
   renderWYSIWYGCanvas();
   renderModuleControlPanel();
+
+  // 監聽視窗與畫布容器大小改變，動態更新 scale 換算倍率
+  window.removeEventListener('resize', autoFitEditorCanvasScale);
+  window.addEventListener('resize', autoFitEditorCanvasScale);
 };
+
+// 🌟 自動換算畫布縮放比率 (Scale) 函數
+function autoFitEditorCanvasScale() {
+  const viewport = document.getElementById('wysiwyg-viewport');
+  const canvas = document.getElementById('wysiwyg-canvas');
+  if (!viewport || !canvas) return 0.5;
+
+  const currentViewportWidth = viewport.clientWidth;
+  const currentScale = currentViewportWidth / 1280; // 以固定 1280px 基準寬度計算縮放值
+  canvas.style.transform = `scale(${currentScale})`;
+  window.currentEditorCanvasScale = currentScale;
+  return currentScale;
+}
 
 window.switchEditorModule = function(mod) {
   window.selectedUIModule = mod;
-  renderWYSIWYGCanvas();
-  renderModuleControlPanel();
+  window.renderTabUIEditor(document.getElementById('app-content'));
 };
 
 function renderWYSIWYGCanvas() {
@@ -82,6 +95,7 @@ function renderWYSIWYGCanvas() {
   const data = window.uiFullData;
   const layout = data.layout;
   const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
+  const isLayoutMode = window.selectedUIModule === 'layout';
 
   // 底圖渲染
   const bgDiv = document.createElement('div');
@@ -93,6 +107,7 @@ function renderWYSIWYGCanvas() {
     const topEl = document.createElement('div');
     topEl.style.cssText = `position: absolute; left: ${layout.topNav.x}px; top: ${layout.topNav.y}px; width: ${layout.topNav.w}px; height: ${layout.topNav.h}px; background: rgba(15, 17, 23, 0.9); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; padding: 0 30px; z-index: 10; color: #fff; font-size: 14px; font-weight: bold;`;
     topEl.innerHTML = `<div>◀ 返回大廳 &nbsp;&nbsp; 🏠 主頁</div><div>俠客傳記 ▶▶</div>`;
+    if (isLayoutMode) makeElementInteractable(topEl, 'topNav');
     canvas.appendChild(topEl);
   }
 
@@ -105,34 +120,36 @@ function renderWYSIWYGCanvas() {
       const item = document.createElement('div');
       item.style.cssText = `padding: 12px 18px; background: ${isActive ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255,255,255,0.05)'}; border-left: 4px solid ${isActive ? '#00ffff' : 'transparent'}; color: ${isActive ? '#fff' : '#888'}; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;`;
       item.innerHTML = `<span>● ${cat.name}</span> ${isActive ? '<span style="color:#00ffff;">◆</span>' : ''}`;
-      item.onclick = (e) => { e.stopPropagation(); data.activeTabId = cat.id; renderWYSIWYGCanvas(); renderModuleControlPanel(); };
+      item.onclick = (e) => { e.stopPropagation(); data.activeTabId = cat.id; renderWYSIWYGCanvas(); };
       tabEl.appendChild(item);
     });
+    if (isLayoutMode) makeElementInteractable(tabEl, 'leftTab');
     canvas.appendChild(tabEl);
   }
 
-  // 3. 右側關卡滑動區 (完整渲染所有章節卡片)
+  // 3. 右側關卡滑動區
   if (layout.rightSlider && layout.rightSlider.visible) {
     const sliderEl = document.createElement('div');
     sliderEl.style.cssText = `position: absolute; left: ${layout.rightSlider.x}px; top: ${layout.rightSlider.y}px; width: ${layout.rightSlider.w}px; height: ${layout.rightSlider.h}px; display: flex; gap: 20px; overflow-x: auto; align-items: center; padding: 10px; z-index: 10;`;
     
     const chapList = data.chapters[currentCatId] || [];
     if (chapList.length === 0) {
-      sliderEl.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">該分類尚無章節，請在右側面板點擊新增卡片</div>`;
+      sliderEl.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">該分類尚無章節</div>`;
     } else {
       chapList.forEach(c => {
         const card = document.createElement('div');
-        card.style.cssText = `width: 500px; height: 320px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: url('${c.cover}') center/cover; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px;`;
+        card.style.cssText = `width: 420px; height: 280px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: url('${c.cover}') center/cover; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px;`;
         card.innerHTML = `
           <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
           <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-            <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${c.title}</div>
+            <div style="color:#fff; font-size:20px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${c.title}</div>
             <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${c.progress}</div>
           </div>
         `;
         sliderEl.appendChild(card);
       });
     }
+    if (isLayoutMode) makeElementInteractable(sliderEl, 'rightSlider');
     canvas.appendChild(sliderEl);
   }
 
@@ -146,8 +163,82 @@ function renderWYSIWYGCanvas() {
       btn.innerText = btnName;
       botEl.appendChild(btn);
     });
+    if (isLayoutMode) makeElementInteractable(botEl, 'bottomNav');
     canvas.appendChild(botEl);
   }
+
+  // 執行自適應縮放換算
+  setTimeout(autoFitEditorCanvasScale, 10);
+}
+
+// 支援滑鼠與手機觸控的動態縮放拖拽互動
+function makeElementInteractable(el, key) {
+  el.style.outline = '2px dashed #00ffff';
+  el.style.cursor = 'move';
+
+  const handle = document.createElement('div');
+  handle.style.cssText = `
+    position: absolute; right: -6px; bottom: -6px; width: 22px; height: 22px;
+    background: #00ffff; border: 2px solid #000; border-radius: 3px; cursor: se-resize; z-index: 99;
+  `;
+  el.appendChild(handle);
+
+  const startInteraction = (clientX, clientY, target) => {
+    if (target === handle) {
+      startResizing(clientX, clientY, key);
+    } else {
+      startDragging(clientX, clientY, key);
+    }
+  };
+
+  el.addEventListener('mousedown', (e) => { e.stopPropagation(); startInteraction(e.clientX, e.clientY, e.target); });
+  el.addEventListener('touchstart', (e) => { e.stopPropagation(); const t = e.touches[0]; startInteraction(t.clientX, t.clientY, e.target); }, { passive: true });
+}
+
+function startDragging(startX, startY, key) {
+  const comp = window.uiFullData.layout[key];
+  const initX = comp.x, initY = comp.y;
+
+  function onMove(cx, cy) {
+    const scale = window.currentEditorCanvasScale || autoFitEditorCanvasScale();
+    comp.x = Math.max(0, Math.min(1280 - comp.w, Math.round(initX + (cx - startX) / scale)));
+    comp.y = Math.max(0, Math.min(720 - comp.h, Math.round(initY + (cy - startY) / scale)));
+    renderWYSIWYGCanvas();
+    if (window.selectedUIModule === 'layout') renderModuleControlPanel();
+  }
+
+  function onEnd() {
+    window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', onEnd);
+    window.removeEventListener('touchmove', tm); window.removeEventListener('touchend', onEnd);
+  }
+  function mm(e) { onMove(e.clientX, e.clientY); }
+  function tm(e) { onMove(e.touches[0].clientX, e.touches[0].clientY); }
+
+  window.addEventListener('mousemove', mm); window.addEventListener('mouseup', onEnd);
+  window.addEventListener('touchmove', tm, { passive: true }); window.addEventListener('touchend', onEnd);
+}
+
+function startResizing(startX, startY, key) {
+  const comp = window.uiFullData.layout[key];
+  const initW = comp.w, initH = comp.h;
+
+  function onMove(cx, cy) {
+    const scale = window.currentEditorCanvasScale || autoFitEditorCanvasScale();
+    comp.w = Math.max(100, Math.round(initW + (cx - startX) / scale));
+    comp.h = Math.max(40, Math.round(initH + (cy - startY) / scale));
+    renderWYSIWYGCanvas();
+    if (window.selectedUIModule === 'layout') renderModuleControlPanel();
+  }
+
+  function onEnd() {
+    window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', onEnd);
+    window.removeEventListener('touchmove', tm); window.removeEventListener('touchend', onEnd);
+  }
+  function mm(e) { onMove(e.clientX, e.clientY); }
+  function tm(e) { onMove(e.touches[0].clientX, e.touches[0].clientY); }
+
+  window.addEventListener('mousemove', mm); window.addEventListener('mouseup', onEnd);
+  window.addEventListener('touchmove', tm, { passive: true }); window.addEventListener('touchend', onEnd);
 }
 
 function renderModuleControlPanel() {
@@ -159,21 +250,21 @@ function renderModuleControlPanel() {
   if (mod === 'bg') {
     panel.innerHTML = `
       <h4 style="color:#e67e22; margin-bottom:10px;">🖼️ 劇本介面底圖設定</h4>
-      <p style="font-size:12px; color:#aaa; margin-bottom:10px;">輸入圖片網址 (URL) 作為劇本選擇畫面的背景：</p>
+      <p style="font-size:12px; color:#aaa; margin-bottom:10px;">輸入圖片網址 (URL)：</p>
       <input type="text" value="${data.bgUrl || ''}" placeholder="https://..." style="width:100%; background:#0f1218; color:#fff; border:1px solid #444; padding:8px; border-radius:4px; margin-bottom:10px;" oninput="window.uiFullData.bgUrl=this.value; renderWYSIWYGCanvas();">
-      <div style="font-size:11px; color:#666;">提示：您可以貼入任何高畫質風景或武俠風格圖片連結。</div>
     `;
   } else if (mod === 'layout') {
     panel.innerHTML = `
       <h4 style="color:#3498db; margin-bottom:10px;">📐 區塊座標與尺寸微調</h4>
+      <p style="font-size:11px; color:#aaa; margin-bottom:10px;">在左側畫布直接拖動藍色虛線區塊，或在此輸入數值：</p>
       ${Object.keys(data.layout).map(k => `
         <div style="background:#0f1218; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #333;">
           <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">${data.layout[k].name}</div>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-            <input type="number" value="${data.layout[k].x}" placeholder="X" oninput="data.layout['${k}'].x=parseInt(this.value)||0; renderWYSIWYGCanvas();">
-            <input type="number" value="${data.layout[k].y}" placeholder="Y" oninput="data.layout['${k}'].y=parseInt(this.value)||0; renderWYSIWYGCanvas();">
-            <input type="number" value="${data.layout[k].w}" placeholder="W" oninput="data.layout['${k}'].w=parseInt(this.value)||0; renderWYSIWYGCanvas();">
-            <input type="number" value="${data.layout[k].h}" placeholder="H" oninput="data.layout['${k}'].h=parseInt(this.value)||0; renderWYSIWYGCanvas();">
+            <div><label style="font-size:10px; color:#888;">X:</label><input type="number" value="${data.layout[k].x}" oninput="data.layout['${k}'].x=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+            <div><label style="font-size:10px; color:#888;">Y:</label><input type="number" value="${data.layout[k].y}" oninput="data.layout['${k}'].y=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+            <div><label style="font-size:10px; color:#888;">W:</label><input type="number" value="${data.layout[k].w}" oninput="data.layout['${k}'].w=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+            <div><label style="font-size:10px; color:#888;">H:</label><input type="number" value="${data.layout[k].h}" oninput="data.layout['${k}'].h=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
           </div>
         </div>
       `).join('')}
@@ -251,7 +342,7 @@ window.deleteChapterCard = function(catId, idx) {
 
 window.saveUIPageConfig = function() {
   localStorage.setItem('my_game_ui_full_config', JSON.stringify(window.uiFullData));
-  alert('✅ 介面設定與多章節關卡已成功儲存！');
+  alert('✅ 介面設定、座標與多章節已成功儲存！');
 };
 
 window.resetUIPageConfig = function() {
