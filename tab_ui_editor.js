@@ -8,8 +8,7 @@ window.renderTabUIEditor = function(container) {
 
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
-    topNavLeftText: '返回大廳',
-    topNavRightText: '俠客傳記 ▶▶',
+    topNavLeftText: '返回',
     layout: {
       topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
       leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
