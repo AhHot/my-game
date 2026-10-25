@@ -358,11 +358,13 @@
             }
         }
 
-        function finishStorySequence() {
-            alert('劇情播放完畢！');
-            window.location.href = 'index.html';
-        }
-
+function finishStorySequence() {
+    // 假設目前要打的是第 0 關（或您當前選擇的關卡索引）
+    localStorage.setItem('my_game_current_level_index', 0); 
+    
+    // 直接呼叫帶有布陣或戰鬥模式的頁面，或者直接引導到 Phaser 的啟動點
+    window.location.href = 'index.html?autoFormation=1';
+}
         function openHistory(event) {
             event.stopPropagation();
             const list = document.getElementById('history-list');
