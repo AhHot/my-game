@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>中大型策略战棋 - 游戏大厅</title>
+    <title>武俠</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
         
-        /* 🌟 核心：1280x720 比例縮放容器，包覆整個主畫面與 UI */
         #game-scale-container {
             position: absolute; top: 0; left: 0;
             width: 1280px; height: 720px;
@@ -16,25 +15,21 @@
             z-index: 10; pointer-events: none;
         }
 
-        /* 讓容器內的互動元素恢復點擊事件 */
         .interactive-ui { pointer-events: auto; }
-
-        /* Phaser 遊戲畫布填滿 1280x720 容器 */
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; }
         
-        /* ================= 主畫面 UI 佈局 (二次元手遊質感) ================= */
         .main-bg {
             position: absolute; inset: 0;
             background-size: cover; background-position: center;
             transition: background-image 0.5s ease-in-out;
             z-index: 1; pointer-events: none;
+            cursor: pointer;
         }
         .main-bg::after {
             content: ''; position: absolute; inset: 0;
             background: radial-gradient(circle at center, rgba(11, 12, 16, 0.1) 0%, rgba(11, 12, 16, 0.65) 100%);
         }
 
-        /* 頂部快捷列 */
         .top-bar-overlay {
             position: absolute; top: 0; left: 0; right: 0; height: 65px;
             display: flex; justify-content: space-between; align-items: center;
@@ -49,7 +44,6 @@
         }
         .btn-editor-quick:hover { background: #3498db; border-color: #3498db; }
 
-        /* 左側動態功能側欄 */
         .left-sidebar {
             position: absolute; left: 30px; top: 90px; display: flex;
             flex-direction: column; gap: 12px; z-index: 100;
@@ -66,7 +60,6 @@
             width: 165px; background: rgba(52, 152, 219, 0.35); border-color: #3498db;
         }
 
-        /* 右側主線推進大卡片 */
         .main-right-section {
             position: absolute; right: 40px; top: 90px; bottom: 40px;
             width: 340px; display: flex; flex-direction: column; justify-content: space-between;
@@ -92,7 +85,6 @@
         }
         .btn-battle:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(231, 76, 60, 0.6); }
 
-        /* ================= 全屏 UI 遮罩 (角色/背包 UI) ================= */
         #fullscreen-ui {
             display: none; position: absolute; 
             width: 1280px; height: 720px;
@@ -103,7 +95,6 @@
         .close-ui-btn { position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999; }
         .close-ui-btn:hover { color: #fff; }
 
-        /* ================= 左侧基础面板 ================= */
         #left-panel {
             width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%);
             border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;
@@ -120,18 +111,15 @@
         }
 
         .char-info-area { flex: 1; padding: 20px 25px; display: flex; flex-direction: column; overflow-y: auto; }
-        
         .char-name-level { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
         .char-name-level h2 { color: #f1c40f; font-size: 28px; }
         .char-name-level span { color: #2ecc71; font-weight: bold; font-size: 20px; }
 
-        /* 经验条 */
         .exp-container { margin-bottom: 20px; }
         .exp-text { font-size: 12px; color: #888; text-align: right; margin-bottom: 4px;}
         .exp-bar-bg { width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; }
         .exp-bar-fill { width: 0%; height: 100%; background: #3498db; transition: width 0.3s ease; }
 
-        /* 装备槽 */
         .equip-slots-container {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;
         }
@@ -145,7 +133,6 @@
         .equip-slot .eq-icon { font-size: 28px; }
         .equip-slot .eq-name { font-size: 13px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 4px;}
 
-        /* 意境与加点 */
         .free-points-hint { color: #f1c40f; font-size: 16px; margin-bottom: 10px; font-weight: bold; text-align: center;}
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 16px; margin-bottom: 20px; }
         .stat-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #333; padding-bottom: 6px; }
@@ -161,7 +148,6 @@
         .core-four div { background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;}
         .core-four div b { display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;}
 
-        /* 人物列表区域 (底部) */
         .char-list-area {
             background: #111; padding: 15px; border-top: 1px solid #333;
             display: flex; gap: 15px; overflow-x: auto; height: 95px; flex-shrink: 0;
@@ -172,7 +158,6 @@
         }
         .char-avatar-btn.active { border-color: #f1c40f; box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); background: #333; }
 
-        /* 展开箭头 */
         .expand-btn {
             position: absolute; top: 40%; right: -25px; 
             width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none;
@@ -180,7 +165,6 @@
             color: #f1c40f; font-size: 20px; z-index: 9020;
         }
 
-        /* ================= 右侧区域 ================= */
         #right-panel {
             flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;
         }
@@ -189,7 +173,6 @@
         .rt-tab { flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px; transition: all 0.2s;}
         .rt-tab.active { color: #fff; background: #3498db; }
 
-        /* 背包区 */
         #inv-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         
         .filter-bar { display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;}
@@ -212,13 +195,11 @@
         .inv-slot .item-name { font-size: 14px; color: #aaa; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px;}
         .inv-slot .item-count { position: absolute; bottom: 4px; right: 4px; font-size: 14px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.8); padding: 2px 6px; border-radius: 6px;}
 
-        /* 技能区 */
         #skill-container { flex: 1; display: none; flex-direction: column; overflow-y: auto; gap: 15px; padding-bottom: 20px;}
         .skill-card { background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 20px; }
         .skill-header { display: flex; justify-content: space-between; font-weight: bold; color: #f1c40f; margin-bottom: 10px; font-size: 22px;}
         .skill-desc { font-size: 18px; color: #bbb; line-height: 1.6; }
 
-        /* ================= 弹窗 ================= */
         .overlay-card {
             display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px;
@@ -250,7 +231,6 @@
         .detail-item span { color: #888; }
         .detail-item b { color: #fff; }
 
-        /* 全局提示文字 */
         #global-toast {
             position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
             background: rgba(46, 204, 113, 0.9); color: #fff; padding: 15px 30px; border-radius: 10px;
@@ -260,24 +240,20 @@
     </style>
 </head>
 <body>
-    <!-- 🌟 1280x720 等比縮放包覆容器 -->
     <div id="game-scale-container">
-        <!-- 戰棋遊戲畫布容器 -->
         <div id="game"></div>
 
-        <!-- 全螢幕解鎖背景圖 -->
-        <div class="main-bg" id="main-bg"></div>
+        <!-- 主畫面背景圖，支援點擊切換解鎖背景 -->
+        <div class="main-bg" id="main-bg" onclick="cycleBackground()" title="點擊切換背景"></div>
 
-        <!-- 頂部導航浮層 -->
         <div class="top-bar-overlay interactive-ui">
             <div class="top-title">⚔️ 江湖大廳</div>
             <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
         </div>
 
-        <!-- 左側動態功能側欄 -->
+        <!-- 左側動態功能側欄（將依據設定動態生成） -->
         <div class="left-sidebar interactive-ui" id="left-sidebar"></div>
 
-        <!-- 右側核心推進大卡片 -->
         <div class="main-right-section interactive-ui">
             <div class="main-stage-card">
                 <div>
@@ -291,11 +267,9 @@
             </div>
         </div>
 
-        <!-- 角色與背包 UI 彈窗 -->
         <div id="fullscreen-ui" class="interactive-ui" onclick="event.stopPropagation()">
             <div class="close-ui-btn" onclick="closeCharacterUI()">✖</div>
 
-            <!-- 左侧 -->
             <div id="left-panel">
                 <div class="char-portrait"></div>
                 <div class="char-info-area">
@@ -304,13 +278,11 @@
                         <span id="ui-char-level">Lv. 1</span>
                     </div>
                     
-                    <!-- 经验条 -->
                     <div class="exp-container">
                         <div class="exp-text" id="ui-exp-text">0 / 100</div>
                         <div class="exp-bar-bg"><div class="exp-bar-fill" id="ui-exp-fill"></div></div>
                     </div>
 
-                    <!-- 6大装备槽 -->
                     <div class="equip-slots-container" id="ui-equip-slots"></div>
 
                     <div class="free-points-hint" id="ui-free-points">剩余点数: 0</div>
@@ -327,7 +299,6 @@
                 <div class="expand-btn" onclick="showDetailCard()">▶</div>
             </div>
 
-            <!-- 右侧 -->
             <div id="right-panel">
                 <div class="right-tabs">
                     <div class="rt-tab active" id="rt-btn-inv" onclick="switchRightTab('inv')">🎒 背包</div>
@@ -348,14 +319,12 @@
                 <div id="skill-container"></div>
             </div>
 
-            <!-- 弹窗：物品详情 -->
             <div id="item-tooltip" class="overlay-card">
                 <div class="card-close" onclick="hideTooltip()">✖</div>
                 <div id="tooltip-content"></div>
                 <button class="btn-action btn-equip" id="btn-item-action">穿戴</button>
             </div>
 
-            <!-- 弹窗：详细属性 -->
             <div id="detail-card" class="overlay-card">
                 <div class="card-close" onclick="hideDetailCard()">✖</div>
                 <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
@@ -371,19 +340,16 @@
 
     <div id="global-toast"></div>
 
-    <!-- 引入 Phaser 引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
-    
     <script src="data.js"></script>
     <script src="battle.js"></script>
 
     <script>
-        // ====== 🌟 核心：螢幕自適應等比縮放函數 (對齊 1280x720) ======
         function resizeGameUI() {
             const container = document.getElementById('game-scale-container');
             const scaleX = window.innerWidth / 1280;
             const scaleY = window.innerHeight / 720;
-            const scale = Math.min(scaleX, scaleY); // 保持等比
+            const scale = Math.min(scaleX, scaleY);
             
             container.style.transform = `scale(${scale})`;
             const scaledWidth = 1280 * scale;
@@ -394,13 +360,13 @@
 
         window.addEventListener('resize', resizeGameUI);
 
-        // ====== 主畫面動態 UI 配置讀取 ======
         let currentBgIndex = 0;
         let mainConfig = null;
 
         function initIndexMainUI() {
-            resizeGameUI(); // 初始化執行縮放
+            resizeGameUI();
 
+            // 讀取編輯器儲存的配置
             mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
                 bgList: [
                     { name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
@@ -412,12 +378,8 @@
                 }
             };
 
-            // 設定背景圖
-            if (mainConfig.bgList && mainConfig.bgList.length > 0) {
-                document.getElementById('main-bg').style.backgroundImage = `url('${mainConfig.bgList[currentBgIndex].url}')`;
-            }
+            updateBackgroundDisplay();
 
-            // 讀取劇本資料填入右側卡片
             const storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
             if (storyData && storyData.books && storyData.books.length > 0) {
                 const firstBook = storyData.books[0];
@@ -427,31 +389,117 @@
                 if(dEl) dEl.innerText = firstBook.desc;
             }
 
-            // 渲染左側動態選單
             renderIndexLeftSidebar();
         }
 
+        // 更新背景顯示
+        function updateBackgroundDisplay() {
+            if (mainConfig && mainConfig.bgList && mainConfig.bgList.length > 0) {
+                // 確保索引不越界
+                if (currentBgIndex >= mainConfig.bgList.length) currentBgIndex = 0;
+                const activeBg = mainConfig.bgList[currentBgIndex];
+                if (activeBg) {
+                    document.getElementById('main-bg').style.backgroundImage = `url('${activeBg.url}')`;
+                }
+            }
+        }
+
+        // 點擊背景可循環切換已解鎖的背景圖
+        window.cycleBackground = function() {
+            if (!mainConfig || !mainConfig.bgList || mainConfig.bgList.length === 0) return;
+            
+            // 過濾出已解鎖的背景
+            let unlockedBgs = mainConfig.bgList.filter(b => b.unlocked);
+            if (unlockedBgs.length === 0) unlockedBgs = mainConfig.bgList; // 若都沒解鎖則全都可以切換
+
+            // 尋找當前背景在 unlockedBgs 中的位置
+            let currentUrl = mainConfig.bgList[currentBgIndex].url;
+            let subIndex = unlockedBgs.findIndex(b => b.url === currentUrl);
+            
+            subIndex = (subIndex + 1) % unlockedBgs.length;
+            let targetBg = unlockedBgs[subIndex];
+            
+            currentBgIndex = mainConfig.bgList.findIndex(b => b.id === targetBg.id);
+            if (currentBgIndex === -1) currentBgIndex = 0;
+
+            updateBackgroundDisplay();
+            showToast(`已切換背景：${targetBg.name}`, '#3498db');
+        }
+
+        // 動態生成左側選單（根據編輯器中的 active 開關與自訂標題）
         function renderIndexLeftSidebar() {
             const sidebar = document.getElementById('left-sidebar');
             if (!sidebar) return;
             sidebar.innerHTML = '';
 
-            // 江湖歷程按鈕
-            const sb = document.createElement('div');
-            sb.className = 'menu-btn';
-            sb.innerHTML = `<span>📜</span> <span>江湖歷程</span>`;
-            sb.onclick = () => window.location.href = 'story_menu.html';
-            sidebar.appendChild(sb);
+            const btnConfigs = mainConfig.buttons || {};
 
-            // 角色與背包按鈕
-            const cb = document.createElement('div');
-            cb.className = 'menu-btn';
-            cb.innerHTML = `<span>👥</span> <span>角色與背包</span>`;
-            cb.onclick = () => window.openCharacterUI();
-            sidebar.appendChild(cb);
+            // 1. 玩家檔案
+            if (btnConfigs.profile && btnConfigs.profile.active) {
+                const pb = createMenuButton(btnConfigs.profile.icon || '👤', btnConfigs.profile.title || '玩家檔案', () => {
+                    window.openCharacterUI(); // 點擊開啟角色介面
+                });
+                sidebar.appendChild(pb);
+            }
+
+            // 2. 劇本歷程 / 江湖歷程
+            if (btnConfigs.story && btnConfigs.story.active) {
+                const sb = createMenuButton(btnConfigs.story.icon || '📜', btnConfigs.story.title || '江湖歷程', () => {
+                    window.location.href = 'story_menu.html';
+                });
+                sidebar.appendChild(sb);
+            }
+
+            // 3. 人物編隊 / 角色
+            if (btnConfigs.character && btnConfigs.character.active) {
+                const cb = createMenuButton(btnConfigs.character.icon || '👥', btnConfigs.character.title || '人物編隊', () => {
+                    window.openCharacterUI();
+                });
+                sidebar.appendChild(cb);
+            }
+
+            // 4. 背包裝備
+            if (btnConfigs.backpack && btnConfigs.backpack.active) {
+                const bb = createMenuButton(btnConfigs.backpack.icon || '🎒', btnConfigs.backpack.title || '背包裝備', () => {
+                    window.openCharacterUI();
+                });
+                sidebar.appendChild(bb);
+            }
+
+            // 5. 江湖任務 (未開放時可顯示提示)
+            if (btnConfigs.quest && btnConfigs.quest.active) {
+                const qb = createMenuButton(btnConfigs.quest.icon || '📋', btnConfigs.quest.title || '江湖任務', () => {
+                    showToast(btnConfigs.quest.statusText || '功能即將開放', '#e67e22');
+                });
+                sidebar.appendChild(qb);
+            }
+
+            // 6. 珍寶商店
+            if (btnConfigs.shop && btnConfigs.shop.active) {
+                const s_btn = createMenuButton(btnConfigs.shop.icon || '🛒', btnConfigs.shop.title || '珍寶商店', () => {
+                    showToast(btnConfigs.shop.statusText || '功能即將開放', '#e67e22');
+                });
+                sidebar.appendChild(s_btn);
+            }
+
+            // 7. 系統設置
+            if (btnConfigs.settings && btnConfigs.settings.active) {
+                const set_btn = createMenuButton(btnConfigs.settings.icon || '⚙️', btnConfigs.settings.title || '系統設置', () => {
+                    showToast('目前可在配置中心進行詳細設置', '#3498db');
+                });
+                sidebar.appendChild(set_btn);
+            }
         }
 
-        // ====== 角色與背包相關邏輯 ======
+        function createMenuButton(icon, title, onClickCallback) {
+            const btn = document.createElement('div');
+            btn.className = 'menu-btn';
+            btn.innerHTML = `<span>${icon}</span> <span>${title}</span>`;
+            btn.onclick = onClickCallback;
+            return btn;
+        }
+
+        // ====== 角色與背包相關邏輯（維持原樣） ======
         function getFinalStatsForUI(char) {
             let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
             let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
@@ -926,7 +974,6 @@
             localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
         }
 
-        // 頁面載入完成時執行初始化與自適應縮放
         window.addEventListener('DOMContentLoaded', () => {
             initIndexMainUI();
         });
