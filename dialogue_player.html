@@ -128,7 +128,7 @@
 <body id="body-container">
 
     <div id="game-scale-container" onclick="handleContainerClick(event)">
-        <div id="story-bg" style="background-image: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop');"></div>
+        <div id="story-bg"></div>
         <div id="flash-overlay"></div>
         
         <div class="top-bar">
@@ -213,6 +213,12 @@
                 alert('找不到有效節點，即將前往戰鬥頁面');
                 window.location.href = 'battle.html?levelIndex=0';
                 return;
+            }
+            let firstNode = currentBook.nodes[0];
+            if (firstNode.type === 'cg' && firstNode.cgUrl) {
+                document.getElementById('story-bg').style.backgroundImage = `url('${firstNode.cgUrl}')`;
+            } else if (firstNode.type === 'dialogue' && firstNode.bgUrl) {
+                document.getElementById('story-bg').style.backgroundImage = `url('${firstNode.bgUrl}')`;
             }
             loadNode(currentNodeIndex);
         }
