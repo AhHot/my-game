@@ -192,7 +192,8 @@
         let currentLineIndex = 0;
         let dialogueLines = [];
         let historyLogs = [];
-        
+        let isCgNode = false; // 標記目前是否為 CG 過場節點
+
         let isAutoPlay = false;
         let autoTimer = null;
         let isTyping = false;
@@ -216,13 +217,33 @@
             let node = currentBook.nodes[nIdx];
 
             if (node.type === 'battle') {
-                // 🌟 修復點：將關卡索引存入 LocalStorage，再跳轉回主遊戲進入戰前布陣
                 localStorage.setItem('my_game_current_level_index', node.levelIndex || 0);
-                window.location.href = 'index.html';
+                window.location.href = 'index.html?autoFormation=1';
+                return;
+            }
+
+            if (node.type === 'cg') {
+                // 🖼️ CG 過場插畫節點處理
+                isCgNode = true;
+                document.getElementById('standee-container').innerHTML = ''; // 清空立繪
+                if (node.cgUrl) {
+                    document.getElementById('story-bg').style.backgroundImage = `url('${node.cgUrl}')`;
+                }
+                document.getElementById('box-name').innerText = '【過場插畫】';
+                
+                if (node.sfxUrl) {
+                    const sfx = document.getElementById('sfx-player');
+                    sfx.src = node.sfxUrl;
+                    sfx.play().catch(e => {});
+                }
+
+                historyLogs.push({ speaker: '【過場插畫】', text: node.text || '' });
+                startTypewriter(node.text || '');
                 return;
             }
 
             if (node.type === 'dialogue') {
+                isCgNode = false;
                 if (node.bgUrl) {
                     document.getElementById('story-bg').style.backgroundImage = `url('${node.bgUrl}')`;
                 }
@@ -282,7 +303,6 @@
             }, 35);
         }
 
-        // 🌟 點擊畫面任意處推進對話（若處於隱藏UI模式則優先恢復 UI）
         function handleContainerClick(event) {
             const body = document.getElementById('body-container');
             if (body.classList.contains('hidden-ui')) {
@@ -295,14 +315,27 @@
         function progressDialogue() {
             if (isTyping) {
                 clearInterval(typeInterval);
-                document.getElementById('box-text').innerText = dialogueLines[currentLineIndex].text;
+                if (isCgNode) {
+                    let node = currentBook.nodes[currentNodeIndex];
+                    document.getElementById('box-text').innerText = node.text || '';
+                } else {
+                    document.getElementById('box-text').innerText = dialogueLines[currentLineIndex].text;
+                }
                 isTyping = false;
                 return;
             }
 
             clearTimeout(autoTimer);
-            currentLineIndex++;
-            showCurrentLine();
+
+            if (isCgNode) {
+                // 如果是 CG 節點，點擊後直接進入下一個時間軸節點
+                currentNodeIndex++;
+                loadNode(currentNodeIndex);
+            } else {
+                // 一般對話節點，推進下一句台詞
+                currentLineIndex++;
+                showCurrentLine();
+            }
         }
 
         function renderStandees(currentLine) {
@@ -334,7 +367,7 @@
         }
 
         function toggleHideUI(event) {
-            event.stopPropagation(); // 避免觸發容器點擊
+            event.stopPropagation();
             document.getElementById('body-container').classList.add('hidden-ui');
         }
 
@@ -358,13 +391,11 @@
             }
         }
 
-function finishStorySequence() {
-    // 假設目前要打的是第 0 關（或您當前選擇的關卡索引）
-    localStorage.setItem('my_game_current_level_index', 0); 
-    
-    // 直接呼叫帶有布陣或戰鬥模式的頁面，或者直接引導到 Phaser 的啟動點
-    window.location.href = 'index.html?autoFormation=1';
-}
+        function finishStorySequence() {
+            alert('劇情播放完畢！');
+            window.location.href = 'index.html';
+        }
+
         function openHistory(event) {
             event.stopPropagation();
             const list = document.getElementById('history-list');
