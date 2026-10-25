@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：支援音效與氛圍特效的劇本編輯器 (tab_story.js)
+// 模組：支援戰鬥、對話與 CG 過場的劇本編輯器 (tab_story.js)
 // ==========================================
 window.renderTabStory = function(container) {
   if (!localStorage.getItem('my_game_story_data')) {
@@ -20,6 +20,12 @@ window.renderTabStory = function(container) {
           tag: '章節進度 57%',
           nodes: [
             { 
+              type: 'cg', 
+              cgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', 
+              text: '青城山麓，風雪交加，一场浩劫正悄然拉开序幕……',
+              sfxUrl: '' 
+            },
+            { 
               type: 'dialogue', 
               bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop', 
               bgmUrl: '',
@@ -38,14 +44,14 @@ window.renderTabStory = function(container) {
   container.innerHTML = `
     <div class="card">
       <div class="card-header">
-        <h3>📖 劇本與篇章配置中心 (沉浸式影音版)</h3>
+        <h3>📖 劇本與篇章配置中心 (含 CG 過場插畫)</h3>
         <div>
           <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px; margin-right:8px;" onclick="window.saveStoryDataDirect()">💾 儲存並同步</button>
           <button class="btn" style="background:#3498db; padding:6px 12px; font-size:12px;" onclick="window.addStoryBook()">➕ 新增篇章</button>
         </div>
       </div>
       <p style="font-size:13px; color:#aaa; margin-bottom:15px;">
-        在此編排江湖篇章，並可為對話設定專屬 BGM、SFX音效與畫面變紅等沉浸式特效！
+        在此編排江湖篇章，支援自由插入對話、戰鬥以及全螢幕 CG 插畫過場節點！
       </p>
 
       <div style="display:flex; gap:10px; margin-bottom:20px;" id="story-tab-filter">
@@ -147,7 +153,8 @@ function reloadStoryEditorUI() {
           <span style="font-size:14px; color:#3498db; font-weight:bold;">📍 劇情時間軸節點</span>
           <div style="display:flex; gap:6px;">
             <button class="btn" style="background:#e67e22; font-size:11px; padding:3px 8px;" onclick="window.addNodeToBook(${bookIdx}, 'battle')">＋戰鬥節點</button>
-            <button class="btn" style="background:#9b59b6; font-size:11px; padding:3px 8px;" onclick="window.addNodeToBook(${bookIdx}, 'dialogue')">＋對話劇情</button>
+            <button class="btn" style="background:#9b59b6; font-size:11px; padding:3px 8px;" onclick="window.addNodeToBook(${bookIdx}, 'dialogue')">＋對話節點</button>
+            <button class="btn" style="background:#2980b9; font-size:11px; padding:3px 8px;" onclick="window.addNodeToBook(${bookIdx}, 'cg')">＋CG過場節點</button>
           </div>
         </div>
         <div style="display:flex; flex-direction:column; gap:10px;">
@@ -160,8 +167,8 @@ function reloadStoryEditorUI() {
 }
 
 function renderSingleNodeCard(bookIdx, nIdx, node, currentLevels, totalNodes) {
-  let typeLabel = node.type === 'battle' ? '⚔️ 戰棋戰鬥' : '💬 劇情對話';
-  let typeColor = node.type === 'battle' ? '#e67e22' : '#9b59b6';
+  let typeLabel = node.type === 'battle' ? '⚔️ 戰棋戰鬥' : (node.type === 'cg' ? '🖼️ CG過場插畫' : '💬 劇情對話');
+  let typeColor = node.type === 'battle' ? '#e67e22' : (node.type === 'cg' ? '#2980b9' : '#9b59b6');
   let bodyHtml = '';
 
   if (node.type === 'battle') {
@@ -175,6 +182,23 @@ function renderSingleNodeCard(bookIdx, nIdx, node, currentLevels, totalNodes) {
         <select style="flex:1; background:#1e2028; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px;" onchange="window.updateNodeField(${bookIdx}, ${nIdx}, 'levelIndex', parseInt(this.value))">
           ${levelOptions}
         </select>
+      </div>
+    `;
+  } else if (node.type === 'cg') {
+    bodyHtml = `
+      <div style="display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="font-size:11px; color:#aaa; width:70px;">CG圖片URL:</label>
+          <input type="text" value="${node.cgUrl || ''}" style="flex:1; font-size:11px; padding:3px;" placeholder="全螢幕插畫圖片網址..." oninput="window.updateNodeField(${bookIdx}, ${nIdx}, 'cgUrl', this.value)">
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="font-size:11px; color:#aaa; width:70px;">音效URL:</label>
+          <input type="text" value="${node.sfxUrl || ''}" style="flex:1; font-size:11px; padding:3px;" placeholder="音效網址 (選填)..." oninput="window.updateNodeField(${bookIdx}, ${nIdx}, 'sfxUrl', this.value)">
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="font-size:11px; color:#aaa; width:70px;">旁白文字:</label>
+          <input type="text" value="${node.text || ''}" style="flex:1; font-size:11px; padding:3px;" placeholder="CG畫面顯示的旁白或標題文字..." oninput="window.updateNodeField(${bookIdx}, ${nIdx}, 'text', this.value)">
+        </div>
       </div>
     `;
   } else if (node.type === 'dialogue') {
@@ -242,6 +266,7 @@ window.addNodeToBook = function(bookIdx, type) {
     let newNode = { type };
     if (type === 'battle') newNode.levelIndex = 0;
     else if (type === 'dialogue') newNode.lines = [{ speaker: '主角', avatar: '', text: '請輸入...', sfxUrl: '', effect: 'none' }];
+    else if (type === 'cg') newNode = { type: 'cg', cgUrl: '', text: '請輸入CG旁白...', sfxUrl: '' };
     storyData.books[bookIdx].nodes.push(newNode);
     window.updateBookDataRaw(storyData);
     reloadStoryEditorUI();
@@ -355,5 +380,5 @@ window.updateBookDataRaw = function(data) {
 };
 
 window.saveStoryDataDirect = function() {
-  alert('✅ 劇本與特效音效資料已成功儲存！');
+  alert('✅ 劇本、特效與 CG 過場資料已成功儲存！');
 };
