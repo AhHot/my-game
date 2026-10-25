@@ -124,11 +124,9 @@
 
     <div id="global-toast"></div>
 
-    <!-- 引入外部引擎與核心邏輯 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
     <script src="battle.js"></script>
-    <!-- 引入剛才獨立出來的人物與背包功能模組 -->
     <script src="character_system.js"></script>
 
     <script>
@@ -222,7 +220,7 @@
                 sidebar.appendChild(sb);
             }
 
-            // 2. 角色與背包（統一入口，呼叫 character_system.js 的 openCharacterUI）
+            // 2. 角色與背包（點擊穩定呼叫 openCharacterUI）
             const charBtnConfig = btnConfigs.character || btnConfigs.profile || { title: '角色與背包', icon: '👥', active: true };
             if (charBtnConfig.active !== false) {
                 const cb = createMenuButton(charBtnConfig.icon || '👥', charBtnConfig.title || '角色與背包', () => {
@@ -235,23 +233,7 @@
                 sidebar.appendChild(cb);
             }
 
-            // 3. 江湖任務
-            if (btnConfigs.quest && btnConfigs.quest.active) {
-                const qb = createMenuButton(btnConfigs.quest.icon || '📋', btnConfigs.quest.title || '江湖任務', () => {
-                    showToast(btnConfigs.quest.statusText || '功能即將開放', '#e67e22');
-                });
-                sidebar.appendChild(qb);
-            }
-
-            // 4. 珍寶商店
-            if (btnConfigs.shop && btnConfigs.shop.active) {
-                const s_btn = createMenuButton(btnConfigs.shop.icon || '🛒', btnConfigs.shop.title || '珍寶商店', () => {
-                    showToast(btnConfigs.shop.statusText || '功能即將開放', '#e67e22');
-                });
-                sidebar.appendChild(s_btn);
-            }
-
-            // 5. 系統設置
+            // 3. 系統設置
             if (btnConfigs.settings && btnConfigs.settings.active) {
                 const set_btn = createMenuButton(btnConfigs.settings.icon || '⚙️', btnConfigs.settings.title || '系統設置', () => {
                     showToast('目前可在配置中心進行詳細設置', '#3498db');
