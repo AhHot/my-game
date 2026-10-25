@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>武俠 - 戰前布陣與戰鬥</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
+        #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
+    </style>
+</head>
+<body>
+    <div id="game"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <script src="data.js"></script>
+    <script src="battle.js"></script>
+    <script src="character_system.js"></script>
+    <script src="tab_char.js"></script>
+
+    <script>
+        // 取得網址帶過來的關卡索引 (例如 battle.html?levelIndex=0)
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetLevelIndex = parseInt(urlParams.get('levelIndex') || '0');
+
+        // 獨立的 Phaser 遊戲實例：注意這裡的 scene 陣列中完全沒有 MainMenuScene！
+        // 它會直接從 FormationScene (戰前布陣) 開始運行
+        window.game = new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: 'game',
+            backgroundColor: '#0f0f1a',
+            scale: {
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
+                width: 1280,
+                height: 720
+            },
+            scene: [FormationScene, BattleScene, ResultScene],
+        });
+
+        // 監聽遊戲初始化完成後，直接切入指定的關卡布陣
+        window.addEventListener('load', () => {
+            if (window.game && window.game.scene) {
+                // 確保稍微延遲等待場景就緒，直接啟動布陣
+                setTimeout(() => {
+                    window.game.scene.start('FormationScene', { levelIndex: targetLevelIndex });
+                }, 200);
+            }
+        });
+    </script>
+</body>
+</html>
