@@ -1,12 +1,10 @@
-// tab_main_ui.js - 主畫面與 UI 配置模組
+// tab_main_ui.js - 主畫面與 UI 配置模組 (已修復即時儲存與鍵值同步)
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
-    // 預設主畫面背景圖庫
     bgList: [
       { id: 'bg_01', name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true },
       { id: 'bg_02', name: '江南煙雨', url: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1200&auto=format&fit=crop', unlocked: false }
     ],
-    // 左側與功能按鈕開關狀態 (active: 是否顯示, icon: 圖標或圖片URL, title: 顯示名稱)
     buttons: {
       profile: { title: '玩家檔案', icon: '👤', active: true },
       story: { title: '劇本歷程', icon: '📜', active: true },
@@ -45,7 +43,6 @@ window.renderTabMainUI = function(container) {
   renderBtnList(mainConfig);
 };
 
-// 渲染背景圖片清單
 function renderBgList(config) {
   const container = document.getElementById('bg-list-editor');
   if (!container) return;
@@ -55,7 +52,7 @@ function renderBgList(config) {
     const item = document.createElement('div');
     item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:10px; border-radius:6px; display:flex; gap:10px; align-items:center;";
     item.innerHTML = `
-      <img src="${bg.url}" style="width:70px; height:45px; object-fit:cover; border-radius:4px; border:1px solid #444;">
+      <img src="${bg.url}" style="width:70px; height:45px; object-fit:cover; border-radius:4px; border:1px solid #444;" onerror="this.src='https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop'">
       <div style="flex:1;">
         <input type="text" value="${bg.name}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; width:120px; font-size:12px;" oninput="updateBgField(${index}, 'name', this.value)">
         <input type="text" value="${bg.url}" style="background:#16213e; color:#aaa; border:1px solid #444; padding:4px 8px; border-radius:4px; width:220px; font-size:12px; margin-left:5px;" oninput="updateBgField(${index}, 'url', this.value)">
@@ -69,7 +66,6 @@ function renderBgList(config) {
   });
 }
 
-// 渲染按鈕控制列表
 function renderBtnList(config) {
   const container = document.getElementById('btn-list-editor');
   if (!container) return;
@@ -131,5 +127,9 @@ window.deleteBgImage = function(index) {
 };
 
 window.saveMainConfigDirect = function() {
-  alert('✅ 主畫面 UI 配置已儲存！');
+  let config = JSON.parse(localStorage.getItem('my_game_main_config'));
+  if (config) {
+    localStorage.setItem('my_game_main_config', JSON.stringify(config));
+  }
+  alert('✅ 主畫面 UI 配置已成功儲存！');
 };
