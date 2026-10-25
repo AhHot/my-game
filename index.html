@@ -251,7 +251,7 @@
             <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
         </div>
 
-        <!-- 左側動態功能側欄（將依據設定動態生成） -->
+        <!-- 左側動態功能側欄（精簡為單一乾淨入口） -->
         <div class="left-sidebar interactive-ui" id="left-sidebar"></div>
 
         <div class="main-right-section interactive-ui">
@@ -373,8 +373,8 @@
                 ],
                 buttons: {
                     story: { title: '江湖歷程', icon: '📜', active: true },
-                    character: { title: '人物編隊', icon: '👥', active: true },
-                    backpack: { title: '背包裝備', icon: '🎒', active: true }
+                    character: { title: '角色與背包', icon: '👥', active: true },
+                    settings: { title: '系統設置', icon: '⚙️', active: true }
                 }
             };
 
@@ -395,7 +395,6 @@
         // 更新背景顯示
         function updateBackgroundDisplay() {
             if (mainConfig && mainConfig.bgList && mainConfig.bgList.length > 0) {
-                // 確保索引不越界
                 if (currentBgIndex >= mainConfig.bgList.length) currentBgIndex = 0;
                 const activeBg = mainConfig.bgList[currentBgIndex];
                 if (activeBg) {
@@ -408,11 +407,9 @@
         window.cycleBackground = function() {
             if (!mainConfig || !mainConfig.bgList || mainConfig.bgList.length === 0) return;
             
-            // 過濾出已解鎖的背景
             let unlockedBgs = mainConfig.bgList.filter(b => b.unlocked);
-            if (unlockedBgs.length === 0) unlockedBgs = mainConfig.bgList; // 若都沒解鎖則全都可以切換
+            if (unlockedBgs.length === 0) unlockedBgs = mainConfig.bgList;
 
-            // 尋找當前背景在 unlockedBgs 中的位置
             let currentUrl = mainConfig.bgList[currentBgIndex].url;
             let subIndex = unlockedBgs.findIndex(b => b.url === currentUrl);
             
@@ -426,7 +423,7 @@
             showToast(`已切換背景：${targetBg.name}`, '#3498db');
         }
 
-        // 動態生成左側選單（根據編輯器中的 active 開關與自訂標題）
+        // 動態生成左側選單（去蕪存菁，確保無重複入口）
         function renderIndexLeftSidebar() {
             const sidebar = document.getElementById('left-sidebar');
             if (!sidebar) return;
@@ -434,15 +431,7 @@
 
             const btnConfigs = mainConfig.buttons || {};
 
-            // 1. 玩家檔案
-            if (btnConfigs.profile && btnConfigs.profile.active) {
-                const pb = createMenuButton(btnConfigs.profile.icon || '👤', btnConfigs.profile.title || '玩家檔案', () => {
-                    window.openCharacterUI(); // 點擊開啟角色介面
-                });
-                sidebar.appendChild(pb);
-            }
-
-            // 2. 劇本歷程 / 江湖歷程
+            // 1. 江湖歷程 / 劇本選擇
             if (btnConfigs.story && btnConfigs.story.active) {
                 const sb = createMenuButton(btnConfigs.story.icon || '📜', btnConfigs.story.title || '江湖歷程', () => {
                     window.location.href = 'story_menu.html';
@@ -450,23 +439,16 @@
                 sidebar.appendChild(sb);
             }
 
-            // 3. 人物編隊 / 角色
-            if (btnConfigs.character && btnConfigs.character.active) {
-                const cb = createMenuButton(btnConfigs.character.icon || '👥', btnConfigs.character.title || '人物編隊', () => {
+            // 2. 角色與背包（統一的綜合入口，取代原本重複的人物與背包按鈕）
+            const charBtnConfig = btnConfigs.character || btnConfigs.profile || { title: '角色與背包', icon: '👥', active: true };
+            if (charBtnConfig.active !== false) {
+                const cb = createMenuButton(charBtnConfig.icon || '👥', charBtnConfig.title || '角色與背包', () => {
                     window.openCharacterUI();
                 });
                 sidebar.appendChild(cb);
             }
 
-            // 4. 背包裝備
-            if (btnConfigs.backpack && btnConfigs.backpack.active) {
-                const bb = createMenuButton(btnConfigs.backpack.icon || '🎒', btnConfigs.backpack.title || '背包裝備', () => {
-                    window.openCharacterUI();
-                });
-                sidebar.appendChild(bb);
-            }
-
-            // 5. 江湖任務 (未開放時可顯示提示)
+            // 3. 江湖任務
             if (btnConfigs.quest && btnConfigs.quest.active) {
                 const qb = createMenuButton(btnConfigs.quest.icon || '📋', btnConfigs.quest.title || '江湖任務', () => {
                     showToast(btnConfigs.quest.statusText || '功能即將開放', '#e67e22');
@@ -474,7 +456,7 @@
                 sidebar.appendChild(qb);
             }
 
-            // 6. 珍寶商店
+            // 4. 珍寶商店
             if (btnConfigs.shop && btnConfigs.shop.active) {
                 const s_btn = createMenuButton(btnConfigs.shop.icon || '🛒', btnConfigs.shop.title || '珍寶商店', () => {
                     showToast(btnConfigs.shop.statusText || '功能即將開放', '#e67e22');
@@ -482,7 +464,7 @@
                 sidebar.appendChild(s_btn);
             }
 
-            // 7. 系統設置
+            // 5. 系統設置
             if (btnConfigs.settings && btnConfigs.settings.active) {
                 const set_btn = createMenuButton(btnConfigs.settings.icon || '⚙️', btnConfigs.settings.title || '系統設置', () => {
                     showToast('目前可在配置中心進行詳細設置', '#3498db');
@@ -499,7 +481,7 @@
             return btn;
         }
 
-        // ====== 角色與背包相關邏輯（維持原樣） ======
+        // ====== 角色與背包相關邏輯（維持原樣，確保功能100%正常） ======
         function getFinalStatsForUI(char) {
             let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
             let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
