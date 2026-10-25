@@ -8,10 +8,10 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
 
-        .page-bg { position: absolute; inset: 0; background: radial-gradient(circle at 70% 30%, #161c28 0%, #08090c 80%); z-index: 1; }
+        /* 動態背景圖 */
+        .page-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(0.4); z-index: 1; }
         .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
 
-        /* 1280x720 自適應容器 */
         #story-canvas-container {
             position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
             transform-origin: 0 0; z-index: 10; overflow: hidden;
@@ -39,7 +39,7 @@
 </head>
 <body>
 
-    <div class="page-bg"></div>
+    <div class="page-bg" id="page-bg-img"></div>
     <div class="bg-grid"></div>
 
     <div id="story-canvas-container">
@@ -63,6 +63,7 @@
         function renderStoryMenu() {
             autoScaleUI();
             const config = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || {
+                bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
                 layout: {
                     topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true },
                     leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true },
@@ -74,6 +75,11 @@
                 bottomButtons: ['戰鬥畫面', '本篇', '研修', '資源', '挑戰'],
                 activeTabId: 'main'
             };
+
+            // 設定背景圖
+            if (config.bgUrl) {
+                document.getElementById('page-bg-img').style.backgroundImage = `url('${config.bgUrl}')`;
+            }
 
             let currentCatId = config.activeTabId || (config.categories[0] ? config.categories[0].id : 'main');
 
@@ -90,11 +96,11 @@
                 const item = document.createElement('div');
                 item.className = 'tab-item' + (cat.id === currentCatId ? ' active' : '');
                 item.innerHTML = `<span>● ${cat.name}</span> ${cat.id === currentCatId ? '<span>◆</span>' : ''}`;
-                item.onclick = () => { config.activeTabId = cat.id; renderStoryMenu(); };
+                item.onclick = () => { config.activeTabId = cat.id; localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); renderStoryMenu(); };
                 leftBox.appendChild(item);
             });
 
-            // 3. 右側卡片
+            // 3. 右側關卡卡片 (完美顯示您新增的 3 個或更多章節)
             const rightBox = document.getElementById('right-slider-box');
             rightBox.style.cssText = `left:${config.layout.rightSlider.x}px; top:${config.layout.rightSlider.y}px; width:${config.layout.rightSlider.w}px; height:${config.layout.rightSlider.h}px;`;
             rightBox.innerHTML = '';
@@ -103,12 +109,12 @@
                 const card = document.createElement('div');
                 card.className = 'chapter-card';
                 card.style.backgroundImage = `url('${chap.cover}')`;
-                card.onclick = () => alert(`🚀 準備進入【${chap.title}】畫布！`);
+                card.onclick = () => alert(`🚀 準備進入【${chap.title}】的小章節畫布！`);
                 card.innerHTML = `
                     <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
                     <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-                        <div style="color:#fff; font-size:22px; font-weight:bold;">${chap.title}</div>
-                        <div style="background:rgba(0,0,0,0.7); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px;">通關: ${chap.progress}</div>
+                        <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
+                        <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
                     </div>
                 `;
                 rightBox.appendChild(card);
