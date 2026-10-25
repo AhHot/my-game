@@ -8,11 +8,12 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0b0c10; font-family: "Microsoft YaHei", sans-serif; position: relative; }
 
-        /* 🌟 1280x720 核心等比縮放容器 */
+        /* 1280x720 核心等比縮放容器，完美適應手機與電腦 */
         #game-scale-container {
-            position: absolute; top: 0; left: 0;
+            position: absolute; top: 50%; left: 50%;
             width: 1280px; height: 720px;
-            transform-origin: 0 0;
+            transform: translate(-50%, -50%);
+            transform-origin: center center;
             overflow: hidden; background: #000;
             cursor: pointer;
         }
@@ -121,22 +122,15 @@
         .history-speaker { color: #3498db; font-weight: bold; font-size: 16px; margin-bottom: 5px; }
         .history-msg { color: #ddd; font-size: 18px; line-height: 1.5; }
 
-        /* 隱藏UI模式：點擊畫面任何地方即可恢復 */
         .hidden-ui #dialogue-box-area, .hidden-ui .top-bar { opacity: 0; pointer-events: none; }
-        .hidden-ui::after {
-            content: '點擊任意處恢復介面';
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            color: rgba(255,255,255,0.6); font-size: 14px; z-index: 200; pointer-events: none;
-        }
     </style>
 </head>
 <body id="body-container">
 
     <div id="game-scale-container" onclick="handleContainerClick(event)">
-        <div id="story-bg"></div>
+        <div id="story-bg" style="background-image: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop');"></div>
         <div id="flash-overlay"></div>
         
-        <!-- 頂部功能列 -->
         <div class="top-bar">
             <div class="top-btns">
                 <button class="top-btn" onclick="toggleHideUI(event)">👁️ 隱藏</button>
@@ -148,18 +142,15 @@
             </div>
         </div>
 
-        <!-- 立繪層 -->
         <div id="standee-container"></div>
 
-        <!-- 底部對話框 -->
         <div id="dialogue-box-area">
-            <div class="nameplate" id="box-name">發言人</div>
-            <div class="dialogue-text" id="box-text">載入劇情中...</div>
+            <div class="nameplate" id="box-name">系統提示</div>
+            <div class="dialogue-text" id="box-text">正在初始化劇本...</div>
             <div class="next-hint">▼</div>
         </div>
     </div>
 
-    <!-- 歷史回顧 Modal -->
     <div id="history-modal">
         <div class="history-header">
             <span>📜 劇情對話回顧</span>
@@ -172,12 +163,13 @@
     <audio id="sfx-player"></audio>
 
     <script>
+        // 完美適應手機與電腦的縮放比例
         function resizeUI() {
             const container = document.getElementById('game-scale-container');
-            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-            container.style.transform = `scale(${scale})`;
-            container.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
-            container.style.top = (window.innerHeight - 720 * scale) / 2 + 'px';
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            const scale = Math.min(scaleX, scaleY);
+            container.style.transform = `translate(-50%, -50%) scale(${scale})`;
         }
         window.addEventListener('resize', resizeUI);
         resizeUI();
@@ -185,14 +177,31 @@
         const urlParams = new URLSearchParams(window.location.search);
         const bookId = urlParams.get('bookId') || 'book_01';
 
-        let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
+        // 🛡️ 防呆機制：確保讀取不到資料時自動建立預設劇本，絕對不卡死
+        let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
+        if (!storyData || !storyData.books || storyData.books.length === 0) {
+            storyData = {
+                books: [
+                    {
+                        id: 'book_01',
+                        title: '第一章：青城山變',
+                        nodes: [
+                            { type: 'cg', cgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', text: '青城山麓，風雪交加，一場浩劫正悄然拉開序幕……' },
+                            { type: 'dialogue', lines: [{ speaker: '神祕人', avatar: '', text: '來者何人？此地已經被封鎖了。', effect: 'none' }] },
+                            { type: 'battle', levelIndex: 0 }
+                        ]
+                    }
+                ]
+            };
+            localStorage.setItem('my_game_story_data', JSON.stringify(storyData));
+        }
+
         let currentBook = storyData.books.find(b => b.id === bookId) || storyData.books[0];
-        
         let currentNodeIndex = 0;
         let currentLineIndex = 0;
         let dialogueLines = [];
         let historyLogs = [];
-        let isCgNode = false; // 標記目前是否為 CG 過場節點
+        let isCgNode = false;
 
         let isAutoPlay = false;
         let autoTimer = null;
@@ -201,13 +210,12 @@
 
         function initStory() {
             if (!currentBook || !currentBook.nodes || currentBook.nodes.length === 0) {
-                alert('此篇章沒有設定任何節點，將返回主畫面');
-                window.location.href = 'index.html';
+                alert('找不到有效節點，即將前往戰鬥頁面');
+                window.location.href = 'battle.html?levelIndex=0';
                 return;
             }
             loadNode(currentNodeIndex);
         }
-        
 
         function loadNode(nIdx) {
             if (nIdx >= currentBook.nodes.length) {
@@ -217,17 +225,14 @@
 
             let node = currentBook.nodes[nIdx];
 
-                if (node.type === 'battle') {
-    window.location.href = `battle.html?levelIndex=${node.levelIndex || 0}`;
-    return;
-}
-
+            if (node.type === 'battle') {
+                window.location.href = `battle.html?levelIndex=${node.levelIndex || 0}`;
+                return;
             }
 
             if (node.type === 'cg') {
-                // 🖼️ CG 過場插畫節點處理
                 isCgNode = true;
-                document.getElementById('standee-container').innerHTML = ''; // 清空立繪
+                document.getElementById('standee-container').innerHTML = '';
                 if (node.cgUrl) {
                     document.getElementById('story-bg').style.backgroundImage = `url('${node.cgUrl}')`;
                 }
@@ -252,7 +257,7 @@
                 if (node.bgmUrl) {
                     const bgm = document.getElementById('bgm-player');
                     bgm.src = node.bgmUrl;
-                    bgm.play().catch(e => console.log('BGM 需要使用者互動才能播放', e));
+                    bgm.play().catch(e => {});
                 }
 
                 dialogueLines = node.lines || [];
@@ -330,11 +335,9 @@
             clearTimeout(autoTimer);
 
             if (isCgNode) {
-                // 如果是 CG 節點，點擊後直接進入下一個時間軸節點
                 currentNodeIndex++;
                 loadNode(currentNodeIndex);
             } else {
-                // 一般對話節點，推進下一句台詞
                 currentLineIndex++;
                 showCurrentLine();
             }
@@ -394,7 +397,6 @@
         }
 
         function finishStorySequence() {
-            alert('劇情播放完畢！');
             window.location.href = 'battle.html?levelIndex=0';
         }
 
