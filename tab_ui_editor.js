@@ -1,7 +1,9 @@
-// tab_ui_editor.js - 所見即所得全能編輯器 (已修復顯隱開關即時保存、頂部與底部導覽編輯功能)
+// tab_ui_editor.js - 底圖與遊戲畫面百分之百一致同步
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
+    topNavLeftText: '返回大廳',
+    topNavRightText: '俠客傳記 ▶▶',
     layout: {
       topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
       leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
@@ -96,8 +98,9 @@ function renderWYSIWYGCanvas() {
   const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
   const isLayoutMode = window.selectedUIModule === 'layout';
 
+  // 🌟 編輯器背景：強制與遊戲一致的樣式設定 (可透過修改 background-size 來決定要 cover 還是 contain)
   const bgDiv = document.createElement('div');
-  bgDiv.style.cssText = `position: absolute; inset:0; background: url('${data.bgUrl || ''}') center/cover; filter: brightness(0.4); z-index:1;`;
+  bgDiv.style.cssText = `position: absolute; inset:0; background: url('${data.bgUrl || ''}') center/cover no-repeat; filter: brightness(0.4); z-index:1;`;
   canvas.appendChild(bgDiv);
 
   Object.keys(layout).forEach(key => {
@@ -153,7 +156,7 @@ function renderWYSIWYGCanvas() {
     } else if (key === 'bottomNav') {
       el.style.background = 'rgba(10, 11, 15, 0.95)';
       el.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
+      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems: 'center'; el.style.gap = '30px';
       data.bottomButtons.forEach((btnName, idx) => {
         const btn = document.createElement('div');
         btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
@@ -163,7 +166,7 @@ function renderWYSIWYGCanvas() {
     } else {
       el.style.background = 'rgba(255, 165, 0, 0.2)';
       el.style.border = '2px dashed orange';
-      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
+      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems: 'center';
       el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
       el.innerHTML = `<span>${comp.name}</span>`;
     }
@@ -256,7 +259,7 @@ function renderModuleControlPanel() {
     panel.innerHTML = `
       <h4 style="color:#e67e22; margin-bottom:10px;">🖼️ 劇本介面底圖設定</h4>
       <p style="font-size:12px; color:#aaa; margin-bottom:10px;">輸入圖片網址 (URL)：</p>
-      <input type="text" value="${data.bgUrl || ''}" placeholder="https://..." style="width:100%; background:#0f1218; color:#fff; border:1px solid #444; padding:8px; border-radius:4px; margin-bottom:10px;" oninput="window.uiFullData.bgUrl=this.value; renderWYSIWYGCanvas();">
+      <input type="text" value="${data.bgUrl || ''}" placeholder="https://..." style="width:100%; background:#0f1218; color:#fff; border:1px solid #444; padding:8px; border-radius:4px; margin-bottom:10px;" oninput="window.uiFullData.bgUrl=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
     `;
   } else if (mod === 'layout') {
     panel.innerHTML = `
@@ -276,10 +279,10 @@ function renderModuleControlPanel() {
                 </div>
               </div>
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-                <div><label style="font-size:10px; color:#888;">X:</label><input type="number" value="${comp.x}" oninput="data.layout['${k}'].x=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-                <div><label style="font-size:10px; color:#888;">Y:</label><input type="number" value="${comp.y}" oninput="data.layout['${k}'].y=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-                <div><label style="font-size:10px; color:#888;">W:</label><input type="number" value="${comp.w}" oninput="data.layout['${k}'].w=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-                <div><label style="font-size:10px; color:#888;">H:</label><input type="number" value="${comp.h}" oninput="data.layout['${k}'].h=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">X:</label><input type="number" value="${comp.x}" oninput="data.layout['${k}'].x=parseInt(this.value)||0; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">Y:</label><input type="number" value="${comp.y}" oninput="data.layout['${k}'].y=parseInt(this.value)||0; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">W:</label><input type="number" value="${comp.w}" oninput="data.layout['${k}'].w=parseInt(this.value)||0; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">H:</label><input type="number" value="${comp.h}" oninput="data.layout['${k}'].h=parseInt(this.value)||0; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
               </div>
             </div>
           `;
@@ -293,7 +296,7 @@ function renderModuleControlPanel() {
       <div style="display:flex; flex-direction:column; gap:8px;">
         ${data.categories.map((cat, idx) => `
           <div style="display:flex; gap:6px; align-items:center;">
-            <input type="text" value="${cat.name}" style="flex:1; background:#0f1218; color:#fff; border:1px solid #444; padding:6px; border-radius:4px;" oninput="data.categories[${idx}].name=this.value; renderWYSIWYGCanvas();">
+            <input type="text" value="${cat.name}" style="flex:1; background:#0f1218; color:#fff; border:1px solid #444; padding:6px; border-radius:4px;" oninput="data.categories[${idx}].name=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
             <button class="btn-del" onclick="deleteCategoryItem(${idx})">刪</button>
           </div>
         `).join('')}
@@ -315,9 +318,9 @@ function renderModuleControlPanel() {
               <span style="font-size:12px; color:#00ffff; font-weight:bold;">#${idx + 1} 章節</span>
               <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteChapterCard('${currentCatId}', ${idx})">刪除</button>
             </div>
-            <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas();">
-            <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas();">
-            <input type="text" value="${chap.progress}" placeholder="通關進度" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas();">
+            <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+            <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+            <input type="text" value="${chap.progress}" placeholder="通關進度" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
           </div>
         `).join('')}
       </div>
@@ -328,8 +331,8 @@ function renderModuleControlPanel() {
       
       <div style="background:#0f1218; padding:8px; border-radius:4px; margin-bottom:10px; border:1px solid #333;">
         <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">頂部導覽列文字</div>
-        <input type="text" value="${data.topNavLeftText || '返回大廳'}" placeholder="左側按鈕文字" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavLeftText=this.value; renderWYSIWYGCanvas();">
-        <input type="text" value="${data.topNavRightText || '俠客傳記 ▶▶'}" placeholder="右側按鈕文字" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavRightText=this.value; renderWYSIWYGCanvas();">
+        <input type="text" value="${data.topNavLeftText || '返回大廳'}" placeholder="左側按鈕文字" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavLeftText=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+        <input type="text" value="${data.topNavRightText || '俠客傳記 ▶▶'}" placeholder="右側按鈕文字" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.topNavRightText=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
       </div>
 
       <div style="background:#0f1218; padding:8px; border-radius:4px; border:1px solid #333;">
@@ -338,7 +341,7 @@ function renderModuleControlPanel() {
         <div style="display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto;">
           ${(data.bottomButtons || []).map((bName, idx) => `
             <div style="display:flex; gap:4px; align-items:center;">
-              <input type="text" value="${bName}" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.bottomButtons[${idx}]=this.value; renderWYSIWYGCanvas();">
+              <input type="text" value="${bName}" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.bottomButtons[${idx}]=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
               <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteBottomNavBtn(${idx})">刪</button>
             </div>
           `).join('')}
@@ -353,13 +356,13 @@ window.addNewCustomUIComponent = function() {
   if (!name) return;
   const key = 'custom_' + Date.now();
   window.uiFullData.layout[key] = { x: 100, y: 100, w: 400, h: 200, visible: true, name: name };
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.deleteCustomUIComponent = function(key) {
   if (!confirm('確定刪除此自定義組件？')) return;
   delete window.uiFullData.layout[key];
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.addNewCategoryItem = function() {
@@ -368,7 +371,7 @@ window.addNewCategoryItem = function() {
   const newId = 'cat_' + Date.now();
   window.uiFullData.categories.push({ id: newId, name: name });
   if (!window.uiFullData.chapters[newId]) window.uiFullData.chapters[newId] = [];
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.deleteCategoryItem = function(idx) {
@@ -376,7 +379,7 @@ window.deleteCategoryItem = function(idx) {
   const cat = window.uiFullData.categories[idx];
   if (cat) delete window.uiFullData.chapters[cat.id];
   window.uiFullData.categories.splice(idx, 1);
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.addNewChapterCard = function(catId) {
@@ -387,12 +390,12 @@ window.addNewChapterCard = function(catId) {
     progress: '0/6',
     cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop'
   });
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.deleteChapterCard = function(catId, idx) {
   if (window.uiFullData.chapters[catId]) window.uiFullData.chapters[catId].splice(idx, 1);
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.addNewBottomNavBtn = function() {
@@ -400,12 +403,12 @@ window.addNewBottomNavBtn = function() {
   if (!name) return;
   if (!window.uiFullData.bottomButtons) window.uiFullData.bottomButtons = [];
   window.uiFullData.bottomButtons.push(name);
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.deleteBottomNavBtn = function(idx) {
   window.uiFullData.bottomButtons.splice(idx, 1);
-  renderWYSIWYGCanvas(); renderModuleControlPanel();
+  renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.saveUIPageConfigSilently = function() {
