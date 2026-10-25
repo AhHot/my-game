@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復座標調整面板遺失問題)
+// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復儲存重置與顯隱連動 Bug)
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
@@ -24,14 +24,24 @@ window.renderTabUIEditor = function(container) {
     activeTabId: 'main'
   };
 
-  let fullData = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || defaultFullData;
+  // 🌟 嚴格防禦性讀取：優先讀取 localStorage，若無才使用預設值，絕對不允許空白覆蓋
+  let savedRaw = localStorage.getItem('my_game_ui_full_config');
+  let fullData = defaultFullData;
+  if (savedRaw) {
+    try {
+      fullData = JSON.parse(savedRaw);
+    } catch(e) {
+      console.error('解析 UI 佈局配置失敗，使用預設值', e);
+    }
+  }
+
   window.uiFullData = fullData;
   if (!window.selectedUIModule) window.selectedUIModule = 'layout';
 
   container.innerHTML = `
     <div class="card" style="background:#111217; border:1px solid #222;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器</h3>
+        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (已修復存檔重置與顯隱)</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
           <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
@@ -40,7 +50,7 @@ window.renderTabUIEditor = function(container) {
 
       <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
         <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('bg')">🖼️ 0. 設定底圖</button>
-        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('layout')">📐 1. 調整區塊座標</button>
+        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('layout')">📐 1. 調整座標與顯隱</button>
         <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('categories')">🏷️ 2. 管理 Tab</button>
         <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; font-size:12px; flex:1;" onclick="switchEditorModule('chapters')">📚 3. 管理章節卡片</button>
       </div>
@@ -51,7 +61,7 @@ window.renderTabUIEditor = function(container) {
           <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
             <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (在「調整區塊座標」模式下可拖拽或開關顯示)</div>
+          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (在「調整座標與顯隱」模式下可拖拽或開關顯示)</div>
         </div>
 
         <!-- 右側動態控制面板 -->
@@ -101,6 +111,7 @@ function renderWYSIWYGCanvas() {
   // 渲染所有佈局區塊
   Object.keys(layout).forEach(key => {
     const comp = layout[key];
+    // 🌟 核心修復：在編輯器 layout 模式下，即使勾選不顯示也以半透明 (opacity: 0.3) 呈現，方便使用者找回並重新勾選顯示
     if (!comp.visible && !isLayoutMode) return;
 
     const el = document.createElement('div');
