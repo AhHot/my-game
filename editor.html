@@ -88,6 +88,8 @@
     <div class="tab" data-tab="growth" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" data-tab="global" onclick="switchTab('global')">⚙️ 全局设置</div>
     <div class="tab" data-tab="main_ui" onclick="switchTab('main_ui')">🖼️ 主頁UI</div>
+    <!-- 🌟 新增：劇本 UI 可視化佈局編輯按鈕 -->
+    <div class="tab" data-tab="ui_editor" onclick="switchTab('ui_editor')">🎨 劇本UI佈局</div>
   </div>
 
   <div id="app-content"></div>
@@ -107,6 +109,8 @@
   <script src="tab_global.js"></script>
   <script src="tab_story.js"></script>
   <script src="tab_main_ui.js"></script>
+  <!-- 🌟 新增：引入劇本 UI 佈局編輯模組 -->
+  <script src="tab_ui_editor.js"></script>
 
   <script>
     let currentTab = 'char';
@@ -114,7 +118,8 @@
     function switchTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+      const activeTabEl = document.querySelector(`.tab[data-tab="${tab}"]`);
+      if (activeTabEl) activeTabEl.classList.add('active');
 
       const container = document.getElementById('app-content');
       container.innerHTML = ''; 
@@ -128,6 +133,8 @@
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
       else if (tab === 'story' && window.renderTabStory) window.renderTabStory(container);
       else if (tab === 'main_ui' && window.renderTabMainUI) window.renderTabMainUI(container);
+      // 🌟 新增：載入可視化 UI 佈局編輯器
+      else if (tab === 'ui_editor' && window.renderTabUIEditor) window.renderTabUIEditor(container);
     }
 
     // 📤 導出全部數據功能 (修復 iOS / 手機無法下載問題)
@@ -138,7 +145,7 @@
         'my_game_items_v22', 'my_game_levels_v22', 'my_game_inventory_v22',
         'my_game_config', 'my_game_characters', 'my_game_skills_sync',
         'my_game_statuses_sync', 'my_game_items_sync', 'my_game_levels_sync',
-        'my_game_inventory_sync'
+        'my_game_inventory_sync', 'my_game_ui_layout'
       ];
       
       keysToExport.forEach(key => {
@@ -152,12 +159,10 @@
         }
       });
 
-      // 1. 將資料轉為 Blob 物件 (相容性最佳)
       const jsonStr = JSON.stringify(dataToExport, null, 2);
       const blob = new Blob([jsonStr], { type: 'application/json' });
       const blobUrl = URL.createObjectURL(blob);
 
-      // 2. 建立隱藏連結觸發下載
       const downloadAnchor = document.createElement('a');
       downloadAnchor.href = blobUrl;
       downloadAnchor.download = `wuxia_game_backup_${Date.now()}.json`;
@@ -165,7 +170,6 @@
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
 
-      // 3. 釋放記憶體資源
       setTimeout(() => {
         downloadAnchor.remove();
         URL.revokeObjectURL(blobUrl);
