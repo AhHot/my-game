@@ -1,69 +1,66 @@
-// character_system.js - 獨立的人物養成、背包與裝備管理系統
+// character_system.js - 獨立的人物養成、背包與裝備管理系統 (強固防禦版)
 (function() {
-    // 內部全域狀態
     let selectedChar = null;
     let currentUnit = null;
     let currentTab = 'inv';
     let currentFilter = 'all';
     let globalExpTable = [];
 
-    // 初始化並注入角色與背包的完整 UI 結構到 DOM 中
     function initCharacterSystemDOM() {
-        if (document.getElementById('fullscreen-ui')) return; // 避免重複注入
+        if (document.getElementById('fullscreen-ui')) return;
 
         const uiContainer = document.createElement('div');
         uiContainer.id = 'fullscreen-ui';
         uiContainer.className = 'interactive-ui';
-        uiContainer.style.cssText = "display: none; position: absolute; width: 1280px; height: 720px; background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd; flex-direction: row; pointer-events: auto;";
+        uiContainer.style.cssText = "display: none; position: absolute; inset: 0; width: 1280px; height: 720px; background: rgba(10, 10, 15, 0.98); z-index: 99999; color: #ddd; flex-direction: row; pointer-events: auto;";
         uiContainer.onclick = (e) => e.stopPropagation();
 
         uiContainer.innerHTML = `
-            <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
+            <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 99999;">✖</div>
 
             <!-- 左侧面板 -->
-            <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
-                <div class="char-portrait" style="height: 230px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative;"></div>
-                <div class="char-info-area" style="flex: 1; padding: 20px 25px; display: flex; flex-direction: column; overflow-y: auto;">
-                    <div class="char-name-level" style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
-                        <h2 id="ui-char-name" style="color: #f1c40f; font-size: 28px;">战士</h2>
+            <div style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
+                <div style="height: 230px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative;"></div>
+                <div style="flex: 1; padding: 20px 25px; display: flex; flex-direction: column; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
+                        <h2 id="ui-char-name" style="color: #f1c40f; font-size: 28px; margin:0;">战士</h2>
                         <span id="ui-char-level" style="color: #2ecc71; font-weight: bold; font-size: 20px;">Lv. 1</span>
                     </div>
                     
-                    <div class="exp-container" style="margin-bottom: 20px;">
-                        <div class="exp-text" id="ui-exp-text" style="font-size: 12px; color: #888; text-align: right; margin-bottom: 4px;">0 / 100</div>
-                        <div class="exp-bar-bg" style="width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden;"><div class="exp-bar-fill" id="ui-exp-fill" style="width: 0%; height: 100%; background: #3498db; transition: width 0.3s ease;"></div></div>
+                    <div style="margin-bottom: 20px;">
+                        <div id="ui-exp-text" style="font-size: 12px; color: #888; text-align: right; margin-bottom: 4px;">0 / 100</div>
+                        <div style="width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden;"><div id="ui-exp-fill" style="width: 0%; height: 100%; background: #3498db; transition: width 0.3s ease;"></div></div>
                     </div>
 
-                    <div class="equip-slots-container" id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;"></div>
+                    <div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;"></div>
 
-                    <div class="free-points-hint" id="ui-free-points" style="color: #f1c40f; font-size: 16px; margin-bottom: 10px; font-weight: bold; text-align: center;">剩余点数: 0</div>
-                    <div class="stat-grid" id="ui-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 16px; margin-bottom: 20px;"></div>
+                    <div id="ui-free-points" style="color: #f1c40f; font-size: 16px; margin-bottom: 10px; font-weight: bold; text-align: center;">剩余点数: 0</div>
+                    <div id="ui-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 16px; margin-bottom: 20px;"></div>
 
-                    <div class="core-four" id="ui-core-four" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 16px; font-weight: bold;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 16px; font-weight: bold;">
                         <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">气血(HP)<b id="ui-hp" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">3000</b></div>
                         <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">攻击(ATK)<b id="ui-atk" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">400</b></div>
                         <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">防御(DEF)<b id="ui-def" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">200</b></div>
                         <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">速度(SPD)<b id="ui-spd" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">10</b></div>
                     </div>
                 </div>
-                <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 95px; flex-shrink: 0;"></div>
-                <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 40%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
+                <div id="ui-char-list" style="background: #111; padding: 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 95px; flex-shrink: 0;"></div>
+                <div onclick="window.showDetailCard()" style="position: absolute; top: 40%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
             </div>
 
             <!-- 右侧面板 -->
-            <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
-                <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
-                    <div class="rt-tab active" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">🎒 背包</div>
-                    <div class="rt-tab" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">📖 技能</div>
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.95); padding: 30px;">
+                <div style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
+                    <div id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">🎒 背包</div>
+                    <div id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">📖 技能</div>
                 </div>
 
                 <div id="inv-container" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                    <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
                         <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 8px 20px; background: #e67e22; border: 1px solid #e67e22; border-radius: 20px; cursor: pointer; font-size: 18px; color: #fff; font-weight: bold;">全部</div>
                         <div class="filter-btn" onclick="window.setFilter('equip', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">装备</div>
                         <div class="filter-btn" onclick="window.setFilter('consumable', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">消耗品</div>
                         <div class="filter-btn" onclick="window.setFilter('material', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">材料</div>
-                        <div class="filter-btn" onclick="window.setFilter('quest', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">任务</div>
                     </div>
                     <div id="inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 15px; align-content: start; padding-bottom: 20px;"></div>
                 </div>
@@ -72,22 +69,22 @@
             </div>
 
             <!-- 弹窗：物品详情 -->
-            <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
-                <div class="card-close" onclick="window.hideTooltip()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
+            <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 99999; width: 500px; max-height: 85vh; overflow-y: auto;">
+                <div onclick="window.hideTooltip()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <div id="tooltip-content"></div>
-                <button class="btn-action btn-equip" id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
+                <button id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
             </div>
 
             <!-- 弹窗：详细属性 -->
-            <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
-                <div class="card-close" onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
+            <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 99999; width: 500px; max-height: 85vh; overflow-y: auto;">
+                <div onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
-                <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom: 8px;">【攻伐】</div>
-                <div class="detail-grid" id="detail-atk" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
-                <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom: 8px;">【守御】</div>
-                <div class="detail-grid" id="detail-def" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
-                <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom: 8px;">【克制与特殊】</div>
-                <div class="detail-grid" id="detail-special" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
+                <div style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom: 8px;">【攻伐】</div>
+                <div id="detail-atk" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
+                <div style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom: 8px;">【守御】</div>
+                <div id="detail-def" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
+                <div style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom: 8px;">【克制与特殊】</div>
+                <div id="detail-special" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
             </div>
         </div>
     `;
@@ -95,7 +92,6 @@
         document.body.appendChild(uiContainer);
     }
 
-    // 開啟角色與背包介面
     window.openCharacterUI = function() {
         initCharacterSystemDOM();
         const uiContainer = document.getElementById('fullscreen-ui');
@@ -159,12 +155,10 @@
         
         players.forEach(p => {
             const btn = document.createElement('div');
-            btn.className = 'char-avatar-btn';
             btn.style.cssText = "width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s;";
             btn.innerHTML = p.emoji || '👤';
             btn.onclick = () => selectCharacter(p);
             if (selectedChar && selectedChar.id === p.id) {
-                btn.classList.add('active');
                 btn.style.borderColor = '#f1c40f';
                 btn.style.boxShadow = '0 0 15px rgba(241, 196, 15, 0.5)';
                 btn.style.background = '#333';
@@ -176,7 +170,6 @@
     function selectCharacter(charData) {
         selectedChar = charData;
         currentUnit = new Unit(selectedChar); 
-        
         renderCharList();
         refreshLeftPanel();
         refreshRightPanel();
@@ -208,9 +201,9 @@
         let statsHtml = '';
         Object.keys(statNames).forEach(k => {
             statsHtml += `
-                <div class="stat-item" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #333; padding-bottom: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #333; padding-bottom: 6px;">
                     <div><span style="color: #888;">${statNames[k]}</span> <b style="color: #fff; margin-right: 5px;">${stats[k] || 0}</b></div>
-                    <button class="add-point-btn" ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
+                    <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
                 </div>
             `;
         });
@@ -219,17 +212,17 @@
         renderEquipSlots();
 
         document.getElementById('detail-atk').innerHTML = `
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">命中率</span> <b style="color: #fff;">${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">命中率</span> <b style="color: #fff;">${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
         `;
         document.getElementById('detail-def').innerHTML = `
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">闪避率</span> <b style="color: #fff;">${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">韧性(抗暴)</span> <b style="color: #fff;">${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">闪避率</span> <b style="color: #fff;">${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">韧性(抗暴)</span> <b style="color: #fff;">${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
         `;
         document.getElementById('detail-special').innerHTML = `
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">吸血</span> <b style="color: #fff;">${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">内力恢复</span> <b style="color: #fff;">+10% / 回合</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">吸血</span> <b style="color: #fff;">${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">内力恢复</span> <b style="color: #fff;">+10% / 回合</b></div>
         `;
     }
 
@@ -245,7 +238,6 @@
     function renderEquipSlots() {
         const container = document.getElementById('ui-equip-slots');
         container.innerHTML = '';
-        
         const slots = [
             { key: 'weapon', name: '武器' }, { key: 'head', name: '头部' }, { key: 'body', name: '衣服' },
             { key: 'legs', name: '腿部' }, { key: 'ring', name: '戒指' }, { key: 'necklace', name: '项链' }
@@ -258,13 +250,12 @@
             const tpl = inst ? ITEMS[inst.itemId] : null;
 
             const div = document.createElement('div');
-            div.className = 'equip-slot' + (inst ? '' : ' empty');
             div.style.cssText = "height: 65px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
             
             if (inst && tpl) {
                 div.innerHTML = `
-                    <div class="eq-icon" style="font-size: 28px;">${tpl.icon || '📦'}</div>
-                    <div class="eq-name" style="font-size: 13px; color:${qColors[inst.quality]}; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 4px;">${tpl.name}</div>
+                    <div style="font-size: 28px;">${tpl.icon || '📦'}</div>
+                    <div style="font-size: 13px; color:${qColors[inst.quality]}; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 4px;">${tpl.name}</div>
                 `;
                 div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
                 div.style.borderColor = qColors[inst.quality];
@@ -308,7 +299,6 @@
     function renderInventory() {
         const grid = document.getElementById('inventory-grid');
         grid.innerHTML = '';
-        
         const allItems = INVENTORY.filter(i => !i.equippedBy || i.equippedBy === '');
         const filteredItems = allItems.filter(inst => {
             const tpl = ITEMS[inst.itemId];
@@ -322,17 +312,16 @@
 
         for (let i = 0; i < 200; i++) {
             const slot = document.createElement('div');
-            slot.className = 'inv-slot';
             slot.style.cssText = "aspect-ratio: 1; background: #1a1c29; border: 2px solid #333; border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
 
             if (filteredItems[i]) {
                 const inst = filteredItems[i];
                 const itemTpl = ITEMS[inst.itemId];
                 if (itemTpl) {
-                    const countStr = (inst.count && inst.count > 1) ? `<div class="item-count" style="position: absolute; bottom: 4px; right: 4px; font-size: 14px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.8); padding: 2px 6px; border-radius: 6px;">x${inst.count}</div>` : '';
+                    const countStr = (inst.count && inst.count > 1) ? `<div style="position: absolute; bottom: 4px; right: 4px; font-size: 14px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.8); padding: 2px 6px; border-radius: 6px;">x${inst.count}</div>` : '';
                     slot.innerHTML = `
-                        <div class="item-icon" style="font-size: 36px; margin-bottom: 5px; border-bottom: 2px solid ${qColors[inst.quality] || '#fff'}">${itemTpl.icon || '📦'}</div>
-                        <div class="item-name" style="font-size: 14px; color:${qColors[inst.quality] || '#fff'}; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px;">${itemTpl.name}</div>
+                        <div style="font-size: 36px; margin-bottom: 5px; border-bottom: 2px solid ${qColors[inst.quality] || '#fff'}">${itemTpl.icon || '📦'}</div>
+                        <div style="font-size: 14px; color:${qColors[inst.quality] || '#fff'}; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px;">${itemTpl.name}</div>
                         ${countStr}
                     `;
                     slot.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, itemTpl, false); };
@@ -358,18 +347,10 @@
             hasSkill = true;
 
             const div = document.createElement('div');
-            div.className = 'skill-card';
             div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 20px;";
-            
-            let desc = '';
-            if (sk.multiplier > 0) desc += `造成 ${(sk.multiplier * 100).toFixed(0)}% 攻击力伤害。 `;
-            if (sk.healMultiplier > 0) desc += `恢复 ${(sk.healMultiplier * 100).toFixed(0)}% 攻击力的生命。 `;
-            
             div.innerHTML = `
-                <div class="skill-header" style="display: flex; justify-content: space-between; font-weight: bold; color: #f1c40f; margin-bottom: 10px; font-size: 22px;">
-                    <span>[${slotNames[key] || key}] ${sk.name}</span>
-                </div>
-                <div class="skill-desc" style="font-size: 18px; color: #bbb; line-height: 1.6;">${desc}</div>
+                <div style="font-weight: bold; color: #f1c40f; margin-bottom: 10px; font-size: 22px;">[${slotNames[key] || key}] ${sk.name}</div>
+                <div style="font-size: 18px; color: #bbb; line-height: 1.6;">造成伤害倍率: ${(sk.multiplier * 100).toFixed(0)}%</div>
             `;
             box.appendChild(div);
         }
@@ -382,8 +363,8 @@
         const btn = document.getElementById('btn-item-action');
         
         let html = `
-            <div class="tt-title" style="font-size: 26px; font-weight: bold; margin-bottom: 8px; text-align: center; color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
-            <div class="tt-sub" style="font-size: 18px; color: #888; text-align: center; margin-bottom: 20px;">${itemTpl.category}</div>
+            <div style="font-size: 26px; font-weight: bold; margin-bottom: 8px; text-align: center; color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
+            <div style="font-size: 18px; color: #888; text-align: center; margin-bottom: 20px;">${itemTpl.category}</div>
         `;
 
         if (!['weapon', 'armor', 'accessory'].includes(itemTpl.category)) {
@@ -395,9 +376,9 @@
             let slotKey = itemTpl.equipSlot || (itemTpl.category === 'weapon' ? 'weapon' : 'body');
             let equippedInst = selectedChar.equipment?.[slotKey] ? INVENTORY.find(i => i.uid === selectedChar.equipment[slotKey]) : null;
 
-            html += `<div class="tt-stats" style="font-size: 20px; margin-top: 15px;">`;
-            if (inst.baseAtk) html += `<div class="tt-row"><span>攻击力</span> <span class="tt-base">${inst.baseAtk}</span></div>`;
-            if (inst.baseDef) html += `<div class="tt-row"><span>防御力</span> <span class="tt-base">${inst.baseDef}</span></div>`;
+            html += `<div style="font-size: 20px; margin-top: 15px;">`;
+            if (inst.baseAtk) html += `<div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>攻击力</span> <span style="color: #fff;">${inst.baseAtk}</span></div>`;
+            if (inst.baseDef) html += `<div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span>防御力</span> <span style="color: #fff;">${inst.baseDef}</span></div>`;
             html += `</div>`;
             content.innerHTML = html;
 
