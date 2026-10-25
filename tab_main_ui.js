@@ -1,4 +1,4 @@
-// tab_main_ui.js - 主畫面與 UI 配置模組 (已修復即時儲存與鍵值同步)
+// tab_main_ui.js - 主畫面與 UI 配置模組 (修復容器高度與排版塌陷)
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
     bgList: [
@@ -6,19 +6,18 @@ window.renderTabMainUI = function(container) {
       { id: 'bg_02', name: '江南煙雨', url: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1200&auto=format&fit=crop', unlocked: false }
     ],
     buttons: {
-      profile: { title: '玩家檔案', icon: '👤', active: true },
-      story: { title: '劇本歷程', icon: '📜', active: true },
-      character: { title: '人物編隊', icon: '👥', active: true },
-      backpack: { title: '背包裝備', icon: '🎒', active: true },
+      story: { title: '江湖歷程', icon: '📜', active: true },
+      character: { title: '角色與背包', icon: '👥', active: true },
       quest: { title: '江湖任務', icon: '📋', active: false, statusText: '敬請期待' },
       shop: { title: '珍寶商店', icon: '🛒', active: false, statusText: '敬請期待' },
       settings: { title: '系統設置', icon: '⚙️', active: true }
     }
   };
 
+  // 外層加入固定最大高度與內部捲軸，確保新增背景時絕不把下方選項推出去
   container.innerHTML = `
-    <div class="card">
-      <div class="card-header">
+    <div class="card" style="max-height: 80vh; overflow-y: auto; padding-right: 5px;">
+      <div class="card-header" style="position: sticky; top: 0; background: #1a1c29; z-index: 10; padding-bottom: 10px;">
         <h3>🖼️ 主畫面 UI 與背景配置</h3>
         <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px;" onclick="saveMainConfigDirect()">💾 儲存主畫面設定</button>
       </div>
@@ -50,14 +49,14 @@ function renderBgList(config) {
 
   config.bgList.forEach((bg, index) => {
     const item = document.createElement('div');
-    item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:10px; border-radius:6px; display:flex; gap:10px; align-items:center;";
+    item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:10px; border-radius:6px; display:flex; gap:10px; align-items:center; flex-wrap: wrap;";
     item.innerHTML = `
       <img src="${bg.url}" style="width:70px; height:45px; object-fit:cover; border-radius:4px; border:1px solid #444;" onerror="this.src='https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop'">
-      <div style="flex:1;">
-        <input type="text" value="${bg.name}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; width:120px; font-size:12px;" oninput="updateBgField(${index}, 'name', this.value)">
-        <input type="text" value="${bg.url}" style="background:#16213e; color:#aaa; border:1px solid #444; padding:4px 8px; border-radius:4px; width:220px; font-size:12px; margin-left:5px;" oninput="updateBgField(${index}, 'url', this.value)">
+      <div style="flex:1; min-width: 200px;">
+        <input type="text" value="${bg.name}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; width:110px; font-size:12px;" oninput="updateBgField(${index}, 'name', this.value)">
+        <input type="text" value="${bg.url}" style="background:#16213e; color:#aaa; border:1px solid #444; padding:4px 8px; border-radius:4px; width:180px; font-size:12px; margin-left:5px;" oninput="updateBgField(${index}, 'url', this.value)">
       </div>
-      <label style="font-size:12px; color:#aaa;">
+      <label style="font-size:12px; color:#aaa; display:flex; align-items:center; gap:4px;">
         <input type="checkbox" ${bg.unlocked ? 'checked' : ''} onchange="updateBgField(${index}, 'unlocked', this.checked)"> 預設已解鎖
       </label>
       <button class="btn-del" onclick="deleteBgImage(${index})" style="font-size:12px;">刪除</button>
