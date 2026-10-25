@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 頂部僅保留左側返回按鈕
+// tab_ui_editor.js - 劇本介面全能編輯器 (極致防禦版)
 window.renderTabUIEditor = function(container) {
   let targetContainer = container;
   if (!targetContainer || !(targetContainer instanceof HTMLElement)) {
@@ -16,13 +16,11 @@ window.renderTabUIEditor = function(container) {
     },
     categories: [
       { id: 'main', name: '本篇主線' },
-      { id: 'sub', name: '外傳江湖' },
-      { id: 'event', name: '限時活動' }
+      { id: 'sub', name: '外傳江湖' }
     ],
     chapters: {
       main: [
-        { id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop' },
-        { id: 'm2', title: '第二章：江南煙雨', progress: '0/8', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop' }
+        { id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop' }
       ],
       sub: []
     },
@@ -37,8 +35,10 @@ window.renderTabUIEditor = function(container) {
       let parsed = JSON.parse(savedRaw);
       fullData = Object.assign({}, defaultFullData, parsed);
       if (parsed.layout) fullData.layout = Object.assign({}, defaultFullData.layout, parsed.layout);
+      if (!fullData.categories) fullData.categories = defaultFullData.categories;
+      if (!fullData.chapters) fullData.chapters = defaultFullData.chapters;
     } catch(e) { 
-      console.error('解析配置失敗', e); 
+      console.error('解析配置失敗，使用預設值', e); 
     }
   }
 
@@ -104,8 +104,8 @@ function renderWYSIWYGCanvas() {
   canvas.innerHTML = '';
 
   const data = window.uiFullData;
-  const layout = data.layout;
-  const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
+  const layout = data.layout || {};
+  const currentCatId = data.activeTabId || (data.categories && data.categories[0] ? data.categories[0].id : 'main');
   const isLayoutMode = window.selectedUIModule === 'layout';
 
   const bgDiv = document.createElement('div');
@@ -114,7 +114,7 @@ function renderWYSIWYGCanvas() {
 
   Object.keys(layout).forEach(key => {
     const comp = layout[key];
-    if (!comp.visible && !isLayoutMode) return;
+    if (!comp || (!comp.visible && !isLayoutMode)) return;
 
     const el = document.createElement('div');
     el.style.cssText = `
@@ -130,7 +130,7 @@ function renderWYSIWYGCanvas() {
       el.innerHTML = `<div>◀ ${data.topNavLeftText || '返回大廳'}</div>`;
     } else if (key === 'leftTab') {
       el.style.display = 'flex'; el.style.flexDirection = 'column'; el.style.gap = '10px';
-      data.categories.forEach(cat => {
+      (data.categories || []).forEach(cat => {
         const isActive = cat.id === currentCatId;
         const item = document.createElement('div');
         item.style.cssText = `padding: 12px 18px; background: ${isActive ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255,255,255,0.05)'}; border-left: 4px solid ${isActive ? '#00ffff' : 'transparent'}; color: ${isActive ? '#fff' : '#888'}; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;`;
@@ -145,7 +145,7 @@ function renderWYSIWYGCanvas() {
       });
     } else if (key === 'rightSlider') {
       el.style.display = 'flex'; el.style.gap = '20px'; el.style.overflowX = 'auto'; el.style.alignItems = 'center'; el.style.padding = '10px';
-      const chapList = data.chapters[currentCatId] || [];
+      const chapList = (data.chapters && data.chapters[currentCatId]) ? data.chapters[currentCatId] : [];
       if (chapList.length === 0) {
         el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類尚無章節</div>`;
       } else {
@@ -165,8 +165,8 @@ function renderWYSIWYGCanvas() {
     } else if (key === 'bottomNav') {
       el.style.background = 'rgba(10, 11, 15, 0.95)';
       el.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems: 'center'; el.style.gap = '30px';
-      data.bottomButtons.forEach((btnName, idx) => {
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
+      (data.bottomButtons || []).forEach((btnName, idx) => {
         const btn = document.createElement('div');
         btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
         btn.innerText = btnName;
@@ -175,7 +175,7 @@ function renderWYSIWYGCanvas() {
     } else {
       el.style.background = 'rgba(255, 165, 0, 0.2)';
       el.style.border = '2px dashed orange';
-      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems: 'center';
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
       el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
       el.innerHTML = `<span>${comp.name}</span>`;
     }
@@ -275,7 +275,7 @@ function renderModuleControlPanel() {
       <h4 style="color:#3498db; margin-bottom:10px;">📐 座標、尺寸與顯隱管理</h4>
       <button class="btn" style="background:#2ecc71; color:#fff; border:none; border-radius:4px; width:100%; font-size:12px; padding:6px; margin-bottom:10px; cursor:pointer;" onclick="addNewCustomUIComponent()">➕ 新增自定義 UI 組件</button>
       <div style="max-height:330px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-        ${Object.keys(data.layout).map(k => {
+        ${Object.keys(data.layout || {}).map(k => {
           const comp = data.layout[k];
           const isCustom = k.startsWith('custom_');
           return `
@@ -303,7 +303,7 @@ function renderModuleControlPanel() {
       <h4 style="color:#9b59b6; margin-bottom:10px;">🏷️ 管理左側 Tab 分類</h4>
       <button class="btn" style="background:#2ecc71; color:#fff; border:none; border-radius:4px; width:100%; font-size:12px; padding:6px; margin-bottom:10px; cursor:pointer;" onclick="addNewCategoryItem()">➕ 新增 Tab</button>
       <div style="display:flex; flex-direction:column; gap:8px;">
-        ${data.categories.map((cat, idx) => `
+        ${(data.categories || []).map((cat, idx) => `
           <div style="display:flex; gap:6px; align-items:center;">
             <input type="text" value="${cat.name}" style="flex:1; background:#0f1218; color:#fff; border:1px solid #444; padding:6px; border-radius:4px;" oninput="data.categories[${idx}].name=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
             <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:4px 8px; font-size:11px; cursor:pointer;" onclick="deleteCategoryItem(${idx})">刪</button>
@@ -312,8 +312,9 @@ function renderModuleControlPanel() {
       </div>
     `;
   } else if (mod === 'chapters') {
-    const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
-    const currentCatObj = data.categories.find(c => c.id === currentCatId) || data.categories[0];
+    const currentCatId = data.activeTabId || (data.categories && data.categories[0] ? data.categories[0].id : 'main');
+    const currentCatObj = (data.categories || []).find(c => c.id === currentCatId) || (data.categories || [])[0];
+    if (!data.chapters) data.chapters = {};
     if (!data.chapters[currentCatId]) data.chapters[currentCatId] = [];
     const chapList = data.chapters[currentCatId];
 
@@ -325,7 +326,7 @@ function renderModuleControlPanel() {
           <div style="background:#0f1218; border:1px solid #333; padding:8px; border-radius:6px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
               <span style="font-size:12px; color:#00ffff; font-weight:bold;">#${idx + 1} 章節</span>
-              <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteChapterCard('${currentCatId}', ${idx})">刪除</button>
+              <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteChapterCard('${currentCatId}',${idx})">刪除</button>
             </div>
             <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
             <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
@@ -363,6 +364,7 @@ window.addNewCustomUIComponent = function() {
   const name = prompt('請輸入自定義 UI 組件名稱：', '公告橫幅');
   if (!name) return;
   const key = 'custom_' + Date.now();
+  if (!window.uiFullData.layout) window.uiFullData.layout = {};
   window.uiFullData.layout[key] = { x: 100, y: 100, w: 400, h: 200, visible: true, name: name };
   renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
@@ -377,7 +379,9 @@ window.addNewCategoryItem = function() {
   const name = prompt('請輸入新 Tab 名稱：');
   if (!name) return;
   const newId = 'cat_' + Date.now();
+  if (!window.uiFullData.categories) window.uiFullData.categories = [];
   window.uiFullData.categories.push({ id: newId, name: name });
+  if (!window.uiFullData.chapters) window.uiFullData.chapters = {};
   if (!window.uiFullData.chapters[newId]) window.uiFullData.chapters[newId] = [];
   renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
@@ -385,12 +389,13 @@ window.addNewCategoryItem = function() {
 window.deleteCategoryItem = function(idx) {
   if (!confirm('確定刪除此 Tab 嗎？')) return;
   const cat = window.uiFullData.categories[idx];
-  if (cat) delete window.uiFullData.chapters[cat.id];
+  if (cat && window.uiFullData.chapters) delete window.uiFullData.chapters[cat.id];
   window.uiFullData.categories.splice(idx, 1);
   renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
 window.addNewChapterCard = function(catId) {
+  if (!window.uiFullData.chapters) window.uiFullData.chapters = {};
   if (!window.uiFullData.chapters[catId]) window.uiFullData.chapters[catId] = [];
   window.uiFullData.chapters[catId].push({
     id: 'chap_' + Date.now(),
@@ -402,7 +407,9 @@ window.addNewChapterCard = function(catId) {
 };
 
 window.deleteChapterCard = function(catId, idx) {
-  if (window.uiFullData.chapters[catId]) window.uiFullData.chapters[catId].splice(idx, 1);
+  if (window.uiFullData.chapters && window.uiFullData.chapters[catId]) {
+    window.uiFullData.chapters[catId].splice(idx, 1);
+  }
   renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
@@ -415,7 +422,9 @@ window.addNewBottomNavBtn = function() {
 };
 
 window.deleteBottomNavBtn = function(idx) {
-  window.uiFullData.bottomButtons.splice(idx, 1);
+  if (window.uiFullData.bottomButtons) {
+    window.uiFullData.bottomButtons.splice(idx, 1);
+  }
   renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
 
@@ -425,7 +434,7 @@ window.saveUIPageConfigSilently = function() {
 
 window.saveUIPageConfig = function() {
   localStorage.setItem('my_game_ui_full_config', JSON.stringify(window.uiFullData));
-  alert('✅ 介面設定、顯隱狀態與所有導覽設定已成功儲存！');
+  alert('✅ 劇本介面設定已成功儲存！');
 };
 
 window.resetUIPageConfig = function() {
