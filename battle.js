@@ -294,13 +294,6 @@ function addCharacterExp(char, amount) {
 class MainMenuScene extends Phaser.Scene {
   constructor() { super('MainMenuScene'); }
   create() {
-    const targetLevelIdx = localStorage.getItem('my_game_current_level_index');
-    if (targetLevelIdx !== null) {
-      localStorage.removeItem('my_game_current_level_index');
-      this.scene.start('FormationScene', { levelIndex: parseInt(targetLevelIdx) });
-      return;
-    }
-
     this.cameras.main.setBackgroundColor('#1a1a2e');
     this.add.text(CONFIG.WIDTH / 2, 200, '中大型策略战棋', { fontSize: '64px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     const b = this.add.text(CONFIG.WIDTH / 2, 500, '⚔️ 开始推图', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
