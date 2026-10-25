@@ -169,7 +169,41 @@
 
             updateBackgroundDisplay();
             updateStageCardDisplay();
-            renderIndexLeftSidebar();
+                    function renderIndexLeftSidebar() {
+            const sidebar = document.getElementById('left-sidebar');
+            if (!sidebar) return;
+            sidebar.innerHTML = '';
+
+            const btnConfigs = mainConfig.buttons || {};
+
+            Object.keys(btnConfigs).forEach(key => {
+                const btnData = btnConfigs[key];
+                if (!btnData.active) return;
+
+                let callback = () => {};
+                const act = btnData.action || key; // 相容性處理
+
+                if (act === 'character' || key === 'character' || key === 'profile') {
+                    callback = () => {
+                        if (typeof window.openCharacterUI === 'function') {
+                            window.openCharacterUI();
+                        } else {
+                            alert('角色背包系統載入中，請稍後...');
+                        }
+                    };
+                } else if (act === 'story' || key === 'story') {
+                    callback = () => { window.location.href = 'story_menu.html'; };
+                } else if (act === 'settings' || key === 'settings') {
+                    callback = () => { showToast('目前可在配置中心進行詳細設置', '#3498db'); };
+                } else {
+                    callback = () => { showToast(btnData.title + ' 功能即將開放', '#e67e22'); };
+                }
+
+                const menuBtn = createMenuButton(btnData.icon || '📌', btnData.title || '選單', callback);
+                sidebar.appendChild(menuBtn);
+            });
+        }
+;
         }
 
         function updateBackgroundDisplay() {
