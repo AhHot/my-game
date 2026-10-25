@@ -1,5 +1,9 @@
-// tab_ui_editor.js - 底圖與遊戲畫面百分之百一致同步
+// tab_ui_editor.js - 所見即所得全能編輯器 (已修復畫面消失與渲染報錯)
 window.renderTabUIEditor = function(container) {
+  if (!container) {
+    container = document.getElementById('app-content') || document.body;
+  }
+
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
     topNavLeftText: '返回大廳',
@@ -29,28 +33,32 @@ window.renderTabUIEditor = function(container) {
   let savedRaw = localStorage.getItem('my_game_ui_full_config');
   let fullData = defaultFullData;
   if (savedRaw) {
-    try { fullData = JSON.parse(savedRaw); } catch(e) { console.error(e); }
+    try { 
+      fullData = JSON.parse(savedRaw); 
+    } catch(e) { 
+      console.error('解析配置失敗，使用預設值', e); 
+    }
   }
 
   window.uiFullData = fullData;
   if (!window.selectedUIModule) window.selectedUIModule = 'layout';
 
   container.innerHTML = `
-    <div class="card" style="background:#111217; border:1px solid #222;">
-      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器</h3>
+    <div class="card" style="background:#111217; border:1px solid #222; padding:15px; border-radius:8px; color:#fff;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:15px;">
+        <h3 style="color:#00ffff; margin:0;">🎨 劇本介面全能編輯器</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
-          <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
+          <button class="btn" style="background:#e74c3c; color:#fff; border:none; border-radius:4px; font-size:12px; padding:6px 12px; cursor:pointer;" onclick="resetUIPageConfig()">🔄 重置預設</button>
+          <button class="btn" style="background:#2ecc71; color:#fff; border:none; border-radius:4px; font-size:12px; padding:6px 16px; font-weight:bold; cursor:pointer;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
         </div>
       </div>
 
       <div style="display: flex; gap: 6px; margin-bottom: 15px; flex-wrap: wrap;">
-        <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('bg')">🖼️ 底圖</button>
-        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('layout')">📐 座標與顯隱</button>
-        <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('categories')">🏷️ 左側Tab</button>
-        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('chapters')">📚 章節卡片</button>
-        <button class="btn" style="background:${window.selectedUIModule==='navs'?'#e84393':'#333'}; font-size:11px; flex:1;" onclick="switchEditorModule('navs')">🧭 上下導覽列</button>
+        <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('bg')">🖼️ 底圖</button>
+        <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('layout')">📐 座標與顯隱</button>
+        <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('categories')">🏷️ 左側Tab</button>
+        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('chapters')">📚 章節卡片</button>
+        <button class="btn" style="background:${window.selectedUIModule==='navs'?'#e84393':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('navs')">🧭 上下導覽列</button>
       </div>
 
       <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
@@ -58,7 +66,7 @@ window.renderTabUIEditor = function(container) {
           <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
             <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (1280x720 等比縮放)</div>
+          <div style="font-size:11px; color:#aaa; text-align:center; margin-top:6px;">🎮 互動畫布 (1280x720 等比縮放)</div>
         </div>
 
         <div style="width: 340px; background: #161a23; border: 1px solid #333; padding: 15px; border-radius: 8px;" id="module-editor-panel"></div>
@@ -85,7 +93,8 @@ function autoFitEditorCanvasScale() {
 
 window.switchEditorModule = function(mod) {
   window.selectedUIModule = mod;
-  window.renderTabUIEditor(document.getElementById('app-content'));
+  const targetContainer = document.getElementById('app-content') || document.body;
+  window.renderTabUIEditor(targetContainer);
 };
 
 function renderWYSIWYGCanvas() {
@@ -98,7 +107,6 @@ function renderWYSIWYGCanvas() {
   const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
   const isLayoutMode = window.selectedUIModule === 'layout';
 
-  // 🌟 編輯器背景：強制與遊戲一致的樣式設定 (可透過修改 background-size 來決定要 cover 還是 contain)
   const bgDiv = document.createElement('div');
   bgDiv.style.cssText = `position: absolute; inset:0; background: url('${data.bgUrl || ''}') center/cover no-repeat; filter: brightness(0.4); z-index:1;`;
   canvas.appendChild(bgDiv);
@@ -264,7 +272,7 @@ function renderModuleControlPanel() {
   } else if (mod === 'layout') {
     panel.innerHTML = `
       <h4 style="color:#3498db; margin-bottom:10px;">📐 座標、尺寸與顯隱管理</h4>
-      <button class="btn" style="background:#2ecc71; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewCustomUIComponent()">➕ 新增自定義 UI 組件</button>
+      <button class="btn" style="background:#2ecc71; color:#fff; border:none; border-radius:4px; width:100%; font-size:12px; padding:6px; margin-bottom:10px; cursor:pointer;" onclick="addNewCustomUIComponent()">➕ 新增自定義 UI 組件</button>
       <div style="max-height:330px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
         ${Object.keys(data.layout).map(k => {
           const comp = data.layout[k];
@@ -275,7 +283,7 @@ function renderModuleControlPanel() {
                 <span style="font-size:12px; color:#f1c40f; font-weight:bold;">${comp.name}</span>
                 <div style="display:flex; gap:6px; align-items:center;">
                   <label style="font-size:11px; color:#aaa; cursor:pointer;"><input type="checkbox" ${comp.visible ? 'checked' : ''} onchange="window.uiFullData.layout['${k}'].visible=this.checked; renderWYSIWYGCanvas(); saveUIPageConfigSilently();"> 顯示</label>
-                  ${isCustom ? `<button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteCustomUIComponent('${k}')">刪</button>` : ''}
+                  ${isCustom ? `<button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteCustomUIComponent('${k}')">刪</button>` : ''}
                 </div>
               </div>
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
@@ -292,12 +300,12 @@ function renderModuleControlPanel() {
   } else if (mod === 'categories') {
     panel.innerHTML = `
       <h4 style="color:#9b59b6; margin-bottom:10px;">🏷️ 管理左側 Tab 分類</h4>
-      <button class="btn" style="background:#2ecc71; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewCategoryItem()">➕ 新增 Tab</button>
+      <button class="btn" style="background:#2ecc71; color:#fff; border:none; border-radius:4px; width:100%; font-size:12px; padding:6px; margin-bottom:10px; cursor:pointer;" onclick="addNewCategoryItem()">➕ 新增 Tab</button>
       <div style="display:flex; flex-direction:column; gap:8px;">
         ${data.categories.map((cat, idx) => `
           <div style="display:flex; gap:6px; align-items:center;">
             <input type="text" value="${cat.name}" style="flex:1; background:#0f1218; color:#fff; border:1px solid #444; padding:6px; border-radius:4px;" oninput="data.categories[${idx}].name=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-            <button class="btn-del" onclick="deleteCategoryItem(${idx})">刪</button>
+            <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:4px 8px; font-size:11px; cursor:pointer;" onclick="deleteCategoryItem(${idx})">刪</button>
           </div>
         `).join('')}
       </div>
@@ -309,14 +317,14 @@ function renderModuleControlPanel() {
     const chapList = data.chapters[currentCatId];
 
     panel.innerHTML = `
-      <h4 style="color:#1abc9c; margin-bottom:10px;">📚 管理【${currentCatObj.name}】的章節卡片</h4>
-      <button class="btn" style="background:#3498db; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewChapterCard('${currentCatId}')">➕ 新增【${currentCatObj.name}】章節卡片</button>
+      <h4 style="color:#1abc9c; margin-bottom:10px;">📚 管理【${currentCatObj ? currentCatObj.name : '分組'}】的章節卡片</h4>
+      <button class="btn" style="background:#3498db; color:#fff; border:none; border-radius:4px; width:100%; font-size:12px; padding:6px; margin-bottom:10px; cursor:pointer;" onclick="addNewChapterCard('${currentCatId}')">➕ 新增章節卡片</button>
       <div style="display:flex; flex-direction:column; gap:10px; max-height:330px; overflow-y:auto;">
         ${chapList.map((chap, idx) => `
           <div style="background:#0f1218; border:1px solid #333; padding:8px; border-radius:6px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
               <span style="font-size:12px; color:#00ffff; font-weight:bold;">#${idx + 1} 章節</span>
-              <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteChapterCard('${currentCatId}', ${idx})">刪除</button>
+              <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteChapterCard('${currentCatId}', ${idx})">刪除</button>
             </div>
             <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
             <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
@@ -337,12 +345,12 @@ function renderModuleControlPanel() {
 
       <div style="background:#0f1218; padding:8px; border-radius:4px; border:1px solid #333;">
         <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">底部功能按鈕管理</div>
-        <button class="btn" style="background:#2ecc71; width:100%; font-size:11px; padding:4px; margin-bottom:6px;" onclick="addNewBottomNavBtn()">➕ 新增底部按鈕</button>
+        <button class="btn" style="background:#2ecc71; color:#fff; border:none; border-radius:4px; width:100%; font-size:11px; padding:4px; margin-bottom:6px; cursor:pointer;" onclick="addNewBottomNavBtn()">➕ 新增底部按鈕</button>
         <div style="display:flex; flex-direction:column; gap:4px; max-height:180px; overflow-y:auto;">
           ${(data.bottomButtons || []).map((bName, idx) => `
             <div style="display:flex; gap:4px; align-items:center;">
               <input type="text" value="${bName}" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;" oninput="data.bottomButtons[${idx}]=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-              <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteBottomNavBtn(${idx})">刪</button>
+              <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteBottomNavBtn(${idx})">刪</button>
             </div>
           `).join('')}
         </div>
@@ -423,5 +431,5 @@ window.saveUIPageConfig = function() {
 window.resetUIPageConfig = function() {
   if (!confirm('⚠️ 確定重置所有設定嗎？')) return;
   localStorage.removeItem('my_game_ui_full_config');
-  window.renderTabUIEditor(document.getElementById('app-content'));
+  window.renderTabUIEditor(document.getElementById('app-content') || document.body);
 };
