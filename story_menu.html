@@ -8,17 +8,10 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
 
-        /* 🌟 與編輯器完全一致的背景等比與滿版縮放處理 */
         .page-bg { 
-            position: absolute; 
-            inset: 0; 
-            width: 100%; 
-            height: 100%; 
-            background-size: cover; 
-            background-position: center; 
-            background-repeat: no-repeat;
-            filter: brightness(0.4); 
-            z-index: 1; 
+            position: absolute; inset: 0; width: 100%; height: 100%; 
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            filter: brightness(0.4); z-index: 1; 
         }
 
         .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
@@ -68,7 +61,13 @@
 
         function renderStoryMenu() {
             autoScaleUI();
-            const config = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || {
+            
+            let config = null;
+            try {
+                config = JSON.parse(localStorage.getItem('my_game_ui_full_config'));
+            } catch(e) { config = null; }
+
+            const defaultConfig = {
                 bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
                 topNavLeftText: '返回大廳',
                 layout: {
@@ -83,6 +82,11 @@
                 activeTabId: 'main'
             };
 
+            if (!config) config = defaultConfig;
+            if (!config.layout) config.layout = defaultConfig.layout;
+            if (!config.categories) config.categories = defaultConfig.categories;
+            if (!config.chapters) config.chapters = defaultConfig.chapters;
+
             if (config.bgUrl) {
                 document.getElementById('page-bg-img').style.backgroundImage = `url('${config.bgUrl}')`;
             }
@@ -95,7 +99,7 @@
 
             Object.keys(layout).forEach(key => {
                 const comp = layout[key];
-                if (!comp.visible) return;
+                if (!comp || !comp.visible) return;
 
                 const el = document.createElement('div');
                 el.style.cssText = `position: absolute; left: ${comp.x}px; top: ${comp.y}px; width: ${comp.w}px; height: ${comp.h}px; z-index: 20;`;
@@ -116,20 +120,24 @@
                 } else if (key === 'rightSlider') {
                     el.className = 'dyn-right-slider';
                     const chapList = config.chapters[currentCatId] || [];
-                    chapList.forEach(chap => {
-                        const card = document.createElement('div');
-                        card.className = 'chapter-card';
-                        card.style.backgroundImage = `url('${chap.cover}')`;
-                        card.onclick = () => alert(`🚀 準備進入【${chap.title}】的關卡畫布！`);
-                        card.innerHTML = `
-                            <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
-                            <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-                                <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
-                                <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
-                            </div>
-                        `;
-                        el.appendChild(card);
-                    });
+                    if (chapList.length === 0) {
+                        el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類尚無章節</div>`;
+                    } else {
+                        chapList.forEach(chap => {
+                            const card = document.createElement('div');
+                            card.className = 'chapter-card';
+                            card.style.backgroundImage = `url('${chap.cover}')`;
+                            card.onclick = () => alert(`🚀 準備進入【${chap.title}】的關卡畫布！`);
+                            card.innerHTML = `
+                                <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
+                                <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
+                                    <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
+                                    <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
+                                </div>
+                            `;
+                            el.appendChild(card);
+                        });
+                    }
                 } else if (key === 'bottomNav') {
                     el.className = 'dyn-bottom-nav';
                     el.style.width = comp.w + 'px'; el.style.height = comp.h + 'px';
@@ -142,7 +150,7 @@
                 } else {
                     el.style.background = 'rgba(255, 165, 0, 0.15)';
                     el.style.border = '1px dashed orange';
-                    el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems = 'center';
+                    el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
                     el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
                     el.innerHTML = `<span>${comp.name}</span>`;
                 }
