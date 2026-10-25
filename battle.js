@@ -307,7 +307,10 @@ class MainMenuScene extends Phaser.Scene {
 
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
-  init(data) { this.currentLevelIndex = data.levelIndex || 0; }
+  init(data) {
+    // 🛡️ 防呆：確保即使未帶入 data 參數也不會報錯崩潰
+    this.currentLevelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
+  }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -360,7 +363,10 @@ class FormationScene extends Phaser.Scene {
 
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
-  init(data) { this.currentLevelIndex = data.levelIndex || 0; }
+  init(data) {
+    // 🛡️ 防呆：確保即使未帶入 data 參數也不會報錯崩潰
+    this.currentLevelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
+  }
   preload() {
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
@@ -639,14 +645,18 @@ class BattleScene extends Phaser.Scene {
 
 class ResultScene extends Phaser.Scene {
   constructor() { super('ResultScene'); }
-  init(d) { this.resultType = d.type; this.currentLevelIndex = d.levelIndex || 0; }
+  init(d) {
+    // 🛡️ 防呆：確保即使未帶入 data 參數也不會報錯崩潰
+    this.resultType = d ? d.type : 'victory'; 
+    this.currentLevelIndex = (d && d.levelIndex !== undefined) ? d.levelIndex : 0; 
+  }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
     let label = '🔄 重新挑战'; let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex });
     if (this.resultType === 'victory') {
-      const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv.rewardExp || 0; let levelUpInfo = [];
+      const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
       if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
       if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
         try {
@@ -672,8 +682,11 @@ class ResultScene extends Phaser.Scene {
 
 window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload(); } });
 
-window.game = new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-  scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
-});
+// 只有當 index.html 或非獨立 battle.html 載入時才預設建立 window.game 實例，避免重複撞車
+if (document.getElementById('game') && !window.game) {
+  window.game = new Phaser.Game({
+    type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
+    scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
+  });
+}
