@@ -237,15 +237,13 @@
                 const act = btnData.action || key;
                 const title = btnData.title || '';
 
-                // 直接強制綁定，如果函數存在就執行，不存在就直接強行呼叫 window.openCharacterUI()
                 if (act === 'character' || key === 'character' || key === 'profile' || title.includes('角色') || title.includes('背包')) {
                     callback = () => {
                         if (typeof window.openCharacterUI === 'function') {
                             window.openCharacterUI();
                         } else {
-                            // 萬一函數還沒讀取到，直接現場重新初始化觸發
                             alert('正在為您開啟人物介面...');
-                            location.reload(); // 或直接呼叫
+                            location.reload();
                         }
                     };
                 } else if (act === 'story' || key === 'story' || title.includes('劇本') || title.includes('江湖')) {
@@ -278,8 +276,26 @@
             setTimeout(() => { toast.style.display = 'none'; }, 2000);
         }
 
+        // 🌟 自動攔截劇情結束後的布陣請求，直接進入戰前布陣畫面
         window.addEventListener('DOMContentLoaded', () => {
-            initIndexMainUI();
+            resizeGameUI();
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const isAutoFormation = urlParams.get('autoFormation');
+            const targetLevelIdx = localStorage.getItem('my_game_current_level_index');
+
+            if (isAutoFormation === '1' && targetLevelIdx !== null) {
+                console.log("偵測到劇情結束，準備直接切換至戰前布陣關卡：", targetLevelIdx);
+                
+                setTimeout(() => {
+                    localStorage.removeItem('my_game_current_level_index');
+                    if (window.game && window.game.scene) {
+                        window.game.scene.start('FormationScene', { levelIndex: parseInt(targetLevelIdx) });
+                    }
+                }, 600);
+            } else {
+                initIndexMainUI();
+            }
         });
     </script>
 </body>
