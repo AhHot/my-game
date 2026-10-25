@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已升級：實機自適應等比縮放與精準觸控)
+// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復 UI 組件新增/隱藏與全 Tab 章節卡片管理)
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
@@ -31,7 +31,7 @@ window.renderTabUIEditor = function(container) {
   container.innerHTML = `
     <div class="card" style="background:#111217; border:1px solid #222;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (實機自適應 1280x720 預覽)</h3>
+        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (UI 顯示隱藏、自訂組件與全 Tab 卡片管理)</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
           <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
@@ -46,12 +46,12 @@ window.renderTabUIEditor = function(container) {
       </div>
 
       <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-        <!-- 🌟 核心：自動計算容器寬度並進行 16:9 (1280x720) 自適應縮放的預覽畫布 -->
-        <div style="position: relative; flex: 1; min-width: 300px; width: 100%;">
+        <!-- 預覽與互動畫布 -->
+        <div style="position: relative; flex: 1; min-width: 300px;">
           <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
             <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 實機比例預覽 (畫布已依螢幕寬度 100% 自動等比縮放，切換「1. 調整區塊座標」即可拖拽)</div>
+          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (在「調整區塊座標」模式下可拖拽或開關顯示)</div>
         </div>
 
         <!-- 右側動態控制面板 -->
@@ -64,19 +64,15 @@ window.renderTabUIEditor = function(container) {
   renderWYSIWYGCanvas();
   renderModuleControlPanel();
 
-  // 監聽視窗與畫布容器大小改變，動態更新 scale 換算倍率
   window.removeEventListener('resize', autoFitEditorCanvasScale);
   window.addEventListener('resize', autoFitEditorCanvasScale);
 };
 
-// 🌟 自動換算畫布縮放比率 (Scale) 函數
 function autoFitEditorCanvasScale() {
   const viewport = document.getElementById('wysiwyg-viewport');
   const canvas = document.getElementById('wysiwyg-canvas');
   if (!viewport || !canvas) return 0.5;
-
-  const currentViewportWidth = viewport.clientWidth;
-  const currentScale = currentViewportWidth / 1280; // 以固定 1280px 基準寬度計算縮放值
+  const currentScale = viewport.clientWidth / 1280;
   canvas.style.transform = `scale(${currentScale})`;
   window.currentEditorCanvasScale = currentScale;
   return currentScale;
@@ -102,76 +98,83 @@ function renderWYSIWYGCanvas() {
   bgDiv.style.cssText = `position: absolute; inset:0; background: url('${data.bgUrl || ''}') center/cover; filter: brightness(0.4); z-index:1;`;
   canvas.appendChild(bgDiv);
 
-  // 1. 頂部欄
-  if (layout.topNav && layout.topNav.visible) {
-    const topEl = document.createElement('div');
-    topEl.style.cssText = `position: absolute; left: ${layout.topNav.x}px; top: ${layout.topNav.y}px; width: ${layout.topNav.w}px; height: ${layout.topNav.h}px; background: rgba(15, 17, 23, 0.9); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center; padding: 0 30px; z-index: 10; color: #fff; font-size: 14px; font-weight: bold;`;
-    topEl.innerHTML = `<div>◀ 返回大廳 &nbsp;&nbsp; 🏠 主頁</div><div>俠客傳記 ▶▶</div>`;
-    if (isLayoutMode) makeElementInteractable(topEl, 'topNav');
-    canvas.appendChild(topEl);
-  }
+  // 渲染所有佈局區塊（支援自定義組件與 visible 開關檢查）
+  Object.keys(layout).forEach(key => {
+    const comp = layout[key];
+    if (!comp.visible && !isLayoutMode) return; // 非編輯模式下隱藏則不渲染
 
-  // 2. 左側 Tab
-  if (layout.leftTab && layout.leftTab.visible) {
-    const tabEl = document.createElement('div');
-    tabEl.style.cssText = `position: absolute; left: ${layout.leftTab.x}px; top: ${layout.leftTab.y}px; width: ${layout.leftTab.w}px; height: ${layout.leftTab.h}px; display: flex; flex-direction: column; gap: 10px; z-index: 10;`;
-    data.categories.forEach(cat => {
-      const isActive = cat.id === currentCatId;
-      const item = document.createElement('div');
-      item.style.cssText = `padding: 12px 18px; background: ${isActive ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255,255,255,0.05)'}; border-left: 4px solid ${isActive ? '#00ffff' : 'transparent'}; color: ${isActive ? '#fff' : '#888'}; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;`;
-      item.innerHTML = `<span>● ${cat.name}</span> ${isActive ? '<span style="color:#00ffff;">◆</span>' : ''}`;
-      item.onclick = (e) => { e.stopPropagation(); data.activeTabId = cat.id; renderWYSIWYGCanvas(); };
-      tabEl.appendChild(item);
-    });
-    if (isLayoutMode) makeElementInteractable(tabEl, 'leftTab');
-    canvas.appendChild(tabEl);
-  }
+    const el = document.createElement('div');
+    el.style.cssText = `
+      position: absolute; left: ${comp.x}px; top: ${comp.y}px; width: ${comp.w}px; height: ${comp.h}px;
+      z-index: 10; opacity: ${comp.visible ? 1 : 0.4}; transition: opacity 0.2s;
+    `;
 
-  // 3. 右側關卡滑動區
-  if (layout.rightSlider && layout.rightSlider.visible) {
-    const sliderEl = document.createElement('div');
-    sliderEl.style.cssText = `position: absolute; left: ${layout.rightSlider.x}px; top: ${layout.rightSlider.y}px; width: ${layout.rightSlider.w}px; height: ${layout.rightSlider.h}px; display: flex; gap: 20px; overflow-x: auto; align-items: center; padding: 10px; z-index: 10;`;
-    
-    const chapList = data.chapters[currentCatId] || [];
-    if (chapList.length === 0) {
-      sliderEl.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">該分類尚無章節</div>`;
-    } else {
-      chapList.forEach(c => {
-        const card = document.createElement('div');
-        card.style.cssText = `width: 420px; height: 280px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: url('${c.cover}') center/cover; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px;`;
-        card.innerHTML = `
-          <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
-          <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-            <div style="color:#fff; font-size:20px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${c.title}</div>
-            <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${c.progress}</div>
-          </div>
-        `;
-        sliderEl.appendChild(card);
+    // 依據組件類型渲染實際內容
+    if (key === 'topNav') {
+      el.style.background = 'rgba(15, 17, 23, 0.9)';
+      el.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+      el.style.display = 'flex'; el.style.justifyContent = 'space-between'; el.style.alignItems = 'center'; el.style.padding = '0 30px';
+      el.style.color = '#fff'; el.style.fontSize = '14px'; el.style.fontWeight = 'bold';
+      el.innerHTML = `<div>◀ 返回大廳 &nbsp;&nbsp; 🏠 主頁</div><div>俠客傳記 ▶▶</div>`;
+    } else if (key === 'leftTab') {
+      el.style.display = 'flex'; el.style.flexDirection = 'column'; el.style.gap = '10px';
+      data.categories.forEach(cat => {
+        const isActive = cat.id === currentCatId;
+        const item = document.createElement('div');
+        item.style.cssText = `padding: 12px 18px; background: ${isActive ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255,255,255,0.05)'}; border-left: 4px solid ${isActive ? '#00ffff' : 'transparent'}; color: ${isActive ? '#fff' : '#888'}; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;`;
+        item.innerHTML = `<span>● ${cat.name}</span> ${isActive ? '<span style="color:#00ffff;">◆</span>' : ''}`;
+        item.onclick = (e) => { e.stopPropagation(); data.activeTabId = cat.id; renderWYSIWYGCanvas(); };
+        el.appendChild(item);
       });
+    } else if (key === 'rightSlider') {
+      el.style.display = 'flex'; el.style.gap = '20px'; el.style.overflowX = 'auto'; el.style.alignItems = 'center'; el.style.padding = '10px';
+      const chapList = data.chapters[currentCatId] || [];
+      if (chapList.length === 0) {
+        el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類【${(data.categories.find(c=>c.id===currentCatId)||{}).name||''}】尚無章節，請至右側面板新增</div>`;
+      } else {
+        chapList.forEach(c => {
+          const card = document.createElement('div');
+          card.style.cssText = `width: 420px; height: 280px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: url('${c.cover}') center/cover; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px;`;
+          card.innerHTML = `
+            <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
+            <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
+              <div style="color:#fff; font-size:20px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${c.title}</div>
+              <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${c.progress}</div>
+            </div>
+          `;
+          el.appendChild(card);
+        });
+      }
+    } else if (key === 'bottomNav') {
+      el.style.background = 'rgba(10, 11, 15, 0.95)';
+      el.style.borderTop = '1px solid rgba(255,255,255,0.1)';
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
+      data.bottomButtons.forEach((btnName, idx) => {
+        const btn = document.createElement('div');
+        btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
+        btn.innerText = btnName;
+        el.appendChild(btn);
+      });
+    } else {
+      // 自定義組件預設外觀
+      el.style.background = 'rgba(255, 165, 0, 0.2)';
+      el.style.border = '2px dashed orange';
+      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
+      el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
+      el.innerHTML = `<span>${comp.name}</span>`;
     }
-    if (isLayoutMode) makeElementInteractable(sliderEl, 'rightSlider');
-    canvas.appendChild(sliderEl);
-  }
 
-  // 4. 底部導覽列
-  if (layout.bottomNav && layout.bottomNav.visible) {
-    const botEl = document.createElement('div');
-    botEl.style.cssText = `position: absolute; left: ${layout.bottomNav.x}px; top: ${layout.bottomNav.y}px; width: ${layout.bottomNav.w}px; height: ${layout.bottomNav.h}px; background: rgba(10, 11, 15, 0.95); border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: center; align-items: center; gap: 30px; z-index: 10;`;
-    data.bottomButtons.forEach((btnName, idx) => {
-      const btn = document.createElement('div');
-      btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
-      btn.innerText = btnName;
-      botEl.appendChild(btn);
-    });
-    if (isLayoutMode) makeElementInteractable(botEl, 'bottomNav');
-    canvas.appendChild(botEl);
-  }
+    // 若在座標調整模式下，賦予拖拽、縮放與外框裝飾
+    if (isLayoutMode) {
+      makeElementInteractable(el, key);
+    }
+    canvas.appendChild(el);
+  });
 
-  // 執行自適應縮放換算
   setTimeout(autoFitEditorCanvasScale, 10);
 }
 
-// 支援滑鼠與手機觸控的動態縮放拖拽互動
+// 互動與拖拽控制
 function makeElementInteractable(el, key) {
   el.style.outline = '2px dashed #00ffff';
   el.style.cursor = 'move';
@@ -192,7 +195,7 @@ function makeElementInteractable(el, key) {
   };
 
   el.addEventListener('mousedown', (e) => { e.stopPropagation(); startInteraction(e.clientX, e.clientY, e.target); });
-  el.addEventListener('touchstart', (e) => { e.stopPropagation(); const t = e.touches[0]; startInteraction(t.clientX, t.clientY, e.target); }, { passive: true });
+  el.addEventListener('touchstart', (e) => { e.stopPropagation(); const t = e.touches[0]; startInteraction(t.clientX, t.clientY, t.target); }, { passive: true });
 }
 
 function startDragging(startX, startY, key) {
@@ -241,6 +244,7 @@ function startResizing(startX, startY, key) {
   window.addEventListener('touchmove', tm, { passive: true }); window.addEventListener('touchend', onEnd);
 }
 
+// 動態右側面板控制
 function renderModuleControlPanel() {
   const panel = document.getElementById('module-editor-panel');
   if (!panel) return;
@@ -255,19 +259,31 @@ function renderModuleControlPanel() {
     `;
   } else if (mod === 'layout') {
     panel.innerHTML = `
-      <h4 style="color:#3498db; margin-bottom:10px;">📐 區塊座標與尺寸微調</h4>
-      <p style="font-size:11px; color:#aaa; margin-bottom:10px;">在左側畫布直接拖動藍色虛線區塊，或在此輸入數值：</p>
-      ${Object.keys(data.layout).map(k => `
-        <div style="background:#0f1218; padding:8px; border-radius:4px; margin-bottom:8px; border:1px solid #333;">
-          <div style="font-size:12px; color:#f1c40f; font-weight:bold; margin-bottom:4px;">${data.layout[k].name}</div>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-            <div><label style="font-size:10px; color:#888;">X:</label><input type="number" value="${data.layout[k].x}" oninput="data.layout['${k}'].x=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-            <div><label style="font-size:10px; color:#888;">Y:</label><input type="number" value="${data.layout[k].y}" oninput="data.layout['${k}'].y=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-            <div><label style="font-size:10px; color:#888;">W:</label><input type="number" value="${data.layout[k].w}" oninput="data.layout['${k}'].w=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-            <div><label style="font-size:10px; color:#888;">H:</label><input type="number" value="${data.layout[k].h}" oninput="data.layout['${k}'].h=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-          </div>
-        </div>
-      `).join('')}
+      <h4 style="color:#3498db; margin-bottom:10px;">📐 區塊座標、尺寸與顯隱管理</h4>
+      <button class="btn" style="background:#2ecc71; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewCustomUIComponent()">➕ 新增自定義 UI 組件</button>
+      <div style="max-height:350px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+        ${Object.keys(data.layout).map(k => {
+          const comp = data.layout[k];
+          const isCustom = k.startsWith('custom_');
+          return `
+            <div style="background:#0f1218; padding:8px; border-radius:4px; border:1px solid #333;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span style="font-size:12px; color:#f1c40f; font-weight:bold;">${comp.name}</span>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <label style="font-size:11px; color:#aaa; cursor:pointer;"><input type="checkbox" ${comp.visible ? 'checked' : ''} onchange="data.layout['${k}'].visible=this.checked; renderWYSIWYGCanvas();"> 顯示</label>
+                  ${isCustom ? `<button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteCustomUIComponent('${k}')">刪</button>` : ''}
+                </div>
+              </div>
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                <div><label style="font-size:10px; color:#888;">X:</label><input type="number" value="${comp.x}" oninput="data.layout['${k}'].x=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">Y:</label><input type="number" value="${comp.y}" oninput="data.layout['${k}'].y=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">W:</label><input type="number" value="${comp.w}" oninput="data.layout['${k}'].w=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+                <div><label style="font-size:10px; color:#888;">H:</label><input type="number" value="${comp.h}" oninput="data.layout['${k}'].h=parseInt(this.value)||0; renderWYSIWYGCanvas();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
     `;
   } else if (mod === 'categories') {
     panel.innerHTML = `
@@ -283,23 +299,26 @@ function renderModuleControlPanel() {
       </div>
     `;
   } else if (mod === 'chapters') {
-    const curCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
-    const curCatName = (data.categories.find(c => c.id === curCatId) || {}).name || '當前分類';
-    const chapList = data.chapters[curCatId] || [];
+    // 🌟 自動對應當前在預覽畫布中點擊選中的 Tab 分類
+    const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
+    const currentCatObj = data.categories.find(c => c.id === currentCatId) || data.categories[0];
+    if (!data.chapters[currentCatId]) data.chapters[currentCatId] = [];
+    const chapList = data.chapters[currentCatId];
 
     panel.innerHTML = `
-      <h4 style="color:#1abc9c; margin-bottom:10px;">📚 管理【${curCatName}】的章節卡片</h4>
-      <button class="btn" style="background:#3498db; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewChapterCard('${curCatId}')">➕ 新增章節大圖卡片</button>
-      <div style="display:flex; flex-direction:column; gap:10px; max-height:350px; overflow-y:auto;">
+      <h4 style="color:#1abc9c; margin-bottom:10px;">📚 管理【${currentCatObj.name}】的章節卡片</h4>
+      <div style="font-size:11px; color:#aaa; margin-bottom:8px;">提示：可在預覽畫布點擊不同的左側 Tab 切換管理對應的關卡。</div>
+      <button class="btn" style="background:#3498db; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewChapterCard('${currentCatId}')">➕ 新增【${currentCatObj.name}】章節卡片</button>
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:330px; overflow-y:auto;">
         ${chapList.map((chap, idx) => `
           <div style="background:#0f1218; border:1px solid #333; padding:8px; border-radius:6px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-              <span style="font-size:12px; color:#00ffff; font-weight:bold;">第 ${idx + 1} 章</span>
-              <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteChapterCard('${curCatId}', ${idx})">刪除</button>
+              <span style="font-size:12px; color:#00ffff; font-weight:bold;">#${idx + 1} 章節</span>
+              <button class="btn-del" style="padding:2px 6px; font-size:10px;" onclick="deleteChapterCard('${currentCatId}', ${idx})">刪除</button>
             </div>
-            <input type="text" value="${chap.title}" placeholder="章節標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${curCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas();">
-            <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${curCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas();">
-            <input type="text" value="${chap.progress}" placeholder="通關進度" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${curCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas();">
+            <input type="text" value="${chap.title}" placeholder="章節標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas();">
+            <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas();">
+            <input type="text" value="${chap.progress}" placeholder="通關進度" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas();">
           </div>
         `).join('')}
       </div>
@@ -307,17 +326,32 @@ function renderModuleControlPanel() {
   }
 }
 
+// 增刪改工具函數
+window.addNewCustomUIComponent = function() {
+  const name = prompt('請輸入自定義 UI 組件名稱：', '公告橫幅');
+  if (!name) return;
+  const key = 'custom_' + Date.now();
+  window.uiFullData.layout[key] = { x: 100, y: 100, w: 400, h: 200, visible: true, name: name };
+  renderWYSIWYGCanvas(); renderModuleControlPanel();
+};
+
+window.deleteCustomUIComponent = function(key) {
+  if (!confirm('確定刪除此自定義組件？')) return;
+  delete window.uiFullData.layout[key];
+  renderWYSIWYGCanvas(); renderModuleControlPanel();
+};
+
 window.addNewCategoryItem = function() {
-  const name = prompt('請輸入新 Tab 名稱：');
+  const name = prompt('請輸入新 Tab 名稱（如：支線冒險）：');
   if (!name) return;
   const newId = 'cat_' + Date.now();
   window.uiFullData.categories.push({ id: newId, name: name });
-  window.uiFullData.chapters[newId] = [];
+  if (!window.uiFullData.chapters[newId]) window.uiFullData.chapters[newId] = [];
   renderWYSIWYGCanvas(); renderModuleControlPanel();
 };
 
 window.deleteCategoryItem = function(idx) {
-  if (!confirm('確定刪除？')) return;
+  if (!confirm('確定刪除此 Tab 嗎？')) return;
   const cat = window.uiFullData.categories[idx];
   if (cat) delete window.uiFullData.chapters[cat.id];
   window.uiFullData.categories.splice(idx, 1);
@@ -328,7 +362,7 @@ window.addNewChapterCard = function(catId) {
   if (!window.uiFullData.chapters[catId]) window.uiFullData.chapters[catId] = [];
   window.uiFullData.chapters[catId].push({
     id: 'chap_' + Date.now(),
-    title: '新章節名稱',
+    title: '新關卡章節',
     progress: '0/6',
     cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop'
   });
@@ -342,11 +376,11 @@ window.deleteChapterCard = function(catId, idx) {
 
 window.saveUIPageConfig = function() {
   localStorage.setItem('my_game_ui_full_config', JSON.stringify(window.uiFullData));
-  alert('✅ 介面設定、座標與多章節已成功儲存！');
+  alert('✅ 介面佈局、自定義組件與全 Tab 章節卡片資料已成功儲存！');
 };
 
 window.resetUIPageConfig = function() {
-  if (!confirm('⚠️ 確定重置？')) return;
+  if (!confirm('⚠️ 確定重置所有設定嗎？')) return;
   localStorage.removeItem('my_game_ui_full_config');
   window.renderTabUIEditor(document.getElementById('app-content'));
 };
