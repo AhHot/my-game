@@ -8,7 +8,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
 
-        /* 動態背景圖 */
         .page-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: brightness(0.4); z-index: 1; }
         .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
 
@@ -43,10 +42,10 @@
     <div class="bg-grid"></div>
 
     <div id="story-canvas-container">
-        <div id="top-nav-box" class="dyn-top-nav"></div>
-        <div id="left-tab-box" class="dyn-left-tab"></div>
-        <div id="right-slider-box" class="dyn-right-slider"></div>
-        <div id="bottom-nav-box" class="dyn-bottom-nav"></div>
+        <div id="top-nav-box" class="dyn-top-nav" style="display:none;"></div>
+        <div id="left-tab-box" class="dyn-left-tab" style="display:none;"></div>
+        <div id="right-slider-box" class="dyn-right-slider" style="display:none;"></div>
+        <div id="bottom-nav-box" class="dyn-bottom-nav" style="display:none;"></div>
     </div>
 
     <script>
@@ -76,60 +75,80 @@
                 activeTabId: 'main'
             };
 
-            // 設定背景圖
             if (config.bgUrl) {
                 document.getElementById('page-bg-img').style.backgroundImage = `url('${config.bgUrl}')`;
             }
 
             let currentCatId = config.activeTabId || (config.categories[0] ? config.categories[0].id : 'main');
+            const layout = config.layout;
 
-            // 1. 頂部欄
+            // 1. 頂部欄顯隱控制
             const topBox = document.getElementById('top-nav-box');
-            topBox.style.cssText = `left:${config.layout.topNav.x}px; top:${config.layout.topNav.y}px; width:${config.layout.topNav.w}px; height:${config.layout.topNav.h}px;`;
-            topBox.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">◀ 返回大廳</button></div><div><button class="nav-btn">俠客傳記 ▶▶</button></div>`;
+            if (layout.topNav && layout.topNav.visible) {
+                topBox.style.display = 'flex';
+                topBox.style.cssText += `left:${layout.topNav.x}px; top:${layout.topNav.y}px; width:${layout.topNav.w}px; height:${layout.topNav.h}px;`;
+                topBox.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">◀ 返回大廳</button></div><div><button class="nav-btn">俠客傳記 ▶▶</button></div>`;
+            } else {
+                topBox.style.display = 'none';
+            }
 
-            // 2. 左側 Tab
+            // 2. 左側 Tab 顯隱控制
             const leftBox = document.getElementById('left-tab-box');
-            leftBox.style.cssText = `left:${config.layout.leftTab.x}px; top:${config.layout.leftTab.y}px; width:${config.layout.leftTab.w}px; height:${config.layout.leftTab.h}px;`;
-            leftBox.innerHTML = '';
-            config.categories.forEach(cat => {
-                const item = document.createElement('div');
-                item.className = 'tab-item' + (cat.id === currentCatId ? ' active' : '');
-                item.innerHTML = `<span>● ${cat.name}</span> ${cat.id === currentCatId ? '<span>◆</span>' : ''}`;
-                item.onclick = () => { config.activeTabId = cat.id; localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); renderStoryMenu(); };
-                leftBox.appendChild(item);
-            });
+            if (layout.leftTab && layout.leftTab.visible) {
+                leftBox.style.display = 'flex';
+                leftBox.style.cssText += `left:${layout.leftTab.x}px; top:${layout.leftTab.y}px; width:${layout.leftTab.w}px; height:${layout.leftTab.h}px;`;
+                leftBox.innerHTML = '';
+                config.categories.forEach(cat => {
+                    const item = document.createElement('div');
+                    item.className = 'tab-item' + (cat.id === currentCatId ? ' active' : '');
+                    item.innerHTML = `<span>● ${cat.name}</span> ${cat.id === currentCatId ? '<span>◆</span>' : ''}`;
+                    item.onclick = () => { config.activeTabId = cat.id; localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); renderStoryMenu(); };
+                    leftBox.appendChild(item);
+                });
+            } else {
+                leftBox.style.display = 'none';
+            }
 
-            // 3. 右側關卡卡片 (完美顯示您新增的 3 個或更多章節)
+            // 3. 右側關卡卡片區顯隱控制
             const rightBox = document.getElementById('right-slider-box');
-            rightBox.style.cssText = `left:${config.layout.rightSlider.x}px; top:${config.layout.rightSlider.y}px; width:${config.layout.rightSlider.w}px; height:${config.layout.rightSlider.h}px;`;
-            rightBox.innerHTML = '';
-            const chapList = config.chapters[currentCatId] || [];
-            chapList.forEach(chap => {
-                const card = document.createElement('div');
-                card.className = 'chapter-card';
-                card.style.backgroundImage = `url('${chap.cover}')`;
-                card.onclick = () => alert(`🚀 準備進入【${chap.title}】的小章節畫布！`);
-                card.innerHTML = `
-                    <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
-                    <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-                        <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
-                        <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
-                    </div>
-                `;
-                rightBox.appendChild(card);
-            });
+            if (layout.rightSlider && layout.rightSlider.visible) {
+                rightBox.style.display = 'flex';
+                rightBox.style.cssText += `left:${layout.rightSlider.x}px; top:${layout.rightSlider.y}px; width:${layout.rightSlider.w}px; height:${layout.rightSlider.h}px;`;
+                rightBox.innerHTML = '';
+                const chapList = config.chapters[currentCatId] || [];
+                chapList.forEach(chap => {
+                    const card = document.createElement('div');
+                    card.className = 'chapter-card';
+                    card.style.backgroundImage = `url('${chap.cover}')`;
+                    card.onclick = () => alert(`🚀 準備進入【${chap.title}】的小章節畫布！`);
+                    card.innerHTML = `
+                        <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
+                        <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
+                            <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
+                            <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
+                        </div>
+                    `;
+                    rightBox.appendChild(card);
+                });
+            } else {
+                rightBox.style.display = 'none';
+            }
 
-            // 4. 底部按鈕
+            // 4. 底部按鈕區顯隱控制
             const botBox = document.getElementById('bottom-nav-box');
-            botBox.style.cssText = `left:${config.layout.bottomNav.x}px; top:${config.layout.bottomNav.y}px; width:${config.layout.bottomNav.w}px; height:${config.layout.bottomNav.h}px;`;
-            botBox.innerHTML = '';
-            config.bottomButtons.forEach((bName, idx) => {
-                const b = document.createElement('div');
-                b.className = 'bot-btn' + (idx === 1 ? ' active' : '');
-                b.innerText = bName;
-                botBox.appendChild(b);
-            });
+            if (layout.bottomNav && layout.bottomNav.visible) {
+                botBox.style.display = 'flex';
+                botBox.style.cssText += `left:${layout.bottomNav.x}px; top:${layout.bottomNav.y}px; width:${layout.bottomNav.w}px; height:${layout.bottomNav.h}px;`;
+                botBox.innerHTML = '';
+                config.bottomButtons.forEach((bName, idx) => {
+                    const b = document.createElement('div');
+                    b.className = 'bot-btn' + (idx === 1 ? ' active' : '');
+                    b.innerText = bName;
+                    botBox.appendChild(b);
+                });
+            } else {
+                botBox.style.display = 'none';
+            }
         }
 
         window.onload = renderStoryMenu;
