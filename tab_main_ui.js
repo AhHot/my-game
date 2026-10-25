@@ -1,4 +1,4 @@
-// tab_main_ui.js - 主畫面與 UI 配置模組 (支援左側按鈕自定義與右側主線卡片配置)
+// tab_main_ui.js - 主畫面與 UI 配置模組 (完整支援背景、右側主線、左側按鈕編輯)
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {
     bgList: [
