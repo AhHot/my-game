@@ -8,7 +8,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
 
-        /* 🌟 完美的滿版背景等比縮放設定，確保遊戲內比例不跑版 */
+        /* 🌟 與編輯器完全一致的背景等比與滿版縮放處理 */
         .page-bg { 
             position: absolute; 
             inset: 0; 
@@ -28,7 +28,7 @@
             transform-origin: 0 0; z-index: 10; overflow: hidden;
         }
 
-        .dyn-top-nav { position: absolute; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; background: rgba(15, 17, 23, 0.9); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 20; }
+        .dyn-top-nav { position: absolute; display: flex; justify-content: flex-start; align-items: center; padding: 0 30px; background: rgba(15, 17, 23, 0.9); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 20; }
         .nav-btn { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #ccc; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold; }
         .nav-btn:hover { background: rgba(54, 153, 255, 0.25); border-color: #3699ff; color: #fff; }
 
@@ -71,7 +71,6 @@
             const config = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || {
                 bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
                 topNavLeftText: '返回大廳',
-                topNavRightText: '俠客傳記 ▶▶',
                 layout: {
                     topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
                     leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
@@ -104,7 +103,7 @@
                 if (key === 'topNav') {
                     el.className = 'dyn-top-nav';
                     el.style.width = comp.w + 'px'; el.style.height = comp.h + 'px';
-                    el.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">${config.topNavLeftText || '◀ 返回大廳'}</button></div><div><button class="nav-btn">${config.topNavRightText || '俠客傳記 ▶▶'}</button></div>`;
+                    el.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">${config.topNavLeftText || '◀ 返回大廳'}</button></div>`;
                 } else if (key === 'leftTab') {
                     el.className = 'dyn-left-tab';
                     config.categories.forEach(cat => {
@@ -143,7 +142,7 @@
                 } else {
                     el.style.background = 'rgba(255, 165, 0, 0.15)';
                     el.style.border = '1px dashed orange';
-                    el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
+                    el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems = 'center';
                     el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
                     el.innerHTML = `<span>${comp.name}</span>`;
                 }
