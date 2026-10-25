@@ -42,10 +42,7 @@
     <div class="bg-grid"></div>
 
     <div id="story-canvas-container">
-        <div id="top-nav-box" class="dyn-top-nav" style="display:none;"></div>
-        <div id="left-tab-box" class="dyn-left-tab" style="display:none;"></div>
-        <div id="right-slider-box" class="dyn-right-slider" style="display:none;"></div>
-        <div id="bottom-nav-box" class="dyn-bottom-nav" style="display:none;"></div>
+        <!-- 動態掛載容器 -->
     </div>
 
     <script>
@@ -64,10 +61,10 @@
             const config = JSON.parse(localStorage.getItem('my_game_ui_full_config')) || {
                 bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
                 layout: {
-                    topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true },
-                    leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true },
-                    rightSlider: { x: 300, y: 100, w: 940, h: 520, visible: true },
-                    bottomNav: { x: 0, y: 660, w: 1280, h: 60, visible: true }
+                    topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
+                    leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
+                    rightSlider: { x: 300, y: 100, w: 940, h: 520, visible: true, name: '右側關卡卡片區' },
+                    bottomNav: { x: 0, y: 660, w: 1280, h: 60, visible: true, name: '底部功能列' }
                 },
                 categories: [{ id: 'main', name: '本篇主線' }],
                 chapters: { main: [{ id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop' }] },
@@ -79,76 +76,70 @@
                 document.getElementById('page-bg-img').style.backgroundImage = `url('${config.bgUrl}')`;
             }
 
+            const container = document.getElementById('story-canvas-container');
+            container.innerHTML = '';
+
             let currentCatId = config.activeTabId || (config.categories[0] ? config.categories[0].id : 'main');
             const layout = config.layout;
 
-            // 1. 頂部欄顯隱控制
-            const topBox = document.getElementById('top-nav-box');
-            if (layout.topNav && layout.topNav.visible) {
-                topBox.style.display = 'flex';
-                topBox.style.cssText += `left:${layout.topNav.x}px; top:${layout.topNav.y}px; width:${layout.topNav.w}px; height:${layout.topNav.h}px;`;
-                topBox.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">◀ 返回大廳</button></div><div><button class="nav-btn">俠客傳記 ▶▶</button></div>`;
-            } else {
-                topBox.style.display = 'none';
-            }
+            // 動態迴圈渲染所有佈局區塊（包含原生與自定義組件）
+            Object.keys(layout).forEach(key => {
+                const comp = layout[key];
+                if (!comp.visible) return; // 若設定為不顯示，遊戲內直接略過
 
-            // 2. 左側 Tab 顯隱控制
-            const leftBox = document.getElementById('left-tab-box');
-            if (layout.leftTab && layout.leftTab.visible) {
-                leftBox.style.display = 'flex';
-                leftBox.style.cssText += `left:${layout.leftTab.x}px; top:${layout.leftTab.y}px; width:${layout.leftTab.w}px; height:${layout.leftTab.h}px;`;
-                leftBox.innerHTML = '';
-                config.categories.forEach(cat => {
-                    const item = document.createElement('div');
-                    item.className = 'tab-item' + (cat.id === currentCatId ? ' active' : '');
-                    item.innerHTML = `<span>● ${cat.name}</span> ${cat.id === currentCatId ? '<span>◆</span>' : ''}`;
-                    item.onclick = () => { config.activeTabId = cat.id; localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); renderStoryMenu(); };
-                    leftBox.appendChild(item);
-                });
-            } else {
-                leftBox.style.display = 'none';
-            }
+                const el = document.createElement('div');
+                el.style.cssText = `position: absolute; left: ${comp.x}px; top: ${comp.y}px; width: ${comp.w}px; height: ${comp.h}px; z-index: 20;`;
 
-            // 3. 右側關卡卡片區顯隱控制
-            const rightBox = document.getElementById('right-slider-box');
-            if (layout.rightSlider && layout.rightSlider.visible) {
-                rightBox.style.display = 'flex';
-                rightBox.style.cssText += `left:${layout.rightSlider.x}px; top:${layout.rightSlider.y}px; width:${layout.rightSlider.w}px; height:${layout.rightSlider.h}px;`;
-                rightBox.innerHTML = '';
-                const chapList = config.chapters[currentCatId] || [];
-                chapList.forEach(chap => {
-                    const card = document.createElement('div');
-                    card.className = 'chapter-card';
-                    card.style.backgroundImage = `url('${chap.cover}')`;
-                    card.onclick = () => alert(`🚀 準備進入【${chap.title}】的小章節畫布！`);
-                    card.innerHTML = `
-                        <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
-                        <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-                            <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
-                            <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
-                        </div>
-                    `;
-                    rightBox.appendChild(card);
-                });
-            } else {
-                rightBox.style.display = 'none';
-            }
+                if (key === 'topNav') {
+                    el.className = 'dyn-top-nav';
+                    el.style.width = comp.w + 'px'; el.style.height = comp.h + 'px';
+                    el.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">◀ 返回大廳</button></div><div><button class="nav-btn">俠客傳記 ▶▶</button></div>`;
+                } else if (key === 'leftTab') {
+                    el.className = 'dyn-left-tab';
+                    config.categories.forEach(cat => {
+                        const item = document.createElement('div');
+                        item.className = 'tab-item' + (cat.id === currentCatId ? ' active' : '');
+                        item.innerHTML = `<span>● ${cat.name}</span> ${cat.id === currentCatId ? '<span>◆</span>' : ''}`;
+                        item.onclick = () => { config.activeTabId = cat.id; localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); renderStoryMenu(); };
+                        el.appendChild(item);
+                    });
+                } else if (key === 'rightSlider') {
+                    el.className = 'dyn-right-slider';
+                    const chapList = config.chapters[currentCatId] || [];
+                    chapList.forEach(chap => {
+                        const card = document.createElement('div');
+                        card.className = 'chapter-card';
+                        card.style.backgroundImage = `url('${chap.cover}')`;
+                        card.onclick = () => alert(`🚀 準備進入【${chap.title}】的關卡畫布！`);
+                        card.innerHTML = `
+                            <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
+                            <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
+                                <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
+                                <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
+                            </div>
+                        `;
+                        el.appendChild(card);
+                    });
+                } else if (key === 'bottomNav') {
+                    el.className = 'dyn-bottom-nav';
+                    el.style.width = comp.w + 'px'; el.style.height = comp.h + 'px';
+                    config.bottomButtons.forEach((bName, idx) => {
+                        const b = document.createElement('div');
+                        b.className = 'bot-btn' + (idx === 1 ? ' active' : '');
+                        b.innerText = bName;
+                        el.appendChild(b);
+                    });
+                } else {
+                    // 自定義組件渲染
+                    el.style.background = 'rgba(255, 165, 0, 0.15)';
+                    el.style.border = '1px dashed orange';
+                    el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
+                    el.style.color = '#ffaa00'; el.style.fontWeight = 'bold'; el.style.borderRadius = '6px';
+                    el.innerHTML = `<span>${comp.name}</span>`;
+                }
 
-            // 4. 底部按鈕區顯隱控制
-            const botBox = document.getElementById('bottom-nav-box');
-            if (layout.bottomNav && layout.bottomNav.visible) {
-                botBox.style.display = 'flex';
-                botBox.style.cssText += `left:${layout.bottomNav.x}px; top:${layout.bottomNav.y}px; width:${layout.bottomNav.w}px; height:${layout.bottomNav.h}px;`;
-                botBox.innerHTML = '';
-                config.bottomButtons.forEach((bName, idx) => {
-                    const b = document.createElement('div');
-                    b.className = 'bot-btn' + (idx === 1 ? ' active' : '');
-                    b.innerText = bName;
-                    botBox.appendChild(b);
-                });
-            } else {
-                botBox.style.display = 'none';
-            }
+                container.appendChild(el);
+            });
         }
 
         window.onload = renderStoryMenu;
