@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復 UI 組件新增/隱藏與全 Tab 章節卡片管理)
+// tab_ui_editor.js - 所見即所得劇本內容與 UI 佈局全能編輯器 (已修復 Tab 同步與顯隱開關失效問題)
 window.renderTabUIEditor = function(container) {
   let defaultFullData = {
     bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
@@ -31,7 +31,7 @@ window.renderTabUIEditor = function(container) {
   container.innerHTML = `
     <div class="card" style="background:#111217; border:1px solid #222;">
       <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (UI 顯示隱藏、自訂組件與全 Tab 卡片管理)</h3>
+        <h3 style="color:#00ffff;">🎨 劇本介面全能編輯器 (已修復 Tab 同步與顯隱開關)</h3>
         <div style="display:flex; gap:10px; flex-wrap:wrap;">
           <button class="btn" style="background:#e74c3c; font-size:12px; padding:6px 12px;" onclick="resetUIPageConfig()">🔄 重置預設</button>
           <button class="btn" style="background:#2ecc71; font-size:12px; padding:6px 16px; font-weight:bold;" onclick="saveUIPageConfig()">💾 保存整體設定</button>
@@ -51,7 +51,7 @@ window.renderTabUIEditor = function(container) {
           <div id="wysiwyg-viewport" style="width: 100%; aspect-ratio: 16/9; background: #08090c; border: 2px solid #333; position: relative; overflow: hidden; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);">
             <div id="wysiwyg-canvas" style="width: 1280px; height: 720px; transform-origin: 0 0; position: absolute; top:0; left:0;"></div>
           </div>
-          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (在「調整區塊座標」模式下可拖拽或開關顯示)</div>
+          <div style="font-size:11px; color:#666; text-align:center; margin-top:6px;">🎮 互動畫布 (點擊左側 Tab 可即時同步右側管理面板)</div>
         </div>
 
         <!-- 右側動態控制面板 -->
@@ -98,18 +98,18 @@ function renderWYSIWYGCanvas() {
   bgDiv.style.cssText = `position: absolute; inset:0; background: url('${data.bgUrl || ''}') center/cover; filter: brightness(0.4); z-index:1;`;
   canvas.appendChild(bgDiv);
 
-  // 渲染所有佈局區塊（支援自定義組件與 visible 開關檢查）
+  // 渲染所有佈局區塊
   Object.keys(layout).forEach(key => {
     const comp = layout[key];
-    if (!comp.visible && !isLayoutMode) return; // 非編輯模式下隱藏則不渲染
+    // 若設定為不顯示，且不是在「調整座標」模式下，則跳過不渲染
+    if (!comp.visible && !isLayoutMode) return;
 
     const el = document.createElement('div');
     el.style.cssText = `
       position: absolute; left: ${comp.x}px; top: ${comp.y}px; width: ${comp.w}px; height: ${comp.h}px;
-      z-index: 10; opacity: ${comp.visible ? 1 : 0.4}; transition: opacity 0.2s;
+      z-index: 10; opacity: ${comp.visible ? 1 : 0.3}; transition: opacity 0.2s;
     `;
 
-    // 依據組件類型渲染實際內容
     if (key === 'topNav') {
       el.style.background = 'rgba(15, 17, 23, 0.9)';
       el.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
@@ -123,7 +123,16 @@ function renderWYSIWYGCanvas() {
         const item = document.createElement('div');
         item.style.cssText = `padding: 12px 18px; background: ${isActive ? 'rgba(0, 255, 255, 0.2)' : 'rgba(255,255,255,0.05)'}; border-left: 4px solid ${isActive ? '#00ffff' : 'transparent'}; color: ${isActive ? '#fff' : '#888'}; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center;`;
         item.innerHTML = `<span>● ${cat.name}</span> ${isActive ? '<span style="color:#00ffff;">◆</span>' : ''}`;
-        item.onclick = (e) => { e.stopPropagation(); data.activeTabId = cat.id; renderWYSIWYGCanvas(); };
+        
+        // 🌟 核心修復：點擊 Tab 時，同時更新當前 ID 並「即時刷新畫布與右側控制面板」
+        item.onclick = (e) => {
+          e.stopPropagation();
+          data.activeTabId = cat.id;
+          renderWYSIWYGCanvas();
+          if (window.selectedUIModule === 'chapters') {
+            renderModuleControlPanel(); // 同步刷新右側章節管理面板
+          }
+        };
         el.appendChild(item);
       });
     } else if (key === 'rightSlider') {
@@ -148,7 +157,7 @@ function renderWYSIWYGCanvas() {
     } else if (key === 'bottomNav') {
       el.style.background = 'rgba(10, 11, 15, 0.95)';
       el.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-      el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
+      el.style.display = 'flex'; el.style.justifyContent: 'center'; el.style.alignItems = 'center'; el.style.gap = '30px';
       data.bottomButtons.forEach((btnName, idx) => {
         const btn = document.createElement('div');
         btn.style.cssText = `color: ${idx === 1 ? '#3699ff' : '#718096'}; font-size: 14px; font-weight: bold;`;
@@ -156,7 +165,6 @@ function renderWYSIWYGCanvas() {
         el.appendChild(btn);
       });
     } else {
-      // 自定義組件預設外觀
       el.style.background = 'rgba(255, 165, 0, 0.2)';
       el.style.border = '2px dashed orange';
       el.style.display = 'flex'; el.style.justifyContent = 'center'; el.style.alignItems = 'center';
@@ -164,7 +172,6 @@ function renderWYSIWYGCanvas() {
       el.innerHTML = `<span>${comp.name}</span>`;
     }
 
-    // 若在座標調整模式下，賦予拖拽、縮放與外框裝飾
     if (isLayoutMode) {
       makeElementInteractable(el, key);
     }
@@ -174,7 +181,6 @@ function renderWYSIWYGCanvas() {
   setTimeout(autoFitEditorCanvasScale, 10);
 }
 
-// 互動與拖拽控制
 function makeElementInteractable(el, key) {
   el.style.outline = '2px dashed #00ffff';
   el.style.cursor = 'move';
@@ -244,7 +250,6 @@ function startResizing(startX, startY, key) {
   window.addEventListener('touchmove', tm, { passive: true }); window.addEventListener('touchend', onEnd);
 }
 
-// 動態右側面板控制
 function renderModuleControlPanel() {
   const panel = document.getElementById('module-editor-panel');
   if (!panel) return;
@@ -299,7 +304,6 @@ function renderModuleControlPanel() {
       </div>
     `;
   } else if (mod === 'chapters') {
-    // 🌟 自動對應當前在預覽畫布中點擊選中的 Tab 分類
     const currentCatId = data.activeTabId || (data.categories[0] ? data.categories[0].id : 'main');
     const currentCatObj = data.categories.find(c => c.id === currentCatId) || data.categories[0];
     if (!data.chapters[currentCatId]) data.chapters[currentCatId] = [];
@@ -307,7 +311,7 @@ function renderModuleControlPanel() {
 
     panel.innerHTML = `
       <h4 style="color:#1abc9c; margin-bottom:10px;">📚 管理【${currentCatObj.name}】的章節卡片</h4>
-      <div style="font-size:11px; color:#aaa; margin-bottom:8px;">提示：可在預覽畫布點擊不同的左側 Tab 切換管理對應的關卡。</div>
+      <div style="font-size:11px; color:#aaa; margin-bottom:8px;">提示：在預覽畫布點擊不同的左側 Tab，右側面板會即時切換。</div>
       <button class="btn" style="background:#3498db; width:100%; font-size:12px; padding:6px; margin-bottom:10px;" onclick="addNewChapterCard('${currentCatId}')">➕ 新增【${currentCatObj.name}】章節卡片</button>
       <div style="display:flex; flex-direction:column; gap:10px; max-height:330px; overflow-y:auto;">
         ${chapList.map((chap, idx) => `
@@ -326,7 +330,6 @@ function renderModuleControlPanel() {
   }
 }
 
-// 增刪改工具函數
 window.addNewCustomUIComponent = function() {
   const name = prompt('請輸入自定義 UI 組件名稱：', '公告橫幅');
   if (!name) return;
@@ -376,7 +379,7 @@ window.deleteChapterCard = function(catId, idx) {
 
 window.saveUIPageConfig = function() {
   localStorage.setItem('my_game_ui_full_config', JSON.stringify(window.uiFullData));
-  alert('✅ 介面佈局、自定義組件與全 Tab 章節卡片資料已成功儲存！');
+  alert('✅ 介面佈局、顯隱狀態與全 Tab 章節卡片資料已成功儲存！');
 };
 
 window.resetUIPageConfig = function() {
