@@ -1,12 +1,12 @@
-// character_system.js - 獨立強韌版 (防崩潰、全域預設初始化、直接開啟)
+// character_system.js - 完整獨立人物與背包系統 (1280x720 等比縮放適配、5大Tab、屬性彈窗、技能連動)
+(function() {
+    let selectedChar = null;
+    let activeFilter = 'all';
+    let activeRightTab = 'inv';
 
-// 1. 在腳本最頂層立即掛載，確保全域一定能呼叫到
-window.openCharacterUI = function() {
-    try {
-        // 確保基本資料結構存在
-        initDefaultCharacterData();
-        
-        // 確保 DOM 介面已建立
+    // 1. 全域掛載開啟函數供 index.html 呼叫
+    window.openCharacterUI = function() {
+        syncDataFromStorage();
         initCharacterSystemDOM();
         
         const uiContainer = document.getElementById('fullscreen-ui');
@@ -22,286 +22,294 @@ window.openCharacterUI = function() {
             } catch(e){}
         }
 
-        // 讀取配置
-        try {
-            const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
-            window.globalExpTable = gc.expTable || [];
-            window.GROWTH_MODELS = gc.growthModels || [];
-        } catch(e) {}
-
-        renderCharList();
-        
-        // 選取第一個玩家角色
         const chars = window.CHARACTERS || [];
-        const players = chars.filter(c => c.side === 'player');
+        const players = chars.filter(c => c.side === 'player' || !c.side);
         if (players.length > 0) {
             selectCharacter(players[0]);
         }
-    } catch (err) {
-        alert('開啟人物介面時發生錯誤：\n' + err.message + '\n' + err.stack);
-    }
-};
+    };
 
-window.closeCharacterUI = function() {
-    const uiContainer = document.getElementById('fullscreen-ui');
-    if (uiContainer) uiContainer.style.display = 'none';
-    if (typeof window.hideTooltip === 'function') window.hideTooltip();
-    
-    if (window.game && window.game.scene) {
+    window.closeCharacterUI = function() {
+        const uiContainer = document.getElementById('fullscreen-ui');
+        if (uiContainer) uiContainer.style.display = 'none';
+        
+        const popover = document.getElementById('detail-stats-popover');
+        if (popover) popover.style.display = 'none';
+
+        if (window.game && window.game.scene) {
+            try {
+                const activeScenes = window.game.scene.getScenes(true);
+                activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
+            } catch(e){}
+        }
+    };
+
+    function syncDataFromStorage() {
         try {
-            const activeScenes = window.game.scene.getScenes(true);
-            activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
-        } catch(e){}
-    }
-};
+            const savedChars = localStorage.getItem('my_game_characters');
+            if (savedChars) window.CHARACTERS = JSON.parse(savedChars);
 
-// 安全初始化預設角色與背包資料（防止 CHARACTERS 未定義導致崩潰）
-function initDefaultCharacterData() {
-    if (typeof window.CHARACTERS === 'undefined' || !Array.isArray(window.CHARACTERS)) {
-        const savedChars = localStorage.getItem('my_game_characters');
-        if (savedChars) {
-            try { window.CHARACTERS = JSON.parse(savedChars); } catch(e){}
-        }
-    }
-    if (!window.CHARACTERS || !Array.isArray(window.CHARACTERS) || window.CHARACTERS.length === 0) {
-        window.CHARACTERS = [
-            { id: 'hero_01', name: '主角', emoji: '⚔️', side: 'player', level: 1, hp: 3000, maxHp: 3000, atk: 400, def: 200, speed: 10, freePoints: 5, stats: { fengRui: 5, hunHou: 5, lingDong: 5, jianRen: 5, guiMi: 0, jueQing: 0 }, equipment: {} }
-        ];
+            const savedInv = localStorage.getItem('my_game_inventory_sync');
+            if (savedInv) window.INVENTORY = JSON.parse(savedInv);
+
+            const savedItems = localStorage.getItem('my_game_items');
+            if (savedItems) window.ITEMS = JSON.parse(savedItems);
+        } catch(e) {}
     }
 
-    if (typeof window.INVENTORY === 'undefined' || !Array.isArray(window.INVENTORY)) {
-        const savedInv = localStorage.getItem('my_game_inventory_sync');
-        if (savedInv) {
-            try { window.INVENTORY = JSON.parse(savedInv); } catch(e){}
-        }
-    }
-    if (!window.INVENTORY) window.INVENTORY = [];
+    // 2. 初始化完整的 UI DOM 結構（掛載於 1280x720 容器內部，解決溢出問題）
+    function initCharacterSystemDOM() {
+        if (document.getElementById('fullscreen-ui')) return;
 
-    if (typeof window.ITEMS === 'undefined') {
-        window.ITEMS = {
-            'wep_01': { id: 'wep_01', name: '鐵劍', category: 'weapon', icon: '🗡️' }
-        };
-    }
-}
+        const container = document.getElementById('game-scale-container') || document.body;
 
-let selectedChar = null;
-let currentUnit = null;
-let currentTab = 'inv';
-let currentFilter = 'all';
+        const uiContainer = document.createElement('div');
+        uiContainer.id = 'fullscreen-ui';
+        uiContainer.className = 'interactive-ui';
+        uiContainer.style.cssText = "position: absolute; inset: 0; width: 1280px; height: 720px; background: rgba(10, 10, 15, 0.96); backdrop-filter: blur(15px); z-index: 1000; color: #ddd; display: none; flex-direction: row; pointer-events: auto;";
+        
+        uiContainer.innerHTML = `
+            <div onclick="window.closeCharacterUI()" style="position: absolute; top: 15px; right: 25px; font-size: 32px; color: #aaa; cursor: pointer; z-index: 1050;">✖</div>
 
-function initCharacterSystemDOM() {
-    if (document.getElementById('fullscreen-ui')) return;
+            <!-- 左側角色與屬性 -->
+            <div style="width: 440px; height: 100%; background: linear-gradient(135deg, #161824 0%, #0d0e15 100%); border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; position: relative;">
+                <div style="height: 180px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative;"></div>
+                
+                <div style="flex: 1; padding: 15px 20px; display: flex; flex-direction: column; overflow-y: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                        <h2 id="full-char-name" style="color: #f1c40f; font-size: 24px; margin:0;">角色</h2>
+                        <span id="full-char-level" style="color: #2ecc71; font-weight: bold; font-size: 16px;">Lv. 1</span>
+                    </div>
 
-    const uiContainer = document.createElement('div');
-    uiContainer.id = 'fullscreen-ui';
-    uiContainer.className = 'interactive-ui';
-    uiContainer.style.cssText = "display: none; position: fixed; inset: 0; width: 100vw; height: 100vh; background: rgba(10, 10, 15, 0.98); z-index: 99999; color: #ddd; flex-direction: row; pointer-events: auto;";
-    uiContainer.onclick = (e) => e.stopPropagation();
+                    <!-- 6大裝備槽位 -->
+                    <div id="full-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px;"></div>
 
-    uiContainer.innerHTML = `
-        <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 20px; right: 30px; font-size: 36px; color: #aaa; cursor: pointer; z-index: 99999;">✖</div>
+                    <!-- 自由配點屬性 -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span id="full-free-points" style="color: #f1c40f; font-size: 13px; font-weight: bold;">剩餘可分配點數: 0</span>
+                    </div>
+                    <div id="full-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; margin-bottom: 12px;"></div>
 
-        <!-- 左側面板 -->
-        <div style="width: 380px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
-            <div style="height: 160px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative;"></div>
-            <div style="flex: 1; padding: 15px 20px; display: flex; flex-direction: column; overflow-y: auto;">
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
-                    <h2 id="ui-char-name" style="color: #f1c40f; font-size: 24px; margin:0;">角色</h2>
-                    <span id="ui-char-level" style="color: #2ecc71; font-weight: bold; font-size: 16px;">Lv. 1</span>
+                    <!-- 基礎戰鬥面板 + 右中詳細屬性按鈕 -->
+                    <div style="position: relative; background: #181a24; border: 1px solid #333; border-radius: 8px; padding: 10px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; font-weight: bold;">
+                            <div>氣血(HP): <b id="full-hp" style="color: #e74c3c; font-size: 15px;">3000</b></div>
+                            <div>攻擊(ATK): <b id="full-atk" style="color: #e74c3c; font-size: 15px;">400</b></div>
+                            <div>防禦(DEF): <b id="full-def" style="color: #e74c3c; font-size: 15px;">200</b></div>
+                            <div>速度(SPD): <b id="full-spd" style="color: #e74c3c; font-size: 15px;">10</b></div>
+                        </div>
+                        <button onclick="window.toggleDetailStatsPopover()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: #f1c40f; color: #000; border: none; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-weight: bold; cursor: pointer;" title="詳細屬性面板">詳情 ➔</button>
+                    </div>
                 </div>
 
-                <div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0;"></div>
+                <!-- 底部角色頭像選擇切換列表 -->
+                <div id="full-char-list" style="background: #0b0c10; padding: 10px; border-top: 1px solid #222; display: flex; gap: 10px; overflow-x: auto; height: 75px; flex-shrink: 0;"></div>
+            </div>
 
-                <div id="ui-free-points" style="color: #f1c40f; font-size: 13px; margin-bottom: 6px; font-weight: bold; text-align: center;">剩餘點數: 0</div>
-                <div id="ui-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; margin-bottom: 10px;"></div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; font-weight: bold;">
-                    <div style="background: #1e2028; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;">氣血(HP)<b id="ui-hp" style="display: block; color: #e74c3c; margin-top: 2px; font-size: 16px;">3000</b></div>
-                    <div style="background: #1e2028; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;">攻擊(ATK)<b id="ui-atk" style="display: block; color: #e74c3c; margin-top: 2px; font-size: 16px;">400</b></div>
-                    <div style="background: #1e2028; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;">防禦(DEF)<b id="ui-def" style="display: block; color: #e74c3c; margin-top: 2px; font-size: 16px;">200</b></div>
-                    <div style="background: #1e2028; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;">速度(SPD)<b id="ui-spd" style="display: block; color: #e74c3c; margin-top: 2px; font-size: 16px;">10</b></div>
+            <!-- 右側背包與技能 -->
+            <div style="flex: 1; height: 100%; display: flex; flex-direction: column; background: rgba(18, 20, 28, 0.85); padding: 20px 30px;">
+                <div style="display: flex; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; gap: 15px;">
+                    <div id="tab-btn-inv" onclick="window.switchRightFullTab('inv')" style="flex: 1; text-align: center; padding: 10px; background: #3498db; border-radius: 6px; cursor: pointer; font-weight: bold; color: #fff; font-size: 16px;">🎒 背包</div>
+                    <div id="tab-btn-skill" onclick="window.switchRightFullTab('skill')" style="flex: 1; text-align: center; padding: 10px; background: #161824; border-radius: 6px; cursor: pointer; font-weight: bold; color: #888; font-size: 16px;">📖 技能</div>
                 </div>
-            </div>
-            <div id="ui-char-list" style="background: #111; padding: 8px; border-top: 1px solid #333; display: flex; gap: 8px; overflow-x: auto; height: 75px; flex-shrink: 0;"></div>
-        </div>
 
-        <!-- 右側面板 -->
-        <div style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.95); padding: 20px;">
-            <div style="display: flex; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; gap: 10px;">
-                <div id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 10px; background: #3498db; border-radius: 6px; cursor: pointer; font-weight: bold; color: #fff; font-size: 16px;">🎒 背包</div>
-                <div id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 10px; background: #1a1c29; border-radius: 6px; cursor: pointer; font-weight: bold; color: #888; font-size: 16px;">📖 技能</div>
-            </div>
-
-            <div id="inv-container" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-                    <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 4px 12px; background: #e67e22; border: 1px solid #e67e22; border-radius: 12px; cursor: pointer; font-size: 12px; color: #fff; font-weight: bold;">全部</div>
-                    <div class="filter-btn" onclick="window.setFilter('equip', this)" style="padding: 4px 12px; background: #222; border: 1px solid #444; border-radius: 12px; cursor: pointer; font-size: 12px; color: #aaa;">裝備</div>
-                    <div class="filter-btn" onclick="window.setFilter('consumable', this)" style="padding: 4px 12px; background: #222; border: 1px solid #444; border-radius: 12px; cursor: pointer; font-size: 12px; color: #aaa;">消耗品</div>
+                <!-- 5大背包分類 Tab -->
+                <div id="full-inv-view" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                    <div style="display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
+                        <button class="filter-tab-btn active" onclick="window.setFullFilter('all', this)">全部</button>
+                        <button class="filter-tab-btn" onclick="window.setFullFilter('equip', this)">裝備</button>
+                        <button class="filter-tab-btn" onclick="window.setFullFilter('consumable', this)">消耗品</button>
+                        <button class="filter-tab-btn" onclick="window.setFullFilter('material', this)">材料</button>
+                        <button class="filter-tab-btn" onclick="window.setFullFilter('quest', this)">任務</button>
+                    </div>
+                    <div id="full-inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 8px; align-content: start; padding-bottom: 15px;"></div>
                 </div>
-                <div id="inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 8px; align-content: start; padding-bottom: 20px;"></div>
+
+                <!-- 技能編輯器連動面板 -->
+                <div id="full-skill-view" style="flex: 1; display: none; flex-direction: column; overflow-y: auto; gap: 10px; padding-bottom: 15px;"></div>
             </div>
 
-            <div id="skill-container" style="flex: 1; display: none; flex-direction: column; overflow-y: auto; gap: 10px; padding-bottom: 20px;"></div>
+            <!-- 詳細屬性側彈窗 -->
+            <div id="detail-stats-popover" style="position: absolute; left: 440px; top: 80px; width: 280px; background: rgba(15, 17, 26, 0.98); border: 1px solid #f1c40f; border-radius: 8px; padding: 15px; z-index: 1100; display: none; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+                <div style="display: flex; justify-content: space-between; font-weight: bold; color: #f1c40f; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px;">
+                    <span>詳細戰鬥加成</span>
+                    <span onclick="window.toggleDetailStatsPopover()" style="cursor: pointer; color: #aaa;">✖</span>
+                </div>
+                <div id="detail-stats-content" style="font-size: 12px; color: #ccc; display: flex; flex-direction: column; gap: 6px;"></div>
+            </div>
         </div>
-
-        <!-- 彈窗：物品詳情 -->
-        <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 99999; width: 320px;">
-            <div onclick="window.hideTooltip()" style="position: absolute; top: 10px; right: 15px; cursor: pointer; color: #aaa; font-size: 20px;">✖</div>
-            <div id="tooltip-content"></div>
-        </div>
-    </div>
     `;
 
-    document.body.appendChild(uiContainer);
+    container.appendChild(uiContainer);
+}
+
+function selectCharacter(charObj) {
+    selectedChar = charObj;
+    renderCharList();
+    renderLeftStats();
+    renderRightContent();
 }
 
 function renderCharList() {
-    const box = document.getElementById('ui-char-list');
-    if (!box) return;
-    box.innerHTML = '';
-    const chars = window.CHARACTERS || [];
-    const players = chars.filter(c => c.side === 'player');
-    
-    players.forEach(p => {
-        const btn = document.createElement('div');
-        btn.style.cssText = "width: 50px; height: 50px; flex-shrink: 0; border-radius: 8px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 22px; cursor: pointer; transition: all 0.2s;";
-        btn.innerHTML = p.emoji || '👤';
-        btn.onclick = () => selectCharacter(p);
-        if (selectedChar && selectedChar.id === p.id) {
-            btn.style.borderColor = '#f1c40f';
-            btn.style.background = '#333';
+    const listEl = document.getElementById('full-char-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const chars = (window.CHARACTERS || []).filter(c => c.side === 'player' || !c.side);
+
+    chars.forEach(c => {
+        const item = document.createElement('div');
+        item.style.cssText = "width: 50px; height: 50px; flex-shrink: 0; border-radius: 8px; background: #1f2230; border: 2px solid #3a3d52; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer;";
+        item.innerHTML = c.emoji || '👤';
+        if (selectedChar && selectedChar.id === c.id) {
+            item.style.borderColor = '#f1c40f';
+            item.style.background = '#2a2e42';
         }
-        box.appendChild(btn);
+        item.onclick = () => selectCharacter(c);
+        listEl.appendChild(item);
     });
 }
 
-function selectCharacter(charData) {
-    selectedChar = charData;
-    renderCharList();
-    refreshLeftPanel();
-    refreshRightPanel();
-}
-
-function refreshLeftPanel() {
+function renderLeftStats() {
     if (!selectedChar) return;
-    document.getElementById('ui-char-name').innerText = selectedChar.name || '未命名';
-    document.getElementById('ui-char-level').innerText = `Lv. ${selectedChar.level || 1}`;
-
-    document.getElementById('ui-hp').innerText = selectedChar.hp || selectedChar.maxHp || 3000;
-    document.getElementById('ui-atk').innerText = selectedChar.atk || 400;
-    document.getElementById('ui-def').innerText = selectedChar.def || 200;
-    document.getElementById('ui-spd').innerText = selectedChar.speed || 10;
+    document.getElementById('full-char-name').innerText = selectedChar.name || '未命名';
+    document.getElementById('full-char-level').innerText = `Lv. ${selectedChar.level || 1}`;
+    document.getElementById('full-hp').innerText = selectedChar.hp || selectedChar.maxHp || 3000;
+    document.getElementById('full-atk').innerText = selectedChar.atk || 400;
+    document.getElementById('full-def').innerText = selectedChar.def || 200;
+    document.getElementById('full-spd').innerText = selectedChar.speed || 10;
 
     const fp = selectedChar.freePoints || 0;
-    document.getElementById('ui-free-points').innerText = `剩餘點數: ${fp}`;
-    
+    document.getElementById('full-free-points').innerText = `剩餘可分配點數: ${fp}`;
+
     const stats = selectedChar.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
     const statNames = { fengRui: '鋒銳', hunHou: '渾厚', lingDong: '靈動', jianRen: '堅韌', guiMi: '詭秘', jueQing: '絕情' };
-    
+
     let statsHtml = '';
     Object.keys(statNames).forEach(k => {
         statsHtml += `
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #333; padding-bottom: 2px;">
-                <div><span style="color: #888;">${statNames[k]}</span> <b style="color: #fff; margin-right: 4px;">${stats[k] || 0}</b></div>
-                <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 3px; width: 18px; height: 18px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #1a1c29; padding: 4px 8px; border-radius: 4px;">
+                <span><span style="color: #aaa;">${statNames[k]}</span> <b style="color: #fff; margin-left: 4px;">${stats[k] || 0}</b></span>
+                <button ${fp > 0 ? '' : 'disabled'} onclick="window.addStatPoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 3px; width: 18px; height: 18px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
             </div>
         `;
     });
-    document.getElementById('ui-stats-grid').innerHTML = statsHtml;
-    renderEquipSlots();
-}
+    document.getElementById('full-stats-grid').innerHTML = statsHtml;
 
-window.allocatePoint = function(statKey) {
-    if (!selectedChar || !selectedChar.freePoints || selectedChar.freePoints <= 0) return;
-    selectedChar.freePoints--;
-    if(!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
-    selectedChar.stats[statKey] = (selectedChar.stats[statKey] || 0) + 1;
-    saveGameData();
-    selectCharacter(selectedChar);
-};
-
-function renderEquipSlots() {
-    const container = document.getElementById('ui-equip-slots');
-    if (!container) return;
-    container.innerHTML = '';
     const slots = [
         { key: 'weapon', name: '武器' }, { key: 'head', name: '頭部' }, { key: 'body', name: '衣服' },
         { key: 'legs', name: '腿部' }, { key: 'ring', name: '戒指' }, { key: 'necklace', name: '項鏈' }
     ];
-
-    slots.forEach(slot => {
-        const div = document.createElement('div');
-        div.style.cssText = "height: 45px; background: #1a1c29; border: 1px solid #333; border-radius: 4px; display: flex; justify-content: center; align-items: center; cursor: pointer;";
-        div.innerHTML = `<span style="color: #555; font-size: 11px;">${slot.name}</span>`;
-        container.appendChild(div);
+    let slotsHtml = '';
+    slots.forEach(s => {
+        slotsHtml += `<div style="height: 42px; background: #1a1c29; border: 1px dashed #3a3d52; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #666;">${s.name}</div>`;
     });
+    document.getElementById('full-equip-slots').innerHTML = slotsHtml;
+
+    document.getElementById('detail-stats-content').innerHTML = `
+        <div>💥 暴擊率: <b>${(selectedChar.critRate || 5)}%</b></div>
+        <div>⚡ 暴擊傷害: <b>${(selectedChar.critDmg || 150)}%</b></div>
+        <div>🛡️ 格擋率: <b>${(selectedChar.blockRate || 0)}%</b></div>
+        <div>🌀 閃避率: <b>${(selectedChar.evadeRate || 0)}%</b></div>
+        <div>🗡️ 破勢增傷: <b>+${(selectedChar.poShiDmg || 0)}%</b></div>
+        <div>❄️ 滯氣增傷: <b>+${(selectedChar.zhiQiDmg || 0)}%</b></div>
+    `;
 }
 
-function refreshRightPanel() {
-    if (currentTab === 'inv') {
-        document.getElementById('inv-container').style.display = 'flex';
-        document.getElementById('skill-container').style.display = 'none';
-        renderInventory();
-    } else {
-        document.getElementById('inv-container').style.display = 'none';
-        document.getElementById('skill-container').style.display = 'flex';
-        renderSkills();
+window.addStatPoint = function(statKey) {
+    if (!selectedChar || !selectedChar.freePoints || selectedChar.freePoints <= 0) return;
+    selectedChar.freePoints--;
+    if (!selectedChar.stats) selectedChar.stats = {};
+    selectedChar.stats[statKey] = (selectedChar.stats[statKey] || 0) + 1;
+    localStorage.setItem('my_game_characters', JSON.stringify(window.CHARACTERS));
+    renderLeftStats();
+};
+
+window.toggleDetailStatsPopover = function() {
+    const popover = document.getElementById('detail-stats-popover');
+    if (popover) {
+        popover.style.display = (popover.style.display === 'block') ? 'none' : 'block';
     }
-}
-
-window.switchRightTab = function(tab) {
-    currentTab = tab;
-    document.getElementById('rt-btn-inv').style.background = tab === 'inv' ? '#3498db' : '#1a1c29';
-    document.getElementById('rt-btn-inv').style.color = tab === 'inv' ? '#fff' : '#888';
-    document.getElementById('rt-btn-skill').style.background = tab === 'skill' ? '#3498db' : '#1a1c29';
-    document.getElementById('rt-btn-skill').style.color = tab === 'skill' ? '#fff' : '#888';
-    refreshRightPanel();
 };
 
-window.setFilter = function(type, btn) {
-    currentFilter = type;
-    document.querySelectorAll('.filter-btn').forEach(b => {
-        b.style.background = '#222'; b.style.borderColor = '#444'; b.style.color = '#aaa';
-    });
-    btn.style.background = '#e67e22'; btn.style.borderColor = '#e67e22'; btn.style.color = '#fff';
-    renderInventory();
+window.switchRightFullTab = function(tab) {
+    activeRightTab = tab;
+    document.getElementById('tab-btn-inv').style.background = tab === 'inv' ? '#3498db' : '#161824';
+    document.getElementById('tab-btn-inv').style.color = tab === 'inv' ? '#fff' : '#888';
+    document.getElementById('tab-btn-skill').style.background = tab === 'skill' ? '#3498db' : '#161824';
+    document.getElementById('tab-btn-skill').style.color = tab === 'skill' ? '#fff' : '#888';
+    renderRightContent();
 };
 
-function renderInventory() {
-    const grid = document.getElementById('inventory-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-    const inv = window.INVENTORY || [];
-    const items = window.ITEMS || {};
+window.setFullFilter = function(filterType, btn) {
+    activeFilter = filterType;
+    document.querySelectorAll('.filter-tab-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderRightContent();
+};
 
-    for (let i = 0; i < 40; i++) {
-        const slot = document.createElement('div');
-        slot.style.cssText = "aspect-ratio: 1; background: #1a1c29; border: 1px solid #333; border-radius: 4px; display: flex; justify-content: center; align-items: center; cursor: pointer;";
+function renderRightContent() {
+    const invView = document.getElementById('full-inv-view');
+    const skillView = document.getElementById('full-skill-view');
 
-        if (inv[i]) {
-            const itemTpl = items[inv[i].itemId];
-            if (itemTpl) {
-                slot.innerHTML = `<div style="font-size: 22px;">${itemTpl.icon || '📦'}</div>`;
+    if (activeRightTab === 'inv') {
+        invView.style.display = 'flex';
+        skillView.style.display = 'none';
+
+        const grid = document.getElementById('full-inventory-grid');
+        grid.innerHTML = '';
+        const invList = window.INVENTORY || [];
+        const itemsTpl = window.ITEMS || {};
+
+        const filtered = invList.filter(inst => {
+            const tpl = itemsTpl[inst.itemId] || inst;
+            if (activeFilter === 'all') return true;
+            if (activeFilter === 'equip') return ['weapon', 'armor', 'accessory', 'head', 'body', 'legs'].includes(tpl.category);
+            return tpl.category === activeFilter;
+        });
+
+        for (let i = 0; i < 48; i++) {
+            const cell = document.createElement('div');
+            cell.style.cssText = "aspect-ratio: 1; background: #161824; border: 1px solid #2a2e42; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative;";
+
+            if (filtered[i]) {
+                const inst = filtered[i];
+                const tpl = itemsTpl[inst.itemId] || inst;
+                cell.innerHTML = `<div style="font-size: 26px;">${tpl.icon || '📦'}</div>`;
+                if (inst.count > 1) {
+                    cell.innerHTML += `<span style="position: absolute; right: 4px; bottom: 2px; font-size: 10px; color: #f1c40f; font-weight: bold;">${inst.count}</span>`;
+                }
+            } else {
+                cell.innerHTML = `<span style="color: #222; font-size: 11px;">空</span>`;
             }
-        } else {
-            slot.innerHTML = `<div style="color:#222; font-size:10px;">空</div>`;
+            grid.appendChild(cell);
         }
-        grid.appendChild(slot);
+    } else {
+        invView.style.display = 'none';
+        skillView.style.display = 'flex';
+        skillView.innerHTML = '';
+
+        let globalConfig = {};
+        try { globalConfig = JSON.parse(localStorage.getItem('my_game_config') || '{}'); } catch(e){}
+        const skills = globalConfig.skills || (selectedChar ? selectedChar.skills : null) || [
+            { name: '太極劍法', icon: '🗡️', type: '主動', desc: '對敵方單體造成 150% 物理傷害，並附加滯氣效果。' },
+            { name: '純陽無極功', icon: '✨', type: '被動', desc: '提升自身 15% 攻擊力與 10% 暴擊率。' }
+        ];
+
+        skills.forEach(s => {
+            const card = document.createElement('div');
+            card.style.cssText = "background: #161824; border: 1px solid #2a2e42; border-radius: 8px; padding: 12px; display: flex; gap: 12px; align-items: center;";
+            card.innerHTML = `
+                <div style="font-size: 32px; background: #222; padding: 8px; border-radius: 6px;">${s.icon || '📖'}</div>
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <b style="color: #f1c40f; font-size: 15px;">${s.name}</b>
+                        <span style="font-size: 11px; background: #e67e22; color: #fff; padding: 2px 6px; border-radius: 4px;">${s.type || '主動'}</span>
+                    </div>
+                    <div style="font-size: 12px; color: #aaa; line-height: 1.4;">${s.desc || '無描述'}</div>
+                </div>
+            `;
+            skillView.appendChild(card);
+        });
     }
 }
-
-function renderSkills() {
-    const box = document.getElementById('skill-container');
-    if (!box) return;
-    box.innerHTML = '<div style="color:#888; text-align:center; margin-top:20px;">技能系統開放中</div>';
-}
-
-window.hideTooltip = function() {
-    const tooltip = document.getElementById('item-tooltip');
-    if (tooltip) tooltip.style.display = 'none';
-};
-
-function saveGameData() {
-    if (window.CHARACTERS) localStorage.setItem('my_game_characters', JSON.stringify(window.CHARACTERS));
-    if (window.INVENTORY) localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY));
-}
+})();
