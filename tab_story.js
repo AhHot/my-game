@@ -1,40 +1,44 @@
 // ==========================================
-// 模組：全新重造的劇情與劇本編輯器 (tab_story.js)
-// 支援 篇章管理、關卡串聯與對話事件架構
+// 模組：全新升級與修復的劇情與劇本編輯器 (tab_story.js)
+// 完整修復新增、刪除、分頁篩選與關卡節點串聯無反應的問題
 // ==========================================
 window.renderTabStory = function(container) {
-  let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || {
-    tabs: [
-      { id: 'main', name: '主線劇情', icon: '⚔️' },
-      { id: 'side', name: '支線故事', icon: '📜' },
-      { id: 'event', name: '限時活動', icon: '🔥' },
-      { id: 'tower', name: '通天高塔', icon: '🏯' }
-    ],
-    books: [
-      {
-        id: 'book_01',
-        tabId: 'main',
-        title: '第一章：青城山變',
-        desc: '青城派遭逢百年難得一見的浩劫，掌門不知去向，江湖風雲再起……',
-        cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
-        progress: '4/7',
-        stages: ['lv_0', 'lv_1'], // 串聯的戰棋關卡 ID 列表
-        tag: '章節進度 57%'
-      }
-    ]
-  };
+  // 確保全域有 story_data 儲存
+  if (!localStorage.getItem('my_game_story_data')) {
+    const defaultStory = {
+      tabs: [
+        { id: 'main', name: '主線劇情', icon: '⚔️' },
+        { id: 'side', name: '支線故事', icon: '📜' },
+        { id: 'event', name: '限時活動', icon: '🔥' },
+        { id: 'tower', name: '通天高塔', icon: '🏯' }
+      ],
+      books: [
+        {
+          id: 'book_01',
+          tabId: 'main',
+          title: '第一章：青城山變',
+          desc: '青城派遭逢百年難得一見的浩劫，掌門不知去向，江湖風雲再起……',
+          cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
+          progress: '4/7',
+          stages: [0], // 對應 LEVELS 的索引
+          tag: '章節進度 57%'
+        }
+      ]
+    };
+    localStorage.setItem('my_game_story_data', JSON.stringify(defaultStory));
+  }
 
   container.innerHTML = `
     <div class="card">
       <div class="card-header">
-        <h3>📖 劇本與篇章配置中心 (重造版)</h3>
+        <h3>📖 劇本與篇章配置中心 (修復版)</h3>
         <div>
-          <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px; margin-right:8px;" onclick="window.saveStoryDataDirect()">💾 儲存所有劇本</button>
+          <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px; margin-right:8px;" onclick="window.saveStoryDataDirect()">💾 儲存並同步</button>
           <button class="btn" style="background:#3498db; padding:6px 12px; font-size:12px;" onclick="window.addStoryBook()">➕ 新增篇章</button>
         </div>
       </div>
       <p style="font-size:13px; color:#aaa; margin-bottom:15px;">
-        在此全面掌控遊戲的江湖主線、支線劇本，並可直接將編輯好的戰棋關卡串聯至指定章節中。
+        在此編輯各大劇本篇章，並可將左側關卡編輯器製作好的戰棋關卡（LEVELS）直接串聯至指定章節中。
       </p>
 
       <!-- 分類標籤快速過濾 -->
@@ -50,62 +54,69 @@ window.renderTabStory = function(container) {
   `;
 
   window._currentStoryFilter = 'all';
-  renderBookListEditor(storyData);
+  reloadStoryEditorUI();
 };
 
-function renderBookListEditor(storyData) {
+function reloadStoryEditorUI() {
+  const storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
   const listContainer = document.getElementById('editor-book-list');
   if (!listContainer) return;
   listContainer.innerHTML = '';
 
   const filter = window._currentStoryFilter || 'all';
-  const filteredBooks = storyData.books.filter((b, idx) => {
-    b._originalIndex = idx; // 保留原始索引以便修改
-    return filter === 'all' || b.tabId === filter;
+  const filteredBooks = [];
+  
+  storyData.books.forEach((book, idx) => {
+    book._originalIndex = idx; // 記住原本在陣列中的真實索引
+    if (filter === 'all' || book.tabId === filter) {
+      filteredBooks.push(book);
+    }
   });
 
   if (filteredBooks.length === 0) {
-    listContainer.innerHTML = `<div style="text-align:center; color:#666; padding:30px;">沒有找到相關的劇本篇章</div>`;
+    listContainer.innerHTML = `<div style="text-align:center; color:#666; padding:30px;">目前沒有此分類的劇本篇章，點擊上方「新增篇章」來建立！</div>`;
     return;
   }
 
   filteredBooks.forEach((book) => {
     const index = book._originalIndex;
     
-    // 取得現有的遊戲關卡清單供下拉選單串聯
-    let levelOptions = `<option value="">-- 選擇串聯的戰棋關卡 --</option>`;
+    // 讀取現有的遊戲關卡清單 (LEVELS)
+    let levelOptions = `<option value="">-- 選擇要串聯的戰棋關卡 --</option>`;
     if (typeof LEVELS !== 'undefined' && LEVELS.length > 0) {
       LEVELS.forEach((lv, lvIdx) => {
-        levelOptions += `<option value="${lvIdx}">關卡 #${lvIdx+1}: ${lv.name}</option>`;
+        levelOptions += `<option value="${lvIdx}">關卡 #${lvIdx+1}: ${lv.name || '未命名關卡'}</option>`;
       });
+    } else {
+      levelOptions += `<option value="" disabled>尚未建立任何戰棋關卡</option>`;
     }
 
     let stagesHtml = '';
     if (book.stages && book.stages.length > 0) {
       book.stages.forEach((stgIdx, sIdx) => {
-        let lvName = LEVELS[stgIdx] ? LEVELS[stgIdx].name : `未知關卡 (索引:${stgIdx})`;
+        let lvName = (typeof LEVELS !== 'undefined' && LEVELS[stgIdx]) ? LEVELS[stgIdx].name : `關卡索引 [${stgIdx}]`;
         stagesHtml += `
-          <div style="display:flex; justify-content:space-between; align-items:center; background:#16213e; padding:6px 10px; border-radius:4px; margin-bottom:4px; font-size:12px;">
-            <span>📍 關卡 #${stgIdx}: ${lvName}</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#16213e; padding:6px 10px; border-radius:4px; margin-bottom:4px; font-size:12px; border:1px solid #333;">
+            <span style="color:#2ecc71;">📍 節點 #${sIdx+1} → ${lvName}</span>
             <button class="btn-del" style="font-size:10px; padding:2px 6px;" onclick="window.removeStageFromBook(${index}, ${sIdx})">移除</button>
           </div>
         `;
       });
     } else {
-      stagesHtml = `<div style="color:#666; font-size:12px; font-style:italic; margin-bottom:6px;">尚未串聯任何戰棋關卡</div>`;
+      stagesHtml = `<div style="color:#666; font-size:12px; font-style:italic; margin-bottom:6px; text-align:center; padding:10px;">尚未串聯任何戰棋關卡，請從上方下拉選單新增節點</div>`;
     }
 
     const item = document.createElement('div');
     item.className = 'card';
-    item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:15px; border-radius:8px; margin-bottom:0;";
+    item.style.cssText = "background:#0f0f1a; border:1px solid #444; padding:15px; border-radius:8px; margin-bottom:0;";
     
     item.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #222; padding-bottom:8px;">
         <div style="display:flex; align-items:center; gap:10px;">
-          <span style="font-size:24px;">${book.cover ? `<img src="${book.cover}" style="width:36px; height:36px; object-fit:cover; border-radius:4px;">` : '📖'}</span>
+          <span style="font-size:24px;">${book.cover ? `<img src="${book.cover}" style="width:36px; height:36px; object-fit:cover; border-radius:4px;" onerror="this.src='https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop'">` : '📖'}</span>
           <div>
             <div style="color:#f1c40f; font-weight:bold; font-size:16px;">${book.title || '未命名篇章'}</div>
-            <div style="font-size:11px; color:#888;">ID: ${book.id} | 分類: ${book.tabId}</div>
+            <div style="font-size:11px; color:#888;">內部 ID: ${book.id} | 分類: ${book.tabId}</div>
           </div>
         </div>
         <button class="btn-del" onclick="window.deleteStoryBook(${index})">刪除篇章</button>
@@ -140,15 +151,15 @@ function renderBookListEditor(storyData) {
       </div>
 
       <!-- 關卡節點串聯區塊 -->
-      <div style="background:#141620; padding:10px; border-radius:6px; border:1px dashed #333;">
+      <div style="background:#141620; padding:12px; border-radius:6px; border:1px dashed #444;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
           <span style="font-size:13px; color:#3498db; font-weight:bold;">⚔️ 串聯的戰棋關卡節點</span>
-          <div style="display:flex; gap:6px;">
-            <select id="select-level-add-${index}" style="font-size:12px; padding:2px;">${levelOptions}</select>
-            <button class="btn" style="background:#2980b9; font-size:11px; padding:2px 8px;" onclick="window.addStageToBook(${index})">＋新增節點</button>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <select id="select-level-add-${index}" style="font-size:12px; padding:4px; background:#1e2028; color:#fff; border:1px solid #444; border-radius:4px;">${levelOptions}</select>
+            <button class="btn" style="background:#2980b9; font-size:11px; padding:4px 10px;" onclick="window.addStageToBook(${index})">＋新增節點</button>
           </div>
         </div>
-        <div style="max-height:120px; overflow-y:auto;">
+        <div>
           ${stagesHtml}
         </div>
       </div>
@@ -157,7 +168,7 @@ function renderBookListEditor(storyData) {
   });
 }
 
-// 篩選分頁
+// 篩選分頁切換
 window.filterStoryTab = function(tabId, btn) {
   window._currentStoryFilter = tabId;
   document.querySelectorAll('#story-tab-filter .btn').forEach(b => {
@@ -169,11 +180,10 @@ window.filterStoryTab = function(tabId, btn) {
   btn.style.background = '#e67e22';
   btn.style.borderColor = '#e67e22';
 
-  const storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
-  renderBookListEditor(storyData);
+  reloadStoryEditorUI();
 };
 
-// 即時更新欄位
+// 即時更新欄位並寫入 LocalStorage
 window.updateBookField = function(index, field, value) {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
   if (storyData && storyData.books[index]) {
@@ -182,11 +192,11 @@ window.updateBookField = function(index, field, value) {
   }
 };
 
-// 關卡節點操作
+// 新增關卡節點到指定篇章
 window.addStageToBook = function(bookIndex) {
   const select = document.getElementById(`select-level-add-${bookIndex}`);
   if (!select || select.value === "") {
-    alert("請先選擇要串聯的戰棋關卡！");
+    alert("⚠️ 請先選擇要串聯的戰棋關卡！");
     return;
   }
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
@@ -194,46 +204,50 @@ window.addStageToBook = function(bookIndex) {
     if (!storyData.books[bookIndex].stages) storyData.books[bookIndex].stages = [];
     storyData.books[bookIndex].stages.push(parseInt(select.value));
     localStorage.setItem('my_game_story_data', JSON.stringify(storyData));
-    renderBookListEditor(storyData);
+    reloadStoryEditorUI();
   }
 };
 
+// 從篇章中移除關卡節點
 window.removeStageFromBook = function(bookIndex, stageIndex) {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
   if (storyData && storyData.books[bookIndex] && storyData.books[bookIndex].stages) {
     storyData.books[bookIndex].stages.splice(stageIndex, 1);
     localStorage.setItem('my_game_story_data', JSON.stringify(storyData));
-    renderBookListEditor(storyData);
+    reloadStoryEditorUI();
   }
 };
 
+// 新增空白篇章
 window.addStoryBook = function() {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { tabs: [], books: [] };
   storyData.books.push({
     id: 'book_' + Date.now(),
-    tabId: 'main',
+    tabId: window._currentStoryFilter === 'all' ? 'main' : window._currentStoryFilter,
     title: '新江湖篇章',
     desc: '請在此輸入該劇本的詳細江湖背景與劇情簡介...',
     cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=600&auto=format&fit=crop',
-    progress: '0/5',
+    progress: '0/1',
     stages: [],
     tag: '全新解鎖'
   });
   
   localStorage.setItem('my_game_story_data', JSON.stringify(storyData));
-  renderBookListEditor(storyData);
+  reloadStoryEditorUI();
 };
 
+// 刪除篇章
 window.deleteStoryBook = function(index) {
   if (!confirm('⚠️ 確定要刪除這個劇本篇章嗎？')) return;
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
   if (storyData && storyData.books) {
     storyData.books.splice(index, 1);
     localStorage.setItem('my_game_story_data', JSON.stringify(storyData));
-    renderBookListEditor(storyData);
+    reloadStoryEditorUI();
   }
 };
 
+// 手動儲存按鈕
 window.saveStoryDataDirect = function() {
-  alert('✅ 劇本與關卡節點串聯資料已成功儲存！');
+  alert('✅ 劇本與關卡節點串聯資料已成功儲存至本地！');
 };
