@@ -3,134 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>江湖歷程 - 戰鬥畫面</title>
+    <title>江湖歷程 - 戰棋戰鬥</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #050608; color: #fff; position: relative; }
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0f0f1a; position: relative; }
+        
+        /* 讓 Phaser 遊戲畫布完美填滿整個瀏覽器視窗 */
+        #game { width: 100vw; height: 100vw; position: absolute; top: 0; left: 0; }
 
-        /* 1280x720 遊戲標準縮放容器 */
-        #battle-canvas-container {
-            position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
-            transform-origin: 0 0; overflow: hidden; background: #11141d;
-        }
-
-        /* 戰鬥背景模擬 */
-        .battle-bg {
-            position: absolute; inset: 0;
-            background: url('https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop') center/cover no-repeat;
-            filter: brightness(0.4);
-        }
-
-        /* 頂部按鈕群固定容器 (絕對安全區，絕不消失) */
+        /* 頂部按鈕列：浮動在 Phaser 畫布的最上層，絕不消失 */
         .battle-top-buttons {
-            position: absolute; top: 20px; right: 30px; z-index: 9999;
-            display: flex; gap: 10px; align-items: center;
+            position: fixed; top: 20px; right: 30px; z-index: 99999;
+            display: flex; gap: 10px; align-items: center; pointer-events: auto;
         }
 
         .battle-btn {
-            background: rgba(0, 0, 0, 0.7); border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.75); border: 1px solid rgba(255, 255, 255, 0.3);
             color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;
             font-size: 14px; font-weight: bold; backdrop-filter: blur(4px);
             box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: background 0.2s;
         }
         .battle-btn:hover { background: rgba(54, 153, 255, 0.4); border-color: #3699ff; }
-        
         .battle-btn.danger { background: rgba(192, 57, 43, 0.85); border-color: rgba(255, 255, 255, 0.4); }
         .battle-btn.danger:hover { background: rgba(231, 76, 60, 0.95); }
-
-        /* 戰鬥中心提示文字 (Phaser 遊戲畫布掛載點) */
-        .battle-center-info {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 10; pointer-events: none;
-        }
-        
-        /* 讓 Phaser 遊戲畫布填滿容器 */
-        #game { width: 100%; height: 100%; pointer-events: auto; }
     </style>
-    <!-- 1. 引入 Phaser 3 遊戲引擎，確保 battle.js 可以正常運作 -->
+    <!-- 1. 引入 Phaser 3 遊戲引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
 </head>
 <body>
 
-    <!-- 1280x720 縮放畫布容器 -->
-    <div id="battle-canvas-container">
-        <div class="battle-bg"></div>
-
-        <!-- 🌟 絕對不會消失的頂部按鈕列 (包含跳過戰鬥與放棄戰鬥) -->
-        <div class="battle-top-buttons">
-            <button class="battle-btn" onclick="skipBattle()">跳過戰鬥</button>
-            <button class="battle-btn danger" onclick="abandonBattle()">放棄戰鬥</button>
-        </div>
-
-        <!-- 戰鬥畫面中央內容：掛載 Phaser 戰棋遊戲 -->
-        <div class="battle-center-info">
-            <div id="game"></div>
-        </div>
+    <!-- 頂部按鈕列 (跳過戰鬥、放棄戰鬥) -->
+    <div class="battle-top-buttons">
+        <button class="battle-btn" onclick="skipBattle()">跳過戰鬥</button>
+        <button class="battle-btn danger" onclick="abandonBattle()">放棄戰鬥</button>
     </div>
 
-    <!-- 2. 引入您原本的 battle.js 戰鬥邏輯核心[cite: 4] -->
+    <!-- Phaser 遊戲畫面掛載點 -->
+    <div id="game"></div>
+
+    <!-- 2. 引入您原本功能完整的戰鬥邏輯主程式[span_1](start_span)[span_1](end_span) -->
     <script src="battle.js"></script>
 
     <script>
-        let bookId = 'book_01';
-        let currentNodeIndex = 0;
-        let levelIndex = 0;
-
-        // 自動等比縮放，確保在手機或電腦螢幕都能完美顯示
-        function autoScaleUI() {
-            const container = document.getElementById('battle-canvas-container');
-            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-            container.style.transform = `scale(${scale})`;
-            container.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
-            container.style.top = (window.innerHeight - 720 * scale) / 2 + 'px';
-        }
-        window.addEventListener('resize', autoScaleUI);
-
-        window.onload = function() {
-            autoScaleUI();
-            const params = new URLSearchParams(window.location.search);
-            bookId = params.get('bookId') || 'book_01';
-            currentNodeIndex = parseInt(params.get('nodeIndex')) || 0;
-            levelIndex = parseInt(params.get('levelIndex')) || 0;
-
-            // 啟動 Phaser 遊戲中的布陣場景 (FormationScene)，並帶入劇情參數
+        // 3. 自動攔截主選單：如果網址帶有劇情參數，直接無縫切換至布陣與戰鬥場景
+        window.addEventListener('load', () => {
             setTimeout(() => {
-                if (window.game && window.game.scene) {
-                    window.game.scene.start('FormationScene', {
-                        levelIndex: levelIndex,
-                        from: 'story',
-                        bookId: bookId,
-                        nodeIndex: nodeIndex
-                    });
-                }
-            }, 300);
-        };
+                if (typeof MainMenuScene !== 'undefined') {
+                    const originalCreate = MainMenuScene.prototype.create;
+                    MainMenuScene.prototype.create = function() {
+                        const params = new URLSearchParams(window.location.search);
+                        const bookId = params.get('bookId');
+                        const levelIndex = parseInt(params.get('levelIndex')) || 0;
+                        const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
 
-        // 跳過戰鬥 (直接視為勝利，進入下一節劇情或返回地圖)
+                        if (bookId || params.has('levelIndex')) {
+                            this.scene.start('FormationScene', {
+                                levelIndex: levelIndex,
+                                from: 'story',
+                                bookId: bookId,
+                                nodeIndex: nodeIndex
+                            });
+                            return;
+                        }
+                        if (originalCreate) originalCreate.call(this);
+                    };
+                }
+            }, 100);
+        });
+
+        // 取得當前篇章 ID
+        function getBookId() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('bookId') || 'book_01';
+        }
+
+        // 跳過戰鬥邏輯
         function skipBattle() {
             if (confirm('是否直接跳過戰鬥並判定勝利？')) {
-                finishBattleAndReturn();
+                if (window.game && window.game.scene) {
+                    const activeScene = window.game.scene.scenes.find(s => s.sys.settings.active && s.scene.key === 'BattleScene');
+                    if (activeScene && typeof activeScene.fastForward === 'function') {
+                        activeScene.isSkipping = true;
+                        activeScene.fastForward();
+                        return;
+                    }
+                }
+                // 備用：若不在戰鬥中則直接依劇情返回
+                const params = new URLSearchParams(window.location.search);
+                const bookId = params.get('bookId') || 'book_01';
+                const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
+                window.location.href = `dialogue_player.html?bookId=${bookId}&nodeIndex=${nodeIndex + 1}`;
             }
         }
 
-        // 放棄戰鬥 (直接返回關卡地圖，不記錄通關)
+        // 放棄戰鬥邏輯 (返回當前篇章關卡地圖)
         function abandonBattle() {
             if (confirm('確定要放棄戰鬥並返回關卡地圖嗎？')) {
+                const bookId = getBookId();
                 window.location.href = `chapter_map.html?chapterId=${bookId}`;
             }
-        }
-
-        // 戰鬥勝利後的返回與解鎖邏輯
-        function finishBattleAndReturn() {
-            try {
-                let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
-                let currentMax = progressMap[bookId] !== undefined ? progressMap[bookId] : 0;
-                if (currentNodeIndex >= currentMax) {
-                    progressMap[bookId] = currentNodeIndex + 1;
-                    localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
-                }
-            } catch(e) {}
-            window.location.href = `chapter_map.html?chapterId=${bookId}`;
         }
     </script>
 </body>
