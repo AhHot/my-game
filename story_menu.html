@@ -175,7 +175,7 @@
                                 card.onclick = (e) => {
                                     if (offset === 0) {
                                         // 點擊最前方卡片時，進入對應地圖
-                                        const targetMap = chap.targetMapId || chap.id || 'm1';
+                                        const targetMap = chap.targetMapId || chap.id || 'book_01';
                                         window.location.href = `chapter_map.html?chapterId=${targetMap}`;
                                     } else {
                                         // 點擊後方卡片時，滑動切換至該張
