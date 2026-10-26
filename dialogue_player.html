@@ -425,6 +425,16 @@
 
         function finishStorySequence() {
             alert('本章劇情播放完畢！');
+            // 🌟 自動解鎖下一關卡進度
+    try {
+        let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
+        let currentMax = progressMap[bookId] !== undefined ? progressMap[bookId] : 0;
+        // 如果當前通關的節點大於或等於已記錄的進度，則將進度推至下一個節點
+        if (currentNodeIndex >= currentMax) {
+            progressMap[bookId] = currentNodeIndex + 1;
+            localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
+        }
+    } catch(e) {}
            // 🌟 修正：播放完畢後，正確返回對應章節的關卡地圖頁面
     window.location.href = `chapter_map.html?chapterId=${bookId}`;
             }
