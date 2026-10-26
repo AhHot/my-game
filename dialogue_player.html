@@ -217,7 +217,7 @@
         }
 
         function finishStorySequence() {
-            alert('本章劇情播放完畢！');
+           
             try {
                 let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                 let currentMax = progressMap[bookId] !== undefined ? progressMap[bookId] : 0;
