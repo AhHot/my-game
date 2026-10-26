@@ -8,14 +8,14 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
         
+        /* 核心等比縮放容器 */
         #game-scale-container {
             position: absolute; top: 0; left: 0;
             width: 1280px; height: 720px;
             transform-origin: 0 0;
             z-index: 10;
         }
-
-        #game { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; }
+        #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
     </style>
 </head>
 <body>
@@ -23,48 +23,60 @@
         <div id="game"></div>
     </div>
 
-    <!-- 引用必要腳本 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
     <script src="battle.js"></script>
     <script src="character_system.js"></script>
+    <script src="tab_char.js"></script>
 
     <script>
         function resizeGameUI() {
             const container = document.getElementById('game-scale-container');
-            if (!container) return;
             const scaleX = window.innerWidth / 1280;
             const scaleY = window.innerHeight / 720;
             const scale = Math.min(scaleX, scaleY);
             
             container.style.transform = `scale(${scale})`;
-            container.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
-            container.style.top = (window.innerHeight - 720 * scale) / 2 + 'px';
+            const scaledWidth = 1280 * scale;
+            const scaledHeight = 720 * scale;
+            container.style.left = (window.innerWidth - scaledWidth) / 2 + 'px';
+            container.style.top = (window.innerHeight - scaledHeight) / 2 + 'px';
         }
 
         window.addEventListener('resize', resizeGameUI);
 
-        window.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetLevelIndex = parseInt(urlParams.get('levelIndex') || '0');
+        // 🌟 提取來源標記與劇情連動參數
+        const navFrom = urlParams.get('from') || 'direct';
+        const navBookId = urlParams.get('bookId') || '';
+        const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
+
+        window.game = new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: 'game',
+            backgroundColor: '#0f0f1a',
+            scale: {
+                mode: Phaser.Scale.NONE,
+                width: 1280,
+                height: 720
+            },
+            scene: [FormationScene, BattleScene, ResultScene],
+        });
+
+        window.addEventListener('load', () => {
             resizeGameUI();
-
-            // 1. 解析網址帶過來的 levelIndex
-            const urlParams = new URLSearchParams(window.location.search);
-            let levelIndex = urlParams.get('levelIndex');
-            if (levelIndex === null || levelIndex === undefined) {
-                levelIndex = 0;
-            } else {
-                levelIndex = parseInt(levelIndex);
+            if (window.game && window.game.scene) {
+                setTimeout(() => {
+                    // 啟動 FormationScene 並帶入完整的導航參數包
+                    window.game.scene.start('FormationScene', { 
+                        levelIndex: targetLevelIndex,
+                        from: navFrom,
+                        bookId: navBookId,
+                        nodeIndex: navNodeIndex
+                    });
+                }, 100);
             }
-
-            // 2. 確保 Phaser 初始化後，自動啟動布陣場景 FormationScene
-            setTimeout(() => {
-                if (window.game && window.game.scene) {
-                    console.log("成功啟動布陣畫面，關卡索引：", levelIndex);
-                    window.game.scene.start('FormationScene', { levelIndex: levelIndex });
-                } else {
-                    console.error("Phaser 遊戲實例 (window.game) 尚未建立！");
-                }
-            }, 400);
         });
     </script>
 </body>
