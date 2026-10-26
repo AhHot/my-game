@@ -6,13 +6,12 @@
     <title>江湖歷程 - 戰棋戰鬥</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        /* 嚴格確保全螢幕填滿，取消任何會導致畫布為 0 的 flex 設定 */
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0f0f1a; position: relative; }
         
-        /* 讓 Phaser 畫布容器絕對定位填滿全螢幕 */
-        #game { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+        /* Phaser 遊戲畫面掛載點 */
+        #game { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
 
-        /* 頂部按鈕列：固定在最上層，絕對不會消失 */
+        /* 頂部按鈕列：浮動在最上層，絕對不會消失 */
         .battle-top-buttons {
             position: fixed; top: 20px; right: 30px; z-index: 99999;
             display: flex; gap: 10px; align-items: center; pointer-events: auto;
@@ -27,19 +26,20 @@
         .battle-btn:hover { background: rgba(54, 153, 255, 0.4); border-color: #3699ff; }
         .battle-btn.danger { background: rgba(192, 57, 43, 0.85); border-color: rgba(255, 255, 255, 0.4); }
         .battle-btn.danger:hover { background: rgba(231, 76, 60, 0.95); }
-
-        /* 萬一載入失敗的錯誤提示 */
-        #error-msg {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            color: #ff4444; font-size: 18px; text-align: center; z-index: 100000; display: none;
-        }
     </style>
 
     <!-- 1. 引入 Phaser 3 遊戲引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
 
-    <!-- 2. 全域變數防護網 (防止 battle.js 讀取時因變數不存在而崩潰) -->
+    <!-- 2. 🛡️ 【絕對關鍵】在載入 battle.js 之前，先預先宣告 battle.js 會直接調用的全域變數，防止 ReferenceError 崩潰黑屏 -->
     <script>
+        var CHARACTERS = [];
+        var SKILLS = {};
+        var STATUSES = {};
+        var ITEMS = {};
+        var LEVELS = [];
+        var INVENTORY = [];
+
         window.CONFIG = {
             WIDTH: 1280, HEIGHT: 720, CELL_SIZE: 100, GRID_SIZE: 5,
             MAX_ROUNDS: 20, ACTION_DELAY: 500, MP_REGEN_PER_ROUND: 0.2,
@@ -49,12 +49,6 @@
             lingDongToSpd: 2, jueQingToCrit: 1, maxCritFromStats: 50,
             lingDongToEva: 1, maxEvaFromStats: 50, guiMiToHit: 1, guiMiToCritDmg: 1
         };
-        window.CHARACTERS = window.CHARACTERS || [];
-        window.SKILLS = window.SKILLS || {};
-        window.STATUSES = window.STATUSES || {};
-        window.ITEMS = window.ITEMS || {};
-        window.LEVELS = window.LEVELS || [];
-        window.INVENTORY = window.INVENTORY || [];
 
         window.getElementInfo = window.getElementInfo || function(element) {
             const map = {
@@ -68,29 +62,21 @@
 </head>
 <body>
 
-    <div id="error-msg">⚠️ 遊戲引擎載入失敗，請檢查網路連線。</div>
-
     <!-- 頂部按鈕列 (跳過戰鬥、放棄戰鬥) -->
     <div class="battle-top-buttons">
         <button class="battle-btn" onclick="skipBattle()">跳過戰鬥</button>
         <button class="battle-btn danger" onclick="abandonBattle()">放棄戰鬥</button>
     </div>
 
-    <!-- 遊戲畫面掛載點 -->
+    <!-- Phaser 遊戲畫面的掛載點 -->
     <div id="game"></div>
 
-    <!-- 3. 引入戰鬥邏輯主程式 -->
+    <!-- 3. 引入您原本功能完整的 battle.js 戰鬥邏輯[span_2](start_span)[span_2](end_span) -->
     <script src="battle.js"></script>
 
     <script>
+        // 4. 當頁面載入且 Phaser 初始化後，自動接收劇情參數並無縫切換到戰前布陣
         window.addEventListener('load', () => {
-            // 檢查 Phaser 是否成功載入
-            if (typeof Phaser === 'undefined') {
-                document.getElementById('error-msg').style.display = 'block';
-                return;
-            }
-
-            // 確保遊戲初始化後切換到布陣場景
             setTimeout(() => {
                 if (window.game && window.game.scene) {
                     const params = new URLSearchParams(window.location.search);
@@ -98,25 +84,24 @@
                     const levelIndex = parseInt(params.get('levelIndex')) || 0;
                     const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
 
-                    try {
-                        window.game.scene.start('FormationScene', {
-                            levelIndex: levelIndex,
-                            from: 'story',
-                            bookId: bookId,
-                            nodeIndex: nodeIndex
-                        });
-                    } catch (err) {
-                        console.error("啟動戰鬥場景失敗：", err);
-                    }
+                    // 直接啟動布陣場景 (FormationScene)
+                    window.game.scene.start('FormationScene', {
+                        levelIndex: levelIndex,
+                        from: 'story',
+                        bookId: bookId,
+                        nodeIndex: nodeIndex
+                    });
                 }
-            }, 350);
+            }, 300);
         });
 
+        // 取得當前篇章 ID
         function getBookId() {
             const params = new URLSearchParams(window.location.search);
             return params.get('bookId') || 'book_01';
         }
 
+        // 跳過戰鬥邏輯
         function skipBattle() {
             if (confirm('是否直接跳過戰鬥並判定勝利？')) {
                 if (window.game && window.game.scene) {
@@ -134,6 +119,7 @@
             }
         }
 
+        // 放棄戰鬥邏輯 (返回關卡地圖)
         function abandonBattle() {
             if (confirm('確定要放棄戰鬥並返回關卡地圖嗎？')) {
                 const bookId = getBookId();
