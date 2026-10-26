@@ -22,7 +22,9 @@
     <div id="game-scale-container">
         <div id="game"></div>
     </div>
-
+    <button onclick="if(confirm('確定要放棄戰鬥並返回關卡地圖嗎？')) window.location.href='chapter_map.html';" style="position: absolute; top: 20px; right: 30px; z-index: 999; background: rgba(192,57,43,0.8); border: 1px solid rgba(255,255,255,0.4); color: #fff; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">
+    🚪 放棄戰鬥
+</button>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
     <script src="battle.js"></script>
