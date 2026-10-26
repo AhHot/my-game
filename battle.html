@@ -16,41 +16,11 @@
             z-index: 10;
         }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
-
-        /* 🌟 勝利後的劇情推進覆蓋按鈕樣式 */
-        #story-victory-overlay {
-            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9);
-            display: none; justify-content: center; align-items: center; z-index: 999999;
-            backdrop-filter: blur(10px); animation: fadeIn 0.3s ease;
-        }
-        .victory-card {
-            background: #161a23; border: 2px solid #f1c40f; border-radius: 12px;
-            padding: 40px 60px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.9);
-            color: #fff; max-width: 500px; width: 90%;
-        }
-        .victory-title { font-size: 32px; color: #f1c40f; font-weight: bold; margin-bottom: 10px; text-shadow: 0 2px 10px rgba(241,196,15,0.4); }
-        .victory-desc { font-size: 16px; color: #aaa; margin-bottom: 30px; }
-        .victory-btn {
-            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: #fff;
-            border: none; padding: 14px 35px; border-radius: 8px; font-size: 18px; font-weight: bold;
-            cursor: pointer; box-shadow: 0 5px 20px rgba(46,204,113,0.4); transition: transform 0.2s;
-        }
-        .victory-btn:hover { transform: translateY(-2px); }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
     <div id="game-scale-container">
         <div id="game"></div>
-    </div>
-
-    <!-- 🌟 勝利接續劇情 HTML 互動層 -->
-    <div id="story-victory-overlay">
-        <div class="victory-card">
-            <div class="victory-title">⚔️ 戰鬥勝利</div>
-            <div class="victory-desc" id="victory-tip-text">強敵已被擊潰，江湖風雲再起……</div>
-            <button class="victory-btn" id="story-continue-btn" onclick="proceedStoryWorkflow()">▶ 繼續劇情</button>
-        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
@@ -81,9 +51,7 @@
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        let globalNextActionUrl = '';
-
-        // 🌟 保留標準的 ResultScene 確保遊戲引擎正常運行
+        // 初始化 Phaser 遊戲實例
         window.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'game',
@@ -110,40 +78,51 @@
             }
         });
 
-        // 🌟 安全攔截 ResultScene：當戰鬥勝利進入結算時，平順隱藏畫布並彈出 HTML 結算層
-        let storyHandled = false;
-        const checkResultSceneInterval = setInterval(() => {
-            if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !ResultScene.prototype._storyPatched) {
-                ResultScene.prototype._storyPatched = true;
-                clearInterval(checkResultSceneInterval);
+        // 🌟 無縫接軌原生結算：當來自劇情時，靜默綁定點擊事件進行節點判斷
+        let isSeamlessPatched = false;
+        const patchInterval = setInterval(() => {
+            if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !isSeamlessPatched) {
+                isSeamlessPatched = true;
+                clearInterval(patchInterval);
 
                 const originalCreate = ResultScene.prototype.create;
                 ResultScene.prototype.create = function(data) {
+                    // 執行原本完美的 ResultScene 視覺渲染與動畫
                     if (originalCreate) originalCreate.call(this, data);
 
-                    if (navFrom === 'story' && !storyHandled) {
-                        storyHandled = true;
-
-                        // 檢查是否為勝利
+                    if (navFrom === 'story') {
+                        // 判斷當前戰鬥是否勝利
                         const sceneData = data || (this.sys && this.sys.settings && this.sys.settings.data) || {};
                         const isWin = sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
 
                         if (isWin) {
-                            setTimeout(() => {
-                                document.getElementById('game-scale-container').style.display = 'none';
-                                handleStoryVictoryLogic();
-                            }, 300);
+                            // 計算並預先準備好下一個目標 URL
+                            const nextActionUrl = getNextStoryTargetUrl();
+
+                            // 監聽畫面上任何點擊或按鈕觸發（覆蓋原有退回佈陣的行為）
+                            this.input.once('pointerdown', () => {
+                                window.location.href = nextActionUrl;
+                            });
+
+                            // 如果原本 ResultScene 內有具體的「確定/繼續」按鈕，也一併綁定
+                            if (this.confirmBtn) {
+                                this.confirmBtn.off('pointerdown'); // 移除原有的重啟佈陣監聽
+                                this.confirmBtn.once('pointerdown', () => {
+                                    window.location.href = nextActionUrl;
+                                });
+                            }
                         }
                     }
                 };
             }
         }, 50);
 
-        function handleStoryVictoryLogic() {
+        // 🌟 算式：判斷是否還有下一個事件節點，返回正確的跳轉位址
+        function getNextStoryTargetUrl() {
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
                 
-                // 智慧匹配正確的章節代號（如 main_01）
+                // 智慧相容新舊分類代號（如 main_01 等）
                 let book = storyData.books.find(b => b.id === navBookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
@@ -153,7 +132,7 @@
                 const nodes = book && book.nodes ? book.nodes : [];
                 const nextNodeIndex = navNodeIndex + 1;
 
-                // 更新通關進度
+                // 更新該章節的關卡通關進度
                 let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                 let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
                 if (nextNodeIndex > currentMax) {
@@ -161,34 +140,17 @@
                     localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
                 }
 
-                // 檢查是否還有下一個事件節點
-                const hasNextNode = nextNodeIndex < nodes.length;
-
-                if (hasNextNode) {
-                    // 還有後續節點 -> 繼續劇情
-                    globalNextActionUrl = `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
-                    document.getElementById('victory-tip-text').innerText = '戰鬥大勝！點擊下方按鈕繼續探索劇情。';
-                    document.getElementById('story-continue-btn').innerText = '▶ 繼續劇情';
+                // 判斷後面是否還有事件節點
+                if (nextNodeIndex < nodes.length) {
+                    // 還有節點 -> 前往下一個劇情/事件
+                    return `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
                 } else {
-                    // 這是本章最後一個節點 -> 返回章節畫面
-                    globalNextActionUrl = `chapter_map.html?chapterId=${realBookId}`;
-                    document.getElementById('victory-tip-text').innerText = '恭喜通關本章所有節點！';
-                    document.getElementById('story-continue-btn').innerText = '🗺️ 返回章節畫面';
+                    // 這是最後一個節點 -> 返還章節地圖
+                    return `chapter_map.html?chapterId=${realBookId}`;
                 }
-
-                document.getElementById('story-victory-overlay').style.display = 'flex';
             } catch(e) {
-                console.error('處理劇情結算失敗', e);
-                globalNextActionUrl = `chapter_map.html?chapterId=${navBookId}`;
-                document.getElementById('story-victory-overlay').style.display = 'flex';
-            }
-        }
-
-        function proceedStoryWorkflow() {
-            if (globalNextActionUrl) {
-                window.location.href = globalNextActionUrl;
-            } else {
-                window.location.href = `chapter_map.html?chapterId=${navBookId}`;
+                console.error('解析下一個節點失敗：', e);
+                return `chapter_map.html?chapterId=${navBookId}`;
             }
         }
     </script>
