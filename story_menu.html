@@ -29,7 +29,8 @@
         .tab-item { padding: 12px 18px; background: rgba(255,255,255,0.05); border-left: 4px solid transparent; color: #888; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .tab-item.active { background: rgba(0, 255, 255, 0.2); border-left-color: #00ffff; color: #fff; }
 
-        .dyn-right-slider { position: absolute; display: flex; align-items: center; overflow: hidden; z-index: 20; }
+        .dyn-right-slider { position: absolute; display: flex; align-items: center; overflow: hidden; z-index: 20; cursor: grab; }
+        .dyn-right-slider:active { cursor: grabbing; }
 
         .dyn-bottom-nav { position: absolute; background: rgba(10, 11, 15, 0.95); border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: center; align-items: center; gap: 30px; z-index: 20; }
         .bot-btn { color: #718096; font-size: 14px; font-weight: bold; cursor: pointer; }
@@ -140,6 +141,8 @@
                         stackWrapper.style.cssText = "position:relative; width:100%; height:100%; display:flex; align-items:center; perspective: 1000px;";
                         
                         let activeIdx = 0;
+                        let startX = 0;
+                        let isDragging = false;
 
                         const renderStack = () => {
                             stackWrapper.innerHTML = '';
@@ -152,8 +155,8 @@
                                 let offset = idx - activeIdx;
                                 let zIndex = 10 - Math.abs(offset);
                                 let scale = offset === 0 ? 1 : 0.85;
-                                let brightness = offset === 0 ? 1 : 0.4;
-                                let translateX = offset * 180;
+                                let brightness = offset === 0 ? 1 : 0.4; // 後方自動變暗
+                                let translateX = offset * 180; // 露出三分之一的偏移量
                                 
                                 card.style.cssText = `
                                     position: absolute; left: 50%; top: 50%;
@@ -161,7 +164,7 @@
                                     transform: translate(calc(-50% + ${translateX}px), -50%) scale(${scale});
                                     filter: brightness(${brightness});
                                     z-index: ${zIndex};
-                                    transition: transform 0.4s ease, filter 0.4s ease;
+                                    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), filter 0.3s ease;
                                     border-radius: 12px; overflow: hidden;
                                     background: url('${chap.cover || ''}') center/cover no-repeat;
                                     cursor: pointer; border: 2px solid ${offset === 0 ? '#00ffff' : 'rgba(255,255,255,0.2)'};
@@ -169,11 +172,13 @@
                                     display: flex; align-items: flex-end; padding: 20px;
                                 `;
 
-                                card.onclick = () => {
+                                card.onclick = (e) => {
                                     if (offset === 0) {
+                                        // 點擊最前方卡片時，進入對應地圖
                                         const targetMap = chap.targetMapId || chap.id || 'm1';
                                         window.location.href = `chapter_map.html?chapterId=${targetMap}`;
                                     } else {
+                                        // 點擊後方卡片時，滑動切換至該張
                                         activeIdx = idx;
                                         renderStack();
                                     }
@@ -192,13 +197,21 @@
 
                         renderStack();
 
-                        el.onwheel = (e) => {
-                            e.preventDefault();
-                            if (e.deltaY > 0 && activeIdx < chapList.length - 1) {
-                                activeIdx++;
+                        // 🌟 滑鼠或手指拖動滑動切換卡片互動邏輯
+                        el.onpointerdown = (e) => {
+                            startX = e.clientX;
+                            isDragging = true;
+                        };
+
+                        window.onpointerup = (e) => {
+                            if (!isDragging) return;
+                            isDragging = false;
+                            let diff = e.clientX - startX;
+                            if (diff > 50 && activeIdx > 0) {
+                                activeIdx--; // 往右拖動 -> 上一張
                                 renderStack();
-                            } else if (e.deltaY < 0 && activeIdx > 0) {
-                                activeIdx--;
+                            } else if (diff < -50 && activeIdx < chapList.length - 1) {
+                                activeIdx++; // 往左拖動 -> 下一張
                                 renderStack();
                             }
                         };
