@@ -29,12 +29,7 @@
         .tab-item { padding: 12px 18px; background: rgba(255,255,255,0.05); border-left: 4px solid transparent; color: #888; font-weight: bold; font-size: 14px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .tab-item.active { background: rgba(0, 255, 255, 0.2); border-left-color: #00ffff; color: #fff; }
 
-        .dyn-right-slider { position: absolute; display: flex; gap: 20px; overflow-x: auto; align-items: center; padding: 10px; z-index: 20; }
-        .dyn-right-slider::-webkit-scrollbar { height: 6px; }
-        .dyn-right-slider::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
-
-        .chapter-card { width: 500px; height: 320px; flex-shrink: 0; border-radius: 8px; overflow: hidden; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px; cursor: pointer; transition: transform 0.2s; }
-        .chapter-card:hover { transform: translateY(-4px); border-color: #00ffff; }
+        .dyn-right-slider { position: absolute; display: flex; align-items: center; overflow: hidden; z-index: 20; }
 
         .dyn-bottom-nav { position: absolute; background: rgba(10, 11, 15, 0.95); border-top: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: center; align-items: center; gap: 30px; z-index: 20; }
         .bot-btn { color: #718096; font-size: 14px; font-weight: bold; cursor: pointer; }
@@ -51,6 +46,7 @@
     <script>
         function autoScaleUI() {
             const container = document.getElementById('story-canvas-container');
+            if (!container) return;
             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
             container.style.transform = `scale(${scale})`;
             container.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
@@ -69,15 +65,24 @@
 
             const defaultConfig = {
                 bgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
-                topNavLeftText: '返回大廳',
+                topNavLeftText: '◀ 返回大廳',
                 layout: {
                     topNav: { x: 0, y: 0, w: 1280, h: 60, visible: true, name: '頂部欄' },
                     leftTab: { x: 30, y: 80, w: 250, h: 560, visible: true, name: '左側 Tab 鏈' },
                     rightSlider: { x: 300, y: 100, w: 940, h: 520, visible: true, name: '右側關卡卡片區' },
                     bottomNav: { x: 0, y: 660, w: 1280, h: 60, visible: true, name: '底部功能列' }
                 },
-                categories: [{ id: 'main', name: '本篇主線' }],
-                chapters: { main: [{ id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop' }] },
+                categories: [
+                    { id: 'main', name: '本篇主線' },
+                    { id: 'sub', name: '外傳江湖' }
+                ],
+                chapters: { 
+                    main: [
+                        { id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop', w: 420, h: 280, targetMapId: 'm1' },
+                        { id: 'm2', title: '第二章：雪夜尋仇', progress: '0/8', cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop', w: 420, h: 280, targetMapId: 'm2' }
+                    ],
+                    sub: []
+                },
                 bottomButtons: ['戰鬥畫面', '本篇', '研修', '資源', '挑戰'],
                 activeTabId: 'main'
             };
@@ -110,118 +115,95 @@
                     el.innerHTML = `<div><button class="nav-btn" onclick="window.location.href='index.html'">${config.topNavLeftText || '◀ 返回大廳'}</button></div>`;
                 } else if (key === 'leftTab') {
                     el.className = 'dyn-left-tab';
-                    config.categories.forEach(cat => {
+                    (config.categories || []).forEach(cat => {
                         const item = document.createElement('div');
                         item.className = 'tab-item' + (cat.id === currentCatId ? ' active' : '');
                         item.innerHTML = `<span>● ${cat.name}</span> ${cat.id === currentCatId ? '<span>◆</span>' : ''}`;
-                        item.onclick = () => { config.activeTabId = cat.id; localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); renderStoryMenu(); };
+                        item.onclick = () => { 
+                            config.activeTabId = cat.id; 
+                            localStorage.setItem('my_game_ui_full_config', JSON.stringify(config)); 
+                            renderStoryMenu(); 
+                        };
                         el.appendChild(item);
                     });
                 } else if (key === 'rightSlider') {
                     el.className = 'dyn-right-slider';
-                    el.style.display = 'flex';
-    el.style.alignItems = 'center';
-    el.style.overflow = 'hidden';
-    el.style.position = 'relative';
-                    const chapList = config.chapters[currentCatId] || [];
+                    el.style.position = 'relative';
+
+                    const chaptersData = config.chapters || {};
+                    const chapList = chaptersData[currentCatId] || [];
+
                     if (chapList.length === 0) {
                         el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類尚無章節</div>`;
                     } else {
                         const stackWrapper = document.createElement('div');
-        stackWrapper.style.cssText = "position:relative; width:100%; height:100%; display:flex; align-items:center; perspective: 1000px;";
-        
-        let activeIdx = 0;
+                        stackWrapper.style.cssText = "position:relative; width:100%; height:100%; display:flex; align-items:center; perspective: 1000px;";
+                        
+                        let activeIdx = 0;
 
-        const renderStack = () => {
-            stackWrapper.innerHTML = '';
-            chapList.forEach((chap, idx) => {
-                const cardW = chap.w || 500;
-                const cardH = chap.h || 320;
-                
-                const card = document.createElement('div');
-                card.className = 'chapter-card';
-                
-                // 計算與當前 active 節點的相對位置，實現重疊與暗化
-                let offset = idx - activeIdx;
-                let zIndex = 10 - Math.abs(offset);
-                let scale = offset === 0 ? 1 : 0.85;
-                let brightness = offset === 0 ? 1 : 0.4; // 後方自動變暗
-                let translateX = offset * 180; // 露出三分之一的偏移量
-                
-                card.style.cssText = `
-                    position: absolute; left: 50%; top: 50%;
-                    width: ${cardW}px; height: ${cardH}px;
-                    transform: translate(calc(-50% + ${translateX}px), -50%) scale(${scale});
-                    filter: brightness(${brightness});
-                    z-index: ${zIndex};
-                    transition: transform 0.4s ease, filter 0.4s ease;
-                    border-radius: 12px; overflow: hidden;
-                    background: url('${chap.cover || ''}') center/cover;
-                    cursor: pointer; border: 2px solid ${offset === 0 ? '#00ffff' : 'rgba(255,255,255,0.2)'};
-                    box-shadow: 0 15px 35px rgba(0,0,0,0.8);
-                    display: flex; align-items: flex-end; padding: 20px;
-                `;
+                        const renderStack = () => {
+                            stackWrapper.innerHTML = '';
+                            chapList.forEach((chap, idx) => {
+                                const cardW = chap.w || 420;
+                                const cardH = chap.h || 280;
+                                
+                                const card = document.createElement('div');
+                                
+                                let offset = idx - activeIdx;
+                                let zIndex = 10 - Math.abs(offset);
+                                let scale = offset === 0 ? 1 : 0.85;
+                                let brightness = offset === 0 ? 1 : 0.4;
+                                let translateX = offset * 180;
+                                
+                                card.style.cssText = `
+                                    position: absolute; left: 50%; top: 50%;
+                                    width: ${cardW}px; height: ${cardH}px;
+                                    transform: translate(calc(-50% + ${translateX}px), -50%) scale(${scale});
+                                    filter: brightness(${brightness});
+                                    z-index: ${zIndex};
+                                    transition: transform 0.4s ease, filter 0.4s ease;
+                                    border-radius: 12px; overflow: hidden;
+                                    background: url('${chap.cover || ''}') center/cover no-repeat;
+                                    cursor: pointer; border: 2px solid ${offset === 0 ? '#00ffff' : 'rgba(255,255,255,0.2)'};
+                                    box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+                                    display: flex; align-items: flex-end; padding: 20px;
+                                `;
 
-                card.onclick = () => {
-                    if (offset === 0) {
-                        // 點擊正前方已啟動的卡片，直接跳轉地圖
-                        const targetMap = chap.targetMapId || chap.id;
-                        window.location.href = `chapter_map.html?chapterId=${targetMap}`;
-                    } else {
-                        // 點擊後方的卡片則切換至前方
-                        activeIdx = idx;
+                                card.onclick = () => {
+                                    if (offset === 0) {
+                                        const targetMap = chap.targetMapId || chap.id || 'm1';
+                                        window.location.href = `chapter_map.html?chapterId=${targetMap}`;
+                                    } else {
+                                        activeIdx = idx;
+                                        renderStack();
+                                    }
+                                };
+
+                                card.innerHTML = `
+                                    <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
+                                    <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
+                                        <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title || '未命名章節'}</div>
+                                        <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress || '0/0'}</div>
+                                    </div>
+                                `;
+                                stackWrapper.appendChild(card);
+                            });
+                        };
+
                         renderStack();
-                    }
-                };
 
-                card.innerHTML = `
-                    <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
-                    <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-                        <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
-                        <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
-                    </div>
-                `;
-                stackWrapper.appendChild(card);
-            });
-        };
+                        el.onwheel = (e) => {
+                            e.preventDefault();
+                            if (e.deltaY > 0 && activeIdx < chapList.length - 1) {
+                                activeIdx++;
+                                renderStack();
+                            } else if (e.deltaY < 0 && activeIdx > 0) {
+                                activeIdx--;
+                                renderStack();
+                            }
+                        };
 
-        renderStack();
-
-        // 支援滑鼠滾輪或左右滑動切換卡片
-        el.onwheel = (e) => {
-            e.preventDefault();
-            if (e.deltaY > 0 && activeIdx < chapList.length - 1) {
-                activeIdx++;
-                renderStack();
-            } else if (e.deltaY < 0 && activeIdx > 0) {
-                activeIdx--;
-                renderStack();
-            }
-        };
-
-        el.appendChild(stackWrapper);
-    }
-}
-                        chapList.forEach(chap => {
-                            const card = document.createElement('div');
-                            card.className = 'chapter-card';
-                            if (chap.w) card.style.width = chap.w + 'px';
-    if (chap.h) card.style.height = chap.h + 'px';
-                            card.style.backgroundImage = `url('${chap.cover}')`;
-                            card.onclick = () => {
-    // 優先讀取後台設定的 targetMapId，若無則使用自身的 id
-    const targetMap = chap.targetMapId || chap.id;
-    window.location.href = `chapter_map.html?chapterId=${targetMap}`;
-};
-                            card.innerHTML = `
-                                <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
-                                <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
-                                    <div style="color:#fff; font-size:22px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${chap.title}</div>
-                                    <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${chap.progress}</div>
-                                </div>
-                            `;
-                            el.appendChild(card);
-                        });
+                        el.appendChild(stackWrapper);
                     }
                 } else if (key === 'bottomNav') {
                     el.className = 'dyn-bottom-nav';
