@@ -8,7 +8,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0b0c10; font-family: "Microsoft YaHei", sans-serif; position: relative; }
 
-        /* 1280x720 核心等比縮放容器，完美適應手機與電腦 */
+        /* 1280x720 核心等比縮放容器 */
         #game-scale-container {
             position: absolute; top: 50%; left: 50%;
             width: 1280px; height: 720px;
@@ -108,7 +108,7 @@
             100% { transform: translateY(6px); }
         }
 
-        /* 歷史回顧面板 */
+        /* 歷史回顧 Modal */
         #history-modal {
             display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.85);
             z-index: 1000; padding: 60px 100px; flex-direction: column; backdrop-filter: blur(8px);
@@ -163,7 +163,6 @@
     <audio id="sfx-player"></audio>
 
     <script>
-        // 完美適應手機與電腦的縮放比例
         function resizeUI() {
             const container = document.getElementById('game-scale-container');
             const scaleX = window.innerWidth / 1280;
@@ -176,8 +175,9 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const bookId = urlParams.get('bookId') || 'book_01';
+        // 🌟 接收戰鬥後續接回的節點索引
+        let currentNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        // 🛡️ 防呆機制：確保讀取不到資料時自動建立預設劇本，絕對不卡死
         let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
         if (!storyData || !storyData.books || storyData.books.length === 0) {
             storyData = {
@@ -197,7 +197,6 @@
         }
 
         let currentBook = storyData.books.find(b => b.id === bookId) || storyData.books[0];
-        let currentNodeIndex = 0;
         let currentLineIndex = 0;
         let dialogueLines = [];
         let historyLogs = [];
@@ -209,17 +208,32 @@
         let typeInterval = null;
 
         function initStory() {
+            let freshStoryData = JSON.parse(localStorage.getItem('my_game_story_data'));
+            if (freshStoryData && freshStoryData.books) {
+                storyData = freshStoryData;
+                currentBook = storyData.books.find(b => b.id === bookId) || storyData.books[0];
+            }
+
             if (!currentBook || !currentBook.nodes || currentBook.nodes.length === 0) {
-                alert('找不到有效節點，即將前往戰鬥頁面');
-                window.location.href = 'battle.html?levelIndex=0';
+                alert('此篇章沒有任何節點！即將返回入口');
+                finishStorySequence();
                 return;
             }
-            let firstNode = currentBook.nodes[0];
-            if (firstNode.type === 'cg' && firstNode.cgUrl) {
-                document.getElementById('story-bg').style.backgroundImage = `url('${firstNode.cgUrl}')`;
-            } else if (firstNode.type === 'dialogue' && firstNode.bgUrl) {
-                document.getElementById('story-bg').style.backgroundImage = `url('${firstNode.bgUrl}')`;
+
+            // 防呆越界
+            if (currentNodeIndex >= currentBook.nodes.length) {
+                finishStorySequence();
+                return;
             }
+
+            // 開局預載第一個畫面的背景圖，防止預設圖閃爍
+            let initialNode = currentBook.nodes[currentNodeIndex];
+            if (initialNode.type === 'cg' && initialNode.cgUrl) {
+                document.getElementById('story-bg').style.backgroundImage = `url('${initialNode.cgUrl}')`;
+            } else if (initialNode.type === 'dialogue' && initialNode.bgUrl) {
+                document.getElementById('story-bg').style.backgroundImage = `url('${initialNode.bgUrl}')`;
+            }
+
             loadNode(currentNodeIndex);
         }
 
@@ -232,7 +246,8 @@
             let node = currentBook.nodes[nIdx];
 
             if (node.type === 'battle') {
-                window.location.href = `battle.html?levelIndex=${node.levelIndex || 0}`;
+                // 🌟 核心帶參跳轉：告訴 battle.html 打完戰鬥後跳回 dialogue_player 並接續下一個節點(nIdx + 1)
+                window.location.href = `battle.html?levelIndex=${node.levelIndex || 0}&from=story&bookId=${currentBook.id}&nodeIndex=${nIdx + 1}`;
                 return;
             }
 
@@ -403,7 +418,13 @@
         }
 
         function finishStorySequence() {
-            window.location.href = 'story_menu.html';
+            alert('本章劇情播放完畢！');
+            // 🌟 劇情播放完畢後正確返回選單頁面，如果沒有 story_menu.html 則退回 index.html
+            if (document.referrer.includes('story_menu.html')) {
+                window.location.href = 'story_menu.html';
+            } else {
+                window.location.href = 'index.html';
+            }
         }
 
         function openHistory(event) {
