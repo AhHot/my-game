@@ -56,7 +56,7 @@
             <button class="top-btn" onclick="openLogModal()">📜 回顧</button>
         </div>
 
-        <!-- 頂部右側按鈕群：自動播放、跳過、退出卡 (完整保留) -->
+        <!-- 頂部右側按鈕群：自動播放、跳過、退出卡 -->
         <div style="position: absolute; top: 20px; right: 30px; z-index: 99; display: flex; gap: 10px;">
             <button class="top-btn" onclick="toggleAutoPlay()" id="auto-play-btn">▶️ 自動播放</button>
             <button class="top-btn" onclick="skipStory(event)">⏩ 跳過</button>
@@ -108,7 +108,7 @@
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
                 
-                // 🌟 智慧容錯匹配：完美支援新舊分類代號 (如 main_01、side_01 等)
+                // 🌟 智慧容錯匹配：完美支援各類章節代號（如 main_01 等），防止找不到書本而黑屏
                 let book = storyData.books.find(b => b.id === bookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(bookId) || bookId.includes(b.id)) || storyData.books[0];
@@ -140,11 +140,12 @@
             let node = currentBookNodes[nIdx];
 
             if (node.type === 'battle') {
-                // 🌟 正確對接 battle.html：將 bookId、nodeIndex 與 levelIndex 完整傳過去
+                // 如果下個節點又是戰鬥，帶參數跳轉回 battle.html
                 let targetLevelIdx = node.levelIndex !== undefined ? node.levelIndex : 0;
                 window.location.href = `battle.html?bookId=${bookId}&nodeIndex=${currentNodeIndex}&levelIndex=${targetLevelIdx}&from=story`;
                 return;
             } else if (node.type === 'cg') {
+                // CG 過場插畫節點
                 const bg = document.getElementById('scene-bg');
                 bg.style.backgroundImage = `url('${node.cgUrl || ''}')`;
                 document.getElementById('speaker-title').innerText = '【過場插畫】';
@@ -152,6 +153,7 @@
                 document.getElementById('avatar-wrap').style.display = 'none';
                 currentLineIndex = 999; 
             } else if (node.type === 'dialogue') {
+                // 對話節點
                 const bg = document.getElementById('scene-bg');
                 bg.style.backgroundImage = `url('${node.bgUrl || ''}')`;
                 currentLineIndex = 0;
