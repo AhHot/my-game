@@ -246,6 +246,11 @@
             let node = currentBook.nodes[nIdx];
 
             if (node.type === 'battle') {
+                isAutoPlay = false;
+                clearTimeout(autoTimer);
+                const btn = document.getElementById('btn-auto');
+                if (btn) btn.classList.remove('active');
+              
                 // 🌟 核心帶參跳轉：告訴 battle.html 打完戰鬥後跳回 dialogue_player 並接續下一個節點(nIdx + 1)
                 window.location.href = `battle.html?levelIndex=${node.levelIndex || 0}&from=story&bookId=${currentBook.id}&nodeIndex=${nIdx + 1}`;
                 return;
