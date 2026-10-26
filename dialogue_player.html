@@ -50,17 +50,17 @@
         <!-- 背景與遮罩 -->
         <div id="scene-bg" class="bg-overlay" style="position: absolute; inset: 0; background-size: cover; background-position: center;"></div>
 
-        <!-- 頂部左側按鈕群：隱藏、回顧[span_3](start_span)[span_3](end_span) -->
+        <!-- 頂部左側按鈕群：隱藏、回顧 -->
         <div style="position: absolute; top: 20px; left: 30px; z-index: 99; display: flex; gap: 10px;">
             <button class="top-btn" onclick="toggleHideUI()">👁️ 隱藏</button>
             <button class="top-btn" onclick="openLogModal()">📜 回顧</button>
         </div>
 
-        <!-- 頂部右側按鈕群：自動播放、跳過、退出卡[span_4](start_span)[span_4](end_span) -->
+        <!-- 頂部右側按鈕群：自動播放、跳過、退出 -->
         <div style="position: absolute; top: 20px; right: 30px; z-index: 99; display: flex; gap: 10px;">
             <button class="top-btn" onclick="toggleAutoPlay()" id="auto-play-btn">▶️ 自動播放</button>
             <button class="top-btn" onclick="skipStory(event)">⏩ 跳過</button>
-            <button class="top-btn exit" onclick="exitToMap()">🚪 退出卡</button>
+            <button class="top-btn exit" onclick="exitToMap()">🚪 退出</button>
         </div>
 
         <!-- 角色立繪區 -->
@@ -130,8 +130,10 @@
             let node = currentBookNodes[nIdx];
 
             if (node.type === 'battle') {
-                // 如果是戰鬥節點，跳轉至戰鬥頁面
-                window.location.href = `battle.html?bookId=${bookId}&nodeIndex=${currentNodeIndex}&levelIndex=${node.levelIndex !== undefined ? node.levelIndex : 0}`;
+                // 🌟 修正：戰鬥節點觸發時，寫入對應關卡索引並導向首頁啟動布陣畫面 (FormationScene)
+                let targetLevelIdx = node.levelIndex !== undefined ? node.levelIndex : 0;
+                localStorage.setItem('my_game_current_level_index', targetLevelIdx);
+                window.location.href = `index.html?autoFormation=1`;
                 return;
             } else if (node.type === 'cg') {
                 // CG 過場插畫節點
@@ -140,7 +142,7 @@
                 document.getElementById('speaker-title').innerText = '【過場插畫】';
                 document.getElementById('dialogue-content').innerText = node.text || '';
                 document.getElementById('avatar-wrap').style.display = 'none';
-                currentLineIndex = 999; // 標記為CG完成態
+                currentLineIndex = 999;
             } else if (node.type === 'dialogue') {
                 // 對話節點
                 const bg = document.getElementById('scene-bg');
@@ -152,7 +154,7 @@
 
         function renderDialogueLine(node) {
             if (!node.lines || currentLineIndex >= node.lines.length) {
-                loadNode(currentNodeIndex + 1); // 進行下一個節點
+                loadNode(currentNodeIndex + 1);
                 return;
             }
             let line = node.lines[currentLineIndex];
@@ -217,7 +219,6 @@
         }
 
         function finishStorySequence() {
-           
             try {
                 let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                 let currentMax = progressMap[bookId] !== undefined ? progressMap[bookId] : 0;
