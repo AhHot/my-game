@@ -6,11 +6,12 @@
     <title>江湖歷程 - 戰棋戰鬥</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; position: relative; }
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0f0f1a; position: relative; }
         
+        /* Phaser 遊戲畫面容器 */
         #game { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
 
-        /* 頂部按鈕列：固定在右上角，確保隨時可點擊且不影響遊戲畫面 */
+        /* 頂部按鈕列：浮動在最上層，絕對不會消失，也不影響遊戲點擊 */
         .battle-top-buttons {
             position: fixed; top: 20px; right: 30px; z-index: 99999;
             display: flex; gap: 10px; align-items: center; pointer-events: auto;
@@ -26,17 +27,12 @@
         .battle-btn.danger { background: rgba(192, 57, 43, 0.85); border-color: rgba(255, 255, 255, 0.4); }
         .battle-btn.danger:hover { background: rgba(231, 76, 60, 0.95); }
     </style>
+
     <!-- 1. 引入 Phaser 3 遊戲引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
 
-    <!-- 2. 🛡️ 關鍵防護網：在載入 battle.js 之前，預先定義所有必要全域變數與防錯安全網，徹底根治黑屏 -->
+    <!-- 2. 🛡️ 【關鍵防護網】預先宣告所有 battle.js 必讀的全域變數，徹底根治黑屏 -->
     <script>
-        window.CHARACTERS = [];
-        window.SKILLS = {};
-        window.STATUSES = {};
-        window.ITEMS = {};
-        window.LEVELS = [];
-        window.INVENTORY = [];
         window.CONFIG = {
             WIDTH: 1280, HEIGHT: 720, CELL_SIZE: 100, GRID_SIZE: 5,
             MAX_ROUNDS: 20, ACTION_DELAY: 500, MP_REGEN_PER_ROUND: 0.2,
@@ -46,6 +42,13 @@
             lingDongToSpd: 2, jueQingToCrit: 1, maxCritFromStats: 50,
             lingDongToEva: 1, maxEvaFromStats: 50, guiMiToHit: 1, guiMiToCritDmg: 1
         };
+        window.CHARACTERS = window.CHARACTERS || [];
+        window.SKILLS = window.SKILLS || {};
+        window.STATUSES = window.STATUSES || {};
+        window.ITEMS = window.ITEMS || {};
+        window.LEVELS = window.LEVELS || [];
+        window.INVENTORY = window.INVENTORY || [];
+
         window.getElementInfo = window.getElementInfo || function(element) {
             const map = {
                 fire: { color: 0xe74c3c }, water: { color: 0x3498db },
@@ -64,35 +67,31 @@
         <button class="battle-btn danger" onclick="abandonBattle()">放棄戰鬥</button>
     </div>
 
-    <!-- Phaser 遊戲畫面掛載點 -->
+    <!-- Phaser 遊戲畫面的掛載點 -->
     <div id="game"></div>
 
-    <!-- 3. 引入 battle.js 戰鬥邏輯核心 -->
+    <!-- 3. 引入您原本功能完整的 battle.js 戰鬥邏輯[span_1](start_span)[span_1](end_span) -->
     <script src="battle.js"></script>
 
     <script>
-        // 4. 在 battle.js 初始化後，立即檢查網址參數並無縫切換至戰鬥布陣
+        // 4. 當頁面載入且 Phaser 初始化後，自動接收劇情參數並無縫切換到戰前布陣
         window.addEventListener('load', () => {
             setTimeout(() => {
-                if (window.game) {
+                if (window.game && window.game.scene) {
                     const params = new URLSearchParams(window.location.search);
-                    const bookId = params.get('bookId');
+                    const bookId = params.get('bookId') || 'book_01';
                     const levelIndex = parseInt(params.get('levelIndex')) || 0;
                     const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
 
-                    if (bookId || params.has('levelIndex')) {
-                        const mainScene = window.game.scene.getScene('MainMenuScene');
-                        if (mainScene) {
-                            mainScene.scene.start('FormationScene', {
-                                levelIndex: levelIndex,
-                                from: 'story',
-                                bookId: bookId,
-                                nodeIndex: nodeIndex
-                            });
-                        }
-                    }
+                    // 直接啟動布陣場景 (FormationScene)
+                    window.game.scene.start('FormationScene', {
+                        levelIndex: levelIndex,
+                        from: 'story',
+                        bookId: bookId,
+                        nodeIndex: nodeIndex
+                    });
                 }
-            }, 100);
+            }, 400);
         });
 
         // 取得當前篇章 ID
@@ -119,7 +118,7 @@
             }
         }
 
-        // 放棄戰鬥邏輯
+        // 放棄戰鬥邏輯 (返回關卡地圖)
         function abandonBattle() {
             if (confirm('確定要放棄戰鬥並返回關卡地圖嗎？')) {
                 const bookId = getBookId();
