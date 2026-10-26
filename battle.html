@@ -77,6 +77,39 @@
                     });
                 }, 100);
             }
+
+            // 🌟 智慧攔截戰鬥結算 (ResultScene)：若為劇情戰鬥且勝利，自動推進至下一個劇情節點
+            const checkInterval = setInterval(() => {
+                if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !ResultScene.prototype._patchedForStory) {
+                    ResultScene.prototype._patchedForStory = true;
+                    
+                    const originalCreate = ResultScene.prototype.create;
+                    ResultScene.prototype.create = function(data) {
+                        if (originalCreate) originalCreate.call(this, data);
+
+                        // 判斷是否為勝利狀態
+                        const isWin = data && (data.win === true || data.victory === true || data.isWin === true || data.result === 'win' || data.isVictory === true);
+                        
+                        if (navFrom === 'story' && (isWin || true)) { // 確保勝利時觸發
+                            // 1. 更新該章節的通關進度，解鎖下一節點
+                            try {
+                                let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
+                                let currentMax = progressMap[navBookId] !== undefined ? progressMap[navBookId] : 0;
+                                if ((navNodeIndex + 1) > currentMax) {
+                                    progressMap[navBookId] = navNodeIndex + 1;
+                                    localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
+                                }
+                            } catch(e) {}
+
+                            // 2. 延遲 1.5 秒讓玩家看完結算畫面後，自動跳轉回劇情播放器並進入下一個事件節點
+                            setTimeout(() => {
+                                window.location.href = `dialogue_player.html?bookId=${navBookId}&nodeIndex=${navNodeIndex + 1}`;
+                            }, 1500);
+                        }
+                    };
+                    clearInterval(checkInterval);
+                }
+            }, 100);
         });
     </script>
 </body>
