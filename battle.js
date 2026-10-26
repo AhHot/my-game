@@ -308,8 +308,10 @@ class MainMenuScene extends Phaser.Scene {
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) {
-    // 🛡️ 防呆：確保即使未帶入 data 參數也不會報錯崩潰
     this.currentLevelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
+    this.navFrom = (data && data.from) ? data.from : 'direct';
+    this.navBookId = (data && data.bookId) ? data.bookId : '';
+    this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
@@ -329,7 +331,17 @@ class FormationScene extends Phaser.Scene {
     for (let i = 0; i <= CONFIG.GRID_SIZE; i++) { g.lineBetween(gridLeft, gridTop + i * cell, gridLeft + gridW, gridTop + i * cell); g.lineBetween(gridLeft + i * cell, gridTop, gridLeft + i * cell, gridTop + gridW); }
     const bg = this.add.graphics(); bg.fillStyle(0x16213e, 0.8); bg.fillRoundedRect(standbyLeft - 20, 100, 500, 500, 10); bg.lineStyle(2, 0x3498DB, 0.5); bg.strokeRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
     const startBtn = this.add.text(CONFIG.WIDTH - 150, CONFIG.HEIGHT - 60, '⚔️ 开始战斗', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive();
-    startBtn.on('pointerdown', () => { if (CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length === 0) return alert('至少需要上阵1名角色！'); this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex }); });
+    
+    startBtn.on('pointerdown', () => { 
+      if (CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length === 0) return alert('至少需要上阵1名角色！'); 
+      this.scene.start('BattleScene', { 
+        levelIndex: this.currentLevelIndex,
+        from: this.navFrom,
+        bookId: this.navBookId,
+        nodeIndex: this.navNodeIndex
+      }); 
+    });
+
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
     this.unitContainers = [];
     CHARACTERS.filter(c => c.side === 'player').forEach(data => {
@@ -364,8 +376,10 @@ class FormationScene extends Phaser.Scene {
 class BattleScene extends Phaser.Scene {
   constructor() { super('BattleScene'); }
   init(data) {
-    // 🛡️ 防呆：確保即使未帶入 data 參數也不會報錯崩潰
     this.currentLevelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
+    this.navFrom = (data && data.from) ? data.from : 'direct';
+    this.navBookId = (data && data.bookId) ? data.bookId : '';
+    this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   preload() {
     const art = window.ART_CONFIG || {};
@@ -600,8 +614,12 @@ class BattleScene extends Phaser.Scene {
 
   fastForward() {
     for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+      }
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+      }
 
       this.allUnits.forEach(u => {
         if (!u.isAlive()) return;
@@ -609,8 +627,12 @@ class BattleScene extends Phaser.Scene {
         u.tickStatuses();
       });
 
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+      }
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+      }
 
       const order = BattleLogic.buildActionOrder(this.allUnits);
       for (let a of order) {
@@ -626,11 +648,15 @@ class BattleScene extends Phaser.Scene {
         if (!sk) continue;
         BattleLogic.simulateSkill(a, sk, this.allUnits);
 
-        if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex }); return; }
-        if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex }); return; }
+        if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+          this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+        }
+        if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+          this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+        }
       }
     }
-    this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex });
+    this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex });
   }
 
   endBattle(type) {
@@ -639,22 +665,31 @@ class BattleScene extends Phaser.Scene {
     const t = this.add.text(CONFIG.WIDTH / 2, 250, txt[type], { fontSize: '60px', color: col[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
     this.tweens.add({ targets: t, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 800 });
     const b = this.add.text(CONFIG.WIDTH / 2, 450, '👉 点击继续', { fontSize: '28px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive().setDepth(201);
-    b.on('pointerdown', () => this.scene.start('ResultScene', { type, levelIndex: this.currentLevelIndex }));
+    b.on('pointerdown', () => this.scene.start('ResultScene', { 
+      type, 
+      levelIndex: this.currentLevelIndex,
+      from: this.navFrom,
+      bookId: this.navBookId,
+      nodeIndex: this.navNodeIndex
+    }));
   }
 }
 
 class ResultScene extends Phaser.Scene {
   constructor() { super('ResultScene'); }
   init(d) {
-    // 🛡️ 防呆：確保即使未帶入 data 參數也不會報錯崩潰
     this.resultType = d ? d.type : 'victory'; 
     this.currentLevelIndex = (d && d.levelIndex !== undefined) ? d.levelIndex : 0; 
+    this.navFrom = (d && d.from) ? d.from : 'direct';
+    this.navBookId = (d && d.bookId) ? d.bookId : '';
+    this.navNodeIndex = (d && d.nodeIndex !== undefined) ? d.nodeIndex : 0;
   }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-    let label = '🔄 重新挑战'; let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex });
+
+    // 處理經驗值與裝備掉落獎勵
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
       if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
@@ -673,16 +708,53 @@ class ResultScene extends Phaser.Scene {
       }
       if(totalExp > 0) { this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 80, `全队获得 ${totalExp} 经验`, { fontSize: '24px', color: '#f1c40f' }).setOrigin(0.5); if(levelUpInfo.length > 0) { this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 120, levelUpInfo.join('，'), { fontSize: '20px', color: '#2ecc71' }).setOrigin(0.5); } }
       localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
-      if (this.currentLevelIndex < LEVELS.length - 1) { label = '➡️ 进入下一关'; action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 }); }
     }
-    const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
-    b.on('pointerdown', action);
+
+    // 🌟 智慧導航按鈕判定
+    if (this.resultType === 'victory') {
+      if (this.navFrom === 'story') {
+        // 劇情戰鬥勝利：跳出「📖 繼續劇情」
+        const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, '📖 繼續劇情', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+        b.on('pointerdown', () => {
+          window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`;
+        });
+      } else {
+        // 日常戰鬥勝利：跳出「➡️ 下一關」或「返回選關」
+        let label = '➡️ 进入下一关';
+        let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
+        if (this.currentLevelIndex >= LEVELS.length - 1) {
+          label = '🏠 返回主選單';
+          action = () => { window.location.href = 'index.html'; };
+        }
+        const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
+        b.on('pointerdown', action);
+      }
+    } else {
+      // 戰鬥失敗：提供「🔄 重新挑戰」與「🚪 放棄/返回」雙按鈕
+      const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 140, CONFIG.HEIGHT / 2 + 200, '🔄 重新挑戰', { fontSize: '32px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
+      retryBtn.on('pointerdown', () => {
+        this.scene.start('FormationScene', { 
+          levelIndex: this.currentLevelIndex,
+          from: this.navFrom,
+          bookId: this.navBookId,
+          nodeIndex: this.navNodeIndex - 1 // 重試當前戰鬥節點
+        });
+      });
+
+      const exitBtn = this.add.text(CONFIG.WIDTH / 2 + 140, CONFIG.HEIGHT / 2 + 200, '🚪 放棄撤退', { fontSize: '32px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
+      exitBtn.on('pointerdown', () => {
+        if (this.navFrom === 'story') {
+          window.location.href = 'story_menu.html';
+        } else {
+          window.location.href = 'index.html';
+        }
+      });
+    }
   }
 }
 
 window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload(); } });
 
-// 只有當 index.html 或非獨立 battle.html 載入時才預設建立 window.game 實例，避免重複撞車
 if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
