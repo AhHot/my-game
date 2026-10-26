@@ -6,12 +6,12 @@
     <title>江湖歷程 - 戰棋戰鬥</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0f0f1a; position: relative; }
+        /* 修正：使用 100% 確保畫面比例正常，不變形 */
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; position: relative; }
         
-        /* 讓 Phaser 遊戲畫布完美填滿整個瀏覽器視窗 */
-        #game { width: 100vw; height: 100vw; position: absolute; top: 0; left: 0; }
+        #game { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
 
-        /* 頂部按鈕列：浮動在 Phaser 畫布的最上層，絕不消失 */
+        /* 頂部按鈕列：固定在右上角，確保隨時可點擊且不影響遊戲畫面 */
         .battle-top-buttons {
             position: fixed; top: 20px; right: 30px; z-index: 99999;
             display: flex; gap: 10px; align-items: center; pointer-events: auto;
@@ -41,34 +41,32 @@
     <!-- Phaser 遊戲畫面掛載點 -->
     <div id="game"></div>
 
-    <!-- 2. 引入您原本功能完整的戰鬥邏輯主程式[span_1](start_span)[span_1](end_span) -->
+    <!-- 2. 引入 battle.js 戰鬥邏輯核心 -->
     <script src="battle.js"></script>
 
     <script>
-        // 3. 自動攔截主選單：如果網址帶有劇情參數，直接無縫切換至布陣與戰鬥場景
+        // 3. 在 battle.js 初始化後，立即檢查網址參數並無縫切換至戰鬥布陣
         window.addEventListener('load', () => {
             setTimeout(() => {
-                if (typeof MainMenuScene !== 'undefined') {
-                    const originalCreate = MainMenuScene.prototype.create;
-                    MainMenuScene.prototype.create = function() {
-                        const params = new URLSearchParams(window.location.search);
-                        const bookId = params.get('bookId');
-                        const levelIndex = parseInt(params.get('levelIndex')) || 0;
-                        const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
+                if (window.game) {
+                    const params = new URLSearchParams(window.location.search);
+                    const bookId = params.get('bookId');
+                    const levelIndex = parseInt(params.get('levelIndex')) || 0;
+                    const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
 
-                        if (bookId || params.has('levelIndex')) {
-                            this.scene.start('FormationScene', {
+                    if (bookId || params.has('levelIndex')) {
+                        const mainScene = window.game.scene.getScene('MainMenuScene');
+                        if (mainScene) {
+                            mainScene.scene.start('FormationScene', {
                                 levelIndex: levelIndex,
                                 from: 'story',
                                 bookId: bookId,
                                 nodeIndex: nodeIndex
                             });
-                            return;
                         }
-                        if (originalCreate) originalCreate.call(this);
-                    };
+                    }
                 }
-            }, 100);
+            }, 50);
         });
 
         // 取得當前篇章 ID
@@ -88,7 +86,6 @@
                         return;
                     }
                 }
-                // 備用：若不在戰鬥中則直接依劇情返回
                 const params = new URLSearchParams(window.location.search);
                 const bookId = params.get('bookId') || 'book_01';
                 const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
@@ -96,7 +93,7 @@
             }
         }
 
-        // 放棄戰鬥邏輯 (返回當前篇章關卡地圖)
+        // 放棄戰鬥邏輯
         function abandonBattle() {
             if (confirm('確定要放棄戰鬥並返回關卡地圖嗎？')) {
                 const bookId = getBookId();
