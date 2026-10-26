@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>江湖歷程 - 關卡地圖</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
+
+        .page-bg { 
+            position: absolute; inset: 0; width: 100%; height: 100%; 
+            background-size: cover; background-position: center; background-repeat: no-repeat;
+            filter: brightness(0.5); z-index: 1; 
+        }
+
+        .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
+
+        #map-canvas-container {
+            position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
+            transform-origin: 0 0; z-index: 10; overflow: hidden;
+        }
+
+        .top-nav { position: absolute; top: 20px; left: 30px; z-index: 20; display: flex; align-items: center; gap: 20px; }
+        .nav-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; backdrop-filter: blur(4px); }
+        .nav-btn:hover { background: rgba(54, 153, 255, 0.4); border-color: #3699ff; }
+        .chapter-title { font-size: 28px; font-weight: bold; text-shadow: 0 2px 8px rgba(0,0,0,0.8); color: #f1c40f; }
+
+        /* 沉浸式關卡節點樣式 */
+        .stage-node {
+            position: absolute; width: 95px; height: 95px; transform: translate(-50%, -50%);
+            border-radius: 50%; background: rgba(20, 24, 33, 0.9); border: 3px solid #3699ff;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; box-shadow: 0 5px 25px rgba(0,0,0,0.8); transition: transform 0.2s, border-color 0.2s;
+            z-index: 15; text-align: center; padding: 5px;
+        }
+        .stage-node:hover { transform: translate(-50%, -50%) scale(1.12); border-color: #00ffff; }
+        .stage-index { font-size: 15px; font-weight: bold; color: #fff; }
+        .stage-name { font-size: 10px; color: #aaa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
+    </style>
+</head>
+<body>
+
+    <div class="page-bg" id="map-bg"></div>
+    <div class="bg-grid"></div>
+
+    <div id="map-canvas-container">
+        <div class="top-nav">
+            <button class="nav-btn" onclick="window.location.href='story_menu.html'">◀ 返回章節選單</button>
+            <div class="chapter-title" id="map-title">載入中...</div>
+        </div>
+        <div id="nodes-container" style="position: absolute; inset: 0;"></div>
+    </div>
+
+    <script>
+        function autoScaleUI() {
+            const container = document.getElementById('map-canvas-container');
+            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+            container.style.transform = `scale(${scale})`;
+            container.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
+            container.style.top = (window.innerHeight - 720 * scale) / 2 + 'px';
+        }
+        window.addEventListener('resize', autoScaleUI);
+
+        function initChapterMap() {
+            autoScaleUI();
+            const params = new URLSearchParams(window.location.search);
+            const chapterId = params.get('chapterId') || 'm1';
+
+            // 1. 從 localStorage 讀取介面配置，找出對應大章節的名稱與背景圖
+            let config = null;
+            try { config = JSON.parse(localStorage.getItem('my_game_ui_full_config')); } catch(e){}
+
+            let chapterName = '江湖關卡';
+            let bgUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop';
+
+            if (config && config.chapters) {
+                for (let cat in config.chapters) {
+                    let found = config.chapters[cat].find(c => c.id === chapterId || c.targetMapId === chapterId);
+                    if (found) {
+                        chapterName = found.title;
+                        if (found.cover) bgUrl = found.cover;
+                        break;
+                    }
+                }
+            }
+
+            document.getElementById('map-title').innerText = chapterName;
+            document.getElementById('map-bg').style.backgroundImage = `url('${bgUrl}')`;
+
+            // 2. 尋找對應的劇本數據 (bookId) 來生成關卡節點
+            let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
+            let book = storyData.books.find(b => b.id === chapterId || b.id === 'book_' + chapterId.replace('m','')) || storyData.books[0];
+
+            // 3. 在畫布上渲染沉浸式關卡節點（預設之字形排版，未來也可在編輯器擴充座標自定義）
+            const nodesContainer = document.getElementById('nodes-container');
+            nodesContainer.innerHTML = '';
+
+            const defaultStages = [
+                { id: 1, name: '1-1 山麓前哨', x: 220, y: 380, bookId: book ? book.id : 'book_01', nodeIndex: 0 },
+                { id: 2, name: '1-2 密林險境', x: 480, y: 220, bookId: book ? book.id : 'book_01', nodeIndex: 1 },
+                { id: 3, name: '1-3 棧道伏擊', x: 780, y: 520, bookId: book ? book.id : 'book_01', nodeIndex: 2 },
+                { id: 4, name: '1-4 決戰巔峰', x: 1060, y: 320, bookId: book ? book.id : 'book_01', nodeIndex: 3 }
+            ];
+
+            defaultStages.forEach(stage => {
+                const nodeEl = document.createElement('div');
+                nodeEl.className = 'stage-node';
+                nodeEl.style.left = stage.x + 'px';
+                nodeEl.style.top = stage.y + 'px';
+                nodeEl.innerHTML = `
+                    <div class="stage-index">#${stage.id}</div>
+                    <div class="stage-name">${stage.name}</div>
+                `;
+                nodeEl.onclick = () => {
+                    // 點擊後無縫跳轉到我們之前做好的狀態導航劇情播放器
+                    window.location.href = `dialogue_player.html?bookId=${stage.bookId}&nodeIndex=${stage.nodeIndex}`;
+                };
+                nodesContainer.appendChild(nodeEl);
+            });
+        }
+
+        window.onload = initChapterMap;
+    </script>
+</body>
+</html>
