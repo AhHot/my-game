@@ -8,11 +8,11 @@ window.renderTabStory = function(container) {
         { id: 'main', name: '主線劇情', icon: '⚔️' },
         { id: 'side', name: '支線故事', icon: '📜' },
         { id: 'event', name: '限時活動', icon: '🔥' },
-        { id: 'tower', name: '通天高塔', icon: '🏯' }
+        { id: 'daily', name: '日常關卡', icon: '📅' }
       ],
       books: [
         {
-          id: 'book_01',
+          id: 'main_01',
           tabId: 'main',
           title: '第一章：青城山變',
           desc: '青城派遭逢百年難得一見的浩劫，掌門不知去向，江湖風雲再起……',
@@ -22,7 +22,7 @@ window.renderTabStory = function(container) {
             { 
               type: 'cg', 
               cgUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', 
-              text: '青城山麓，風雪交加，一场浩劫正悄然拉开序幕……',
+              text: '青城山麓，風雪交加，一場浩劫正悄然拉開序幕……',
               sfxUrl: '' 
             },
             { 
@@ -54,11 +54,12 @@ window.renderTabStory = function(container) {
         在此編排江湖篇章，支援自由插入對話、戰鬥以及全螢幕 CG 插畫過場節點！
       </p>
 
-      <div style="display:flex; gap:10px; margin-bottom:20px;" id="story-tab-filter">
+      <div style="display:flex; gap:10px; margin-bottom:20px; flex-wrap:wrap;" id="story-tab-filter">
         <button class="btn active" style="background:#e67e22; font-size:13px; padding:6px 14px;" onclick="window.filterStoryTab('all', this)">全部篇章</button>
         <button class="btn" style="background:#222; border:1px solid #444; font-size:13px; padding:6px 14px;" onclick="window.filterStoryTab('main', this)">⚔️ 主線劇情</button>
         <button class="btn" style="background:#222; border:1px solid #444; font-size:13px; padding:6px 14px;" onclick="window.filterStoryTab('side', this)">📜 支線故事</button>
         <button class="btn" style="background:#222; border:1px solid #444; font-size:13px; padding:6px 14px;" onclick="window.filterStoryTab('event', this)">🔥 限時活動</button>
+        <button class="btn" style="background:#222; border:1px solid #444; font-size:13px; padding:6px 14px;" onclick="window.filterStoryTab('daily', this)">📅 日常關卡</button>
       </div>
 
       <div id="editor-book-list" style="display: flex; flex-direction: column; gap: 20px;"></div>
@@ -115,7 +116,7 @@ function reloadStoryEditorUI() {
           <span style="font-size:24px;">📖</span>
           <div>
             <div style="color:#f1c40f; font-weight:bold; font-size:16px;">${book.title || '未命名篇章'}</div>
-            <div style="font-size:11px; color:#888;">ID: ${book.id} | 分類: ${book.tabId}</div>
+            <div style="font-size:11px; color:#888;">ID: <span style="color:#00ffff; font-weight:bold;">${book.id}</span> | 分類: ${book.tabId}</div>
           </div>
         </div>
         <button class="btn-del" onclick="window.deleteStoryBook(${bookIdx})">刪除篇章</button>
@@ -124,10 +125,11 @@ function reloadStoryEditorUI() {
       <div class="form-grid" style="margin-bottom:15px;">
         <div class="form-item">
           <label>歸屬分類 Tab</label>
-          <select onchange="window.updateBookField(${bookIdx}, 'tabId', this.value)">
+          <select onchange="window.updateBookTabCategory(${bookIdx}, this.value)">
             <option value="main" ${book.tabId === 'main' ? 'selected' : ''}>⚔️ 主線劇情</option>
             <option value="side" ${book.tabId === 'side' ? 'selected' : ''}>📜 支線故事</option>
             <option value="event" ${book.tabId === 'event' ? 'selected' : ''}>🔥 限時活動</option>
+            <option value="daily" ${book.tabId === 'daily' ? 'selected' : ''}>📅 日常關卡</option>
           </select>
         </div>
         <div class="form-item">
@@ -259,6 +261,45 @@ function renderSingleNodeCard(bookIdx, nIdx, node, currentLevels, totalNodes) {
   `;
 };
 
+// 🌟 核心升級：根據分類產生專屬字首編號 (例如 main_01, side_01, daily_01)
+window.addStoryBook = function() {
+  let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
+  
+  let targetTab = window._currentStoryFilter === 'all' ? 'main' : window._currentStoryFilter;
+  let countInTab = storyData.books.filter(b => b.tabId === targetTab).length + 1;
+  let numStr = countInTab < 10 ? '0' + countInTab : countInTab;
+  let newBookId = `${targetTab}_${numStr}`;
+
+  storyData.books.push({
+    id: newBookId,
+    tabId: targetTab,
+    title: `新篇章 (${newBookId})`,
+    desc: '劇情簡介...',
+    cover: '',
+    tag: '新解鎖',
+    nodes: []
+  });
+
+  window.updateBookDataRaw(storyData);
+  reloadStoryEditorUI();
+};
+
+// 🌟 切換分類時，同步更新 ID 的字首
+window.updateBookTabCategory = function(bookIdx, newTabId) {
+  let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
+  if (storyData && storyData.books[bookIdx]) {
+    storyData.books[bookIdx].tabId = newTabId;
+    
+    // 重構符合新分類的 ID
+    let countInTab = storyData.books.filter((b, idx) => b.tabId === newTabId && idx !== bookIdx).length + 1;
+    let numStr = countInTab < 10 ? '0' + countInTab : countInTab;
+    storyData.books[bookIdx].id = `${newTabId}_${numStr}`;
+
+    window.updateBookDataRaw(storyData);
+    reloadStoryEditorUI();
+  }
+};
+
 window.addNodeToBook = function(bookIdx, type) {
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
   if (storyData && storyData.books[bookIdx]) {
@@ -352,21 +393,6 @@ window.filterStoryTab = function(tabId, btn) {
   reloadStoryEditorUI();
 };
 
-window.addStoryBook = function() {
-  let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
-  storyData.books.push({
-    id: 'book_' + Date.now(),
-    tabId: window._currentStoryFilter === 'all' ? 'main' : window._currentStoryFilter,
-    title: '新江湖篇章',
-    desc: '劇情簡介...',
-    cover: '',
-    tag: '新解鎖',
-    nodes: []
-  });
-  window.updateBookDataRaw(storyData);
-  reloadStoryEditorUI();
-};
-
 window.deleteStoryBook = function(index) {
   if (!confirm('⚠️ 確定要刪除這個劇本篇章嗎？')) return;
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data'));
@@ -380,5 +406,5 @@ window.updateBookDataRaw = function(data) {
 };
 
 window.saveStoryDataDirect = function() {
-  alert('✅ 劇本、特效與 CG 過場資料已成功儲存！');
+  alert('✅ 劇本與分類資料已成功儲存！');
 };
