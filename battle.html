@@ -1,121 +1,71 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>江湖歷程 - 戰棋戰鬥診斷版</title>
+    <title>武俠 - 戰前布陣與戰鬥</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0f0f1a; position: relative; }
-        #game { width: 100%; height: 100%; }
-
-        /* 錯誤訊息紅m-box：如果程式碼報錯，會直接顯示在這裡，不再黑屏 */
-        #error-screen {
-            position: fixed; inset: 0; background: rgba(15, 15, 26, 0.95); color: #ff5555;
-            z-index: 999999; padding: 30px; overflow-y: auto; display: none; font-family: monospace; font-size: 14px;
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
+        
+        #game-scale-container {
+            position: absolute; top: 0; left: 0;
+            width: 1280px; height: 720px;
+            transform-origin: 0 0;
+            z-index: 10;
         }
 
-        .battle-top-buttons {
-            position: fixed; top: 20px; right: 30px; z-index: 99999;
-            display: flex; gap: 10px; align-items: center; pointer-events: auto;
-        }
-        .battle-btn {
-            background: rgba(0, 0, 0, 0.75); border: 1px solid rgba(255, 255, 255, 0.3);
-            color: #fff; padding: 8px 16px; border-radius: 4px; cursor: pointer;
-            font-size: 14px; font-weight: bold;
-        }
-        .battle-btn.danger { background: rgba(192, 57, 43, 0.85); }
+        #game { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; }
     </style>
-
-    <!-- 捕捉所有未攔截的錯誤，直接顯示在畫面上，告別盲目黑屏 -->
-    <script>
-        window.addEventListener('error', function(event) {
-            const errScreen = document.getElementById('error-screen');
-            if (errScreen) {
-                errScreen.style.display = 'block';
-                errScreen.innerHTML += `❌ <b>發生程式崩潰報錯：</b><br>${event.message}<br><br>📍 檔案：${event.filename} (第 ${event.lineno} 行)<br><hr><br>`;
-            }
-        });
-    </script>
-
-    <!-- 1. 引入 Phaser 3 引擎 -->
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
-
-    <!-- 2. 【絕對防護】在載入 battle.js 之前，把所有可能缺失的全域變數強制先宣告好 -->
-    <script>
-        var CHARACTERS = window.CHARACTERS || [];
-        var SKILLS = window.SKILLS || {};
-        var STATUSES = window.STATUSES || {};
-        var ITEMS = window.ITEMS || {};
-        var LEVELS = window.LEVELS || [];
-        var INVENTORY = window.INVENTORY || [];
-
-        window.CONFIG = window.CONFIG || {
-            WIDTH: 1280, HEIGHT: 720, CELL_SIZE: 100, GRID_SIZE: 5,
-            MAX_ROUNDS: 20, ACTION_DELAY: 500, MP_REGEN_PER_ROUND: 0.2,
-            HIT_RATE_MIN: 0.1, HIT_RATE_MAX: 0.95, DEF_CONSTANT: 100,
-            MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0,
-            hunHouToHp: 10, fengRuiToAtk: 5, jianRenToDef: 5,
-            lingDongToSpd: 2, jueQingToCrit: 1, maxCritFromStats: 50,
-            lingDongToEva: 1, maxEvaFromStats: 50, guiMiToHit: 1, guiMiToCritDmg: 1
-        };
-
-        window.getElementInfo = window.getElementInfo || function(element) {
-            const map = { fire: { color: 0xe74c3c }, water: { color: 0x3498db }, wood: { color: 0x2ecc71 }, metal: { color: 0xf1c40f }, earth: { color: 0xd35400 } };
-            return map[element] || { color: 0x3498db };
-        };
-        window.getElementMultiplier = window.getElementMultiplier || function(atk, def) { return 1.0; };
-    </script>
 </head>
 <body>
-
-    <div id="error-screen"></div>
-
-    <div class="battle-top-buttons">
-        <button class="battle-btn" onclick="skipBattle()">跳過戰鬥</button>
-        <button class="battle-btn danger" onclick="abandonBattle()">放棄戰鬥</button>
+    <div id="game-scale-container">
+        <div id="game"></div>
     </div>
 
-    <div id="game"></div>
-
-    <!-- 3. 引入戰鬥邏輯 -->
+    <!-- 引用必要腳本 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <script src="data.js"></script>
     <script src="battle.js"></script>
+    <script src="character_system.js"></script>
 
     <script>
-        window.addEventListener('load', () => {
+        function resizeGameUI() {
+            const container = document.getElementById('game-scale-container');
+            if (!container) return;
+            const scaleX = window.innerWidth / 1280;
+            const scaleY = window.innerHeight / 720;
+            const scale = Math.min(scaleX, scaleY);
+            
+            container.style.transform = `scale(${scale})`;
+            container.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
+            container.style.top = (window.innerHeight - 720 * scale) / 2 + 'px';
+        }
+
+        window.addEventListener('resize', resizeGameUI);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            resizeGameUI();
+
+            // 1. 解析網址帶過來的 levelIndex
+            const urlParams = new URLSearchParams(window.location.search);
+            let levelIndex = urlParams.get('levelIndex');
+            if (levelIndex === null || levelIndex === undefined) {
+                levelIndex = 0;
+            } else {
+                levelIndex = parseInt(levelIndex);
+            }
+
+            // 2. 確保 Phaser 初始化後，自動啟動布陣場景 FormationScene
             setTimeout(() => {
                 if (window.game && window.game.scene) {
-                    const params = new URLSearchParams(window.location.search);
-                    const bookId = params.get('bookId') || 'book_01';
-                    const levelIndex = parseInt(params.get('levelIndex')) || 0;
-                    const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
-
-                    window.game.scene.start('FormationScene', {
-                        levelIndex: levelIndex,
-                        from: 'story',
-                        bookId: bookId,
-                        nodeIndex: nodeIndex
-                    });
+                    console.log("成功啟動布陣畫面，關卡索引：", levelIndex);
+                    window.game.scene.start('FormationScene', { levelIndex: levelIndex });
+                } else {
+                    console.error("Phaser 遊戲實例 (window.game) 尚未建立！");
                 }
-            }, 300);
+            }, 400);
         });
-
-        function skipBattle() {
-            if (confirm('是否直接跳過戰鬥並判定勝利？')) {
-                const params = new URLSearchParams(window.location.search);
-                const bookId = params.get('bookId') || 'book_01';
-                const nodeIndex = parseInt(params.get('nodeIndex')) || 0;
-                window.location.href = `dialogue_player.html?bookId=${bookId}&nodeIndex=${nodeIndex + 1}`;
-            }
-        }
-
-        function abandonBattle() {
-            if (confirm('確定要放棄戰鬥並返回關卡地圖嗎？')) {
-                const params = new URLSearchParams(window.location.search);
-                const bookId = params.get('bookId') || 'book_01';
-                window.location.href = `chapter_map.html?chapterId=${bookId}`;
-            }
-        }
     </script>
 </body>
 </html>
