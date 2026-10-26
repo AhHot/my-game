@@ -339,8 +339,18 @@ function renderModuleControlPanel() {
             </div>
 
             <div style="display:flex; gap:6px;">
-              <div style="flex:1;"><label style="font-size:10px; color:#888;">卡片寬(W):</label><input type="number" value="${chap.w || 420}" oninput="data.chapters['${currentCatId}'][${idx}].w=parseInt(this.value)||420; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
-              <div style="flex:1;"><label style="font-size:10px; color:#888;">卡片高(H):</label><input type="number" value="${chap.h || 280}" oninput="data.chapters['${currentCatId}'][${idx}].h=parseInt(this.value)||280; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+              <div style="flex:1;">
+    <label style="font-size:10px; color:#888;">卡片寬(W):</label>
+    <input type="number" value="${chap.w || 420}" 
+        onchange="data.chapters['${currentCatId}'][${idx}].w=parseInt(this.value)||420; renderWYSIWYGCanvas(); saveUIPageConfig();" 
+        style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;">
+</div>
+<div style="flex:1;">
+    <label style="font-size:10px; color:#888;">卡片高(H):</label>
+    <input type="number" value="${chap.h || 280}" 
+        onchange="data.chapters['${currentCatId}'][${idx}].h=parseInt(this.value)||280; renderWYSIWYGCanvas(); saveUIPageConfig();" 
+        style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;">
+</div>
             </div>
           </div>
         `).join('')}
