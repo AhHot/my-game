@@ -7,21 +7,51 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
         html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #0f0f1a; position: relative; }
-        /* 嚴格對應 battle.js 所需的掛載點 */
         #game { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
     </style>
     <!-- 1. 引入 Phaser 3 遊戲引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+
+    <!-- 2. 🛡️ 安全防護網：預先宣告所有戰鬥所需的全域變數與工具函式，防止獨立開頁時黑屏報錯 -->
+    <script>
+        window.CONFIG = window.CONFIG || {
+            WIDTH: 1280, HEIGHT: 720, CELL_SIZE: 100, GRID_SIZE: 5,
+            MAX_ROUNDS: 20, ACTION_DELAY: 500, MP_REGEN_PER_ROUND: 0.2,
+            HIT_RATE_MIN: 0.1, HIT_RATE_MAX: 0.95, DEF_CONSTANT: 100,
+            MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0,
+            hunHouToHp: 10, fengRuiToAtk: 5, jianRenToDef: 5,
+            lingDongToSpd: 2, jueQingToCrit: 1, maxCritFromStats: 50,
+            lingDongToEva: 1, maxEvaFromStats: 50, guiMiToHit: 1, guiMiToCritDmg: 1
+        };
+        window.CHARACTERS = window.CHARACTERS || [];
+        window.SKILLS = window.SKILLS || {};
+        window.STATUSES = window.STATUSES || {};
+        window.ITEMS = window.ITEMS || {};
+        window.LEVELS = window.LEVELS || [];
+        window.INVENTORY = window.INVENTORY || [];
+
+        window.getElementInfo = window.getElementInfo || function(element) {
+            const map = {
+                fire: { color: 0xe74c3c }, water: { color: 0x3498db },
+                wood: { color: 0x2ecc71 }, metal: { color: 0xf1c40f }, earth: { color: 0xd35400 }
+            };
+            return map[element] || { color: 0x3498db };
+        };
+
+        window.getElementMultiplier = window.getElementMultiplier || function(atkElem, defElem) {
+            return 1.0;
+        };
+    </script>
 </head>
 <body>
-    <!-- 2. 遊戲畫面的掛載容器 -->
+    <!-- 3. 遊戲畫面掛載容器 -->
     <div id="game"></div>
 
-    <!-- 3. 引入您原本功能完整的戰鬥邏輯主程式[cite: 4] -->
+    <!-- 4. 引入您原本的戰鬥邏輯主程式[cite: 4] -->
     <script src="battle.js"></script>
     
     <script>
-        // 4. 自動接收從劇情傳過來的參數，直接進入布陣與戰鬥
+        // 5. 自動接收從劇情傳過來的參數，直接進入布陣與戰鬥
         window.addEventListener('load', () => {
             const params = new URLSearchParams(window.location.search);
             const levelIndex = parseInt(params.get('levelIndex')) || 0;
@@ -30,7 +60,6 @@
             
             setTimeout(() => {
                 if (window.game && window.game.scene) {
-                    // 直接啟動布陣場景，並帶入來源標記為 'story'
                     window.game.scene.start('FormationScene', {
                         levelIndex: levelIndex,
                         from: 'story',
@@ -38,7 +67,7 @@
                         nodeIndex: nodeIndex
                     });
                 }
-            }, 300);
+            }, 350);
         });
     </script>
 </body>
