@@ -126,6 +126,8 @@
                         chapList.forEach(chap => {
                             const card = document.createElement('div');
                             card.className = 'chapter-card';
+                            if (chap.w) card.style.width = chap.w + 'px';
+    if (chap.h) card.style.height = chap.h + 'px';
                             card.style.backgroundImage = `url('${chap.cover}')`;
                             card.onclick = () => {
     // 優先讀取後台設定的 targetMapId，若無則使用自身的 id
