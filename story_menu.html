@@ -6,19 +6,28 @@
     <title>江湖歷程 - 劇本選擇</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
+        
+        /* 1. 整個瀏覽器維持全黑背景，製造四周黑框 */
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #000; position: relative; }
 
+        /* 2. 核心等比縮放容器（精準鎖定在 1280x720 內） */
+        #story-canvas-container {
+            position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
+            transform-origin: 0 0; z-index: 10; overflow: hidden;
+            background-color: #08090c; /* 底色 */
+        }
+
+        /* 3. 背景圖與網格改為絕對定位在 1280x720 容器內部，確保完美鎖在框中 */
         .page-bg { 
-            position: absolute; inset: 0; width: 100%; height: 100%; 
+            position: absolute; inset: 0; width: 1280px; height: 720px; 
             background-size: cover; background-position: center; background-repeat: no-repeat;
             filter: brightness(0.4); z-index: 1; 
         }
 
-        .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
-
-        #story-canvas-container {
-            position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
-            transform-origin: 0 0; z-index: 10; overflow: hidden;
+        .bg-grid { 
+            position: absolute; inset: 0; width: 1280px; height: 720px;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); 
+            background-size: 40px 40px; pointer-events: none; z-index: 2; 
         }
 
         .dyn-top-nav { position: absolute; display: flex; justify-content: flex-start; align-items: center; padding: 0 30px; background: rgba(15, 17, 23, 0.9); border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 20; }
@@ -39,10 +48,12 @@
 </head>
 <body>
 
-    <div class="page-bg" id="page-bg-img"></div>
-    <div class="bg-grid"></div>
-
-    <div id="story-canvas-container"></div>
+    <!-- 🌟 將整個遊戲縮放容器包在最外層 -->
+    <div id="story-canvas-container">
+        <!-- 頁面背景圖與網格現在被完美鎖在 1280x720 範圍內 -->
+        <div class="page-bg" id="page-bg-img"></div>
+        <div class="bg-grid"></div>
+    </div>
 
     <script>
         function autoScaleUI() {
@@ -98,7 +109,13 @@
             }
 
             const container = document.getElementById('story-canvas-container');
+            
+            // 保留背景與網格，清除動態生成的 UI 元件
+            const bgImg = document.getElementById('page-bg-img');
+            const bgGrid = document.querySelector('.bg-grid');
             container.innerHTML = '';
+            container.appendChild(bgImg);
+            container.appendChild(bgGrid);
 
             let currentCatId = config.activeTabId || (config.categories[0] ? config.categories[0].id : 'main');
             const layout = config.layout;
@@ -155,8 +172,8 @@
                                 let offset = idx - activeIdx;
                                 let zIndex = 10 - Math.abs(offset);
                                 let scale = offset === 0 ? 1 : 0.85;
-                                let brightness = offset === 0 ? 1 : 0.4; // 後方自動變暗
-                                let translateX = offset * 180; // 露出三分之一的偏移量
+                                let brightness = offset === 0 ? 1 : 0.4;
+                                let translateX = offset * 180;
                                 
                                 card.style.cssText = `
                                     position: absolute; left: 50%; top: 50%;
@@ -174,11 +191,9 @@
 
                                 card.onclick = (e) => {
                                     if (offset === 0) {
-                                        // 點擊最前方卡片時，進入對應地圖
                                         const targetMap = chap.targetMapId || chap.id || 'book_01';
                                         window.location.href = `chapter_map.html?chapterId=${targetMap}`;
                                     } else {
-                                        // 點擊後方卡片時，滑動切換至該張
                                         activeIdx = idx;
                                         renderStack();
                                     }
@@ -197,7 +212,6 @@
 
                         renderStack();
 
-                        // 🌟 滑鼠或手指拖動滑動切換卡片互動邏輯
                         el.onpointerdown = (e) => {
                             startX = e.clientX;
                             isDragging = true;
@@ -208,10 +222,10 @@
                             isDragging = false;
                             let diff = e.clientX - startX;
                             if (diff > 50 && activeIdx > 0) {
-                                activeIdx--; // 往右拖動 -> 上一張
+                                activeIdx--;
                                 renderStack();
                             } else if (diff < -50 && activeIdx < chapList.length - 1) {
-                                activeIdx++; // 往左拖動 -> 下一張
+                                activeIdx++;
                                 renderStack();
                             }
                         };
