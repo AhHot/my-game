@@ -8,6 +8,7 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
         
+        /* 核心等比縮放容器 */
         #game-scale-container {
             position: absolute; top: 0; left: 0;
             width: 1280px; height: 720px;
@@ -82,58 +83,7 @@
 
         let globalNextActionUrl = '';
 
-        // 🌟 如果是從劇情進來的，我們自定義一個「專屬劇情結算場景」來徹底取代原版的 ResultScene 循環
-        let activeScenesList = [FormationScene, BattleScene, ResultScene];
-        
-        if (navFrom === 'story') {
-            class StoryVictoryScene extends Phaser.Scene {
-                constructor() { super('StoryVictoryScene'); }
-                create() {
-                    // 關閉整個 Phaser 畫布容器
-                    document.getElementById('game-scale-container').style.display = 'none';
-
-                    try {
-                        let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
-                        let book = storyData.books.find(b => b.id === navBookId);
-                        if (!book && storyData.books.length > 0) {
-                            book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
-                        }
-
-                        const realBookId = book ? book.id : navBookId;
-                        const nodes = book && book.nodes ? book.nodes : [];
-                        const nextNodeIndex = navNodeIndex + 1;
-
-                        // 更新通關進度
-                        let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
-                        let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
-                        if (nextNodeIndex > currentMax) {
-                            progressMap[realBookId] = nextNodeIndex;
-                            localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
-                        }
-
-                        const hasNextNode = nextNodeIndex < nodes.length;
-
-                        if (hasNextNode) {
-                            globalNextActionUrl = `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
-                            document.getElementById('victory-tip-text').innerText = '戰鬥大勝！點擊下方按鈕繼續探索劇情。';
-                            document.getElementById('story-continue-btn').innerText = '▶ 繼續劇情';
-                        } else {
-                            globalNextActionUrl = `chapter_map.html?chapterId=${realBookId}`;
-                            document.getElementById('victory-tip-text').innerText = '恭喜通關本章所有節點！';
-                            document.getElementById('story-continue-btn').innerText = '🗺️ 返回章節畫面';
-                        }
-
-                        document.getElementById('story-victory-overlay').style.display = 'flex';
-                    } catch(e) {
-                        globalNextActionUrl = `chapter_map.html?chapterId=${navBookId}`;
-                        document.getElementById('story-victory-overlay').style.display = 'flex';
-                    }
-                }
-            }
-            // 替換結算場景
-            activeScenesList = [FormationScene, BattleScene, StoryVictoryScene];
-        }
-
+        // 🌟 保留標準的 ResultScene 確保遊戲引擎正常運行
         window.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'game',
@@ -143,7 +93,7 @@
                 width: 1280,
                 height: 720
             },
-            scene: activeScenesList,
+            scene: [FormationScene, BattleScene, ResultScene],
         });
 
         window.addEventListener('load', () => {
@@ -158,23 +108,81 @@
                     });
                 }, 100);
             }
+        });
 
-            // 🌟 額外保險：如果戰鬥勝利，強制將 BattleScene 切換到我們的 StoryVictoryScene，徹底切斷原版循環
-            if (navFrom === 'story') {
-                const checkInterval = setInterval(() => {
-                    if (window.game && window.game.scene) {
-                        const activeScenes = window.game.scene.getScenes(true);
-                        // 檢查是否有原版的 ResultScene 試圖啟動，如果有立刻攔截
-                        const resScene = activeScenes.find(s => s.sys && s.sys.key === 'ResultScene');
-                        if (resScene) {
-                            clearInterval(checkInterval);
-                            window.game.scene.stop('ResultScene');
-                            window.game.scene.start('StoryVictoryScene');
+        // 🌟 安全攔截 ResultScene：當戰鬥勝利進入結算時，平順隱藏畫布並彈出 HTML 結算層
+        let storyHandled = false;
+        const checkResultSceneInterval = setInterval(() => {
+            if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !ResultScene.prototype._storyPatched) {
+                ResultScene.prototype._storyPatched = true;
+                clearInterval(checkResultSceneInterval);
+
+                const originalCreate = ResultScene.prototype.create;
+                ResultScene.prototype.create = function(data) {
+                    if (originalCreate) originalCreate.call(this, data);
+
+                    if (navFrom === 'story' && !storyHandled) {
+                        storyHandled = true;
+
+                        // 檢查是否為勝利
+                        const sceneData = data || (this.sys && this.sys.settings && this.sys.settings.data) || {};
+                        const isWin = sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
+
+                        if (isWin) {
+                            setTimeout(() => {
+                                document.getElementById('game-scale-container').style.display = 'none';
+                                handleStoryVictoryLogic();
+                            }, 300);
                         }
                     }
-                }, 100);
+                };
             }
-        });
+        }, 50);
+
+        function handleStoryVictoryLogic() {
+            try {
+                let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
+                
+                // 智慧匹配正確的章節代號（如 main_01）
+                let book = storyData.books.find(b => b.id === navBookId);
+                if (!book && storyData.books.length > 0) {
+                    book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
+                }
+
+                const realBookId = book ? book.id : navBookId;
+                const nodes = book && book.nodes ? book.nodes : [];
+                const nextNodeIndex = navNodeIndex + 1;
+
+                // 更新通關進度
+                let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
+                let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
+                if (nextNodeIndex > currentMax) {
+                    progressMap[realBookId] = nextNodeIndex;
+                    localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
+                }
+
+                // 檢查是否還有下一個事件節點
+                const hasNextNode = nextNodeIndex < nodes.length;
+
+                if (hasNextNode) {
+                    // 還有後續節點 -> 繼續劇情
+                    globalNextActionUrl = `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
+                    document.getElementById('victory-tip-text').innerText = '戰鬥大勝！點擊下方按鈕繼續探索劇情。';
+                    document.getElementById('story-continue-btn').innerText = '▶ 繼續劇情';
+                } else {
+                    // 這是本章最後一個節點 -> 返回章節畫面
+                    globalNextActionUrl = `chapter_map.html?chapterId=${realBookId}`;
+                    document.getElementById('victory-tip-text').innerText = '恭喜通關本章所有節點！';
+                    document.getElementById('story-continue-btn').innerText = '🗺️ 返回章節畫面';
+                }
+
+                document.getElementById('story-victory-overlay').style.display = 'flex';
+            } catch(e) {
+                console.error('處理劇情結算失敗', e);
+                globalNextActionUrl = `chapter_map.html?chapterId=${navBookId}`;
+                document.getElementById('story-victory-overlay').style.display = 'flex';
+            }
+        }
 
         function proceedStoryWorkflow() {
             if (globalNextActionUrl) {
