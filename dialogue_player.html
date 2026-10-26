@@ -108,16 +108,15 @@
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
                 
-                // 🌟 智慧容錯匹配：支援精準 ID 尋找，若找不到則嘗試模糊匹配或退回第一本，絕不無故彈出
+                // 🌟 智慧容錯匹配：完美支援新舊分類代號 (如 main_01、side_01 等)
                 let book = storyData.books.find(b => b.id === bookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(bookId) || bookId.includes(b.id)) || storyData.books[0];
-                    if (book) bookId = book.id; // 自動修正當前 bookId
+                    if (book) bookId = book.id;
                 }
 
                 if (book && book.nodes && book.nodes.length > 0) {
                     currentBookNodes = book.nodes;
-                    // 若節點索引超出範圍，自動導向最後一個或第一個，避免當機
                     if (currentNodeIndex >= currentBookNodes.length) {
                         currentNodeIndex = 0;
                     }
@@ -141,12 +140,11 @@
             let node = currentBookNodes[nIdx];
 
             if (node.type === 'battle') {
-                // 🌟 順利跳轉至戰鬥頁面進行布陣與戰鬥
+                // 🌟 正確對接 battle.html：將 bookId、nodeIndex 與 levelIndex 完整傳過去
                 let targetLevelIdx = node.levelIndex !== undefined ? node.levelIndex : 0;
-                window.location.href = `battle.html?bookId=${bookId}&nodeIndex=${currentNodeIndex}&levelIndex=${targetLevelIdx}`;
+                window.location.href = `battle.html?bookId=${bookId}&nodeIndex=${currentNodeIndex}&levelIndex=${targetLevelIdx}&from=story`;
                 return;
             } else if (node.type === 'cg') {
-                // CG 過場插畫節點
                 const bg = document.getElementById('scene-bg');
                 bg.style.backgroundImage = `url('${node.cgUrl || ''}')`;
                 document.getElementById('speaker-title').innerText = '【過場插畫】';
@@ -154,7 +152,6 @@
                 document.getElementById('avatar-wrap').style.display = 'none';
                 currentLineIndex = 999; 
             } else if (node.type === 'dialogue') {
-                // 對話節點
                 const bg = document.getElementById('scene-bg');
                 bg.style.backgroundImage = `url('${node.bgUrl || ''}')`;
                 currentLineIndex = 0;
