@@ -8,7 +8,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
         
-        /* 核心等比縮放容器 */
         #game-scale-container {
             position: absolute; top: 0; left: 0;
             width: 1280px; height: 720px;
@@ -17,11 +16,11 @@
         }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
 
-        /* 🌟 勝利後的劇情推進覆蓋按鈕樣式 */
+        /* 🌟 絕對壓制循環的勝利結算遮罩層 */
         #story-victory-overlay {
-            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8);
-            display: none; justify-content: center; align-items: center; z-index: 99999;
-            backdrop-filter: blur(5px); animation: fadeIn 0.3s ease;
+            position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85);
+            display: none; justify-content: center; align-items: center; z-index: 999999;
+            backdrop-filter: blur(8px); animation: fadeIn 0.3s ease;
         }
         .victory-card {
             background: #161a23; border: 2px solid #f1c40f; border-radius: 12px;
@@ -108,16 +107,21 @@
                 }, 100);
             }
 
-            // 🌟 透過 Phaser 場景監控：每 300 毫秒檢查一次當前是否進入了 ResultScene 結算畫面
+            // 🌟 強制攔截：使用高頻率掃描 ResultScene，一旦出現立刻凍結遊戲並跳出彈窗
             let storyHandled = false;
             const sceneCheckTimer = setInterval(() => {
                 if (window.game && window.game.scene && navFrom === 'story' && !storyHandled) {
                     const activeScenes = window.game.scene.getScenes(true);
-                    const isResultActive = activeScenes.some(s => s.sys && s.sys.key === 'ResultScene');
+                    const resultScene = activeScenes.find(s => s.sys && s.sys.key === 'ResultScene');
 
-                    if (isResultActive) {
+                    if (resultScene) {
                         storyHandled = true;
                         clearInterval(sceneCheckTimer);
+
+                        // 🌟 核心：直接把 Phaser 整個遊戲迴圈暫停，防止它自己重啟循環戰鬥！
+                        try {
+                            window.game.loop.sleep();
+                        } catch(e) {}
 
                         try {
                             let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
@@ -132,7 +136,7 @@
                             const nodes = book && book.nodes ? book.nodes : [];
                             const nextNodeIndex = navNodeIndex + 1;
 
-                            // 更新進度
+                            // 更新通關進度
                             let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                             let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
                             if (nextNodeIndex > currentMax) {
@@ -140,35 +144,35 @@
                                 localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
                             }
 
-                            // 判斷這是不是最後一個節點
+                            // 檢查是否還有下一個事件節點
                             const hasNextNode = nextNodeIndex < nodes.length;
 
                             if (hasNextNode) {
-                                // 還有下一個事件節點
                                 globalNextActionUrl = `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
                                 document.getElementById('victory-tip-text').innerText = '戰鬥大勝！點擊下方按鈕繼續探索劇情。';
                                 document.getElementById('story-continue-btn').innerText = '▶ 繼續劇情';
                             } else {
-                                // 這是本章最後一個節點 -> 勝利後返回章節畫面
                                 globalNextActionUrl = `chapter_map.html?chapterId=${realBookId}`;
                                 document.getElementById('victory-tip-text').innerText = '恭喜通關本章所有節點！';
                                 document.getElementById('story-continue-btn').innerText = '🗺️ 返回章節畫面';
                             }
 
-                            // 顯示勝利接續彈窗
+                            // 隱藏遊戲畫面，顯示我們的勝利接續彈窗
+                            document.getElementById('game-scale-container').style.display = 'none';
                             document.getElementById('story-victory-overlay').style.display = 'flex';
 
                         } catch(e) {
                             console.error('處理劇情結算失敗', e);
                             globalNextActionUrl = `chapter_map.html?chapterId=${navBookId}`;
+                            document.getElementById('game-scale-container').style.display = 'none';
                             document.getElementById('story-victory-overlay').style.display = 'flex';
                         }
                     }
                 }
-            }, 300);
+            }, 100);
         });
 
-        // 🌟 點擊按鈕後的導向動作
+        // 🌟 點擊按鈕後執行跳轉
         function proceedStoryWorkflow() {
             if (globalNextActionUrl) {
                 window.location.href = globalNextActionUrl;
