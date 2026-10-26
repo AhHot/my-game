@@ -1,11 +1,10 @@
-// tab_chapter_map.js - 沉浸式章節關卡地圖與節點佈局編輯器 (動態聯動劇本數據)
+// tab_chapter_map.js - 沉浸式章節關卡地圖與節點佈局編輯器 (支援節點順序調整)
 window.renderTabChapterMap = function(container) {
   let targetContainer = container;
   if (!targetContainer || !(targetContainer instanceof HTMLElement)) {
     targetContainer = document.getElementById('app-content') || document.body;
   }
 
-  // 🌟 動態從劇本數據讀取所有 books 作為地圖選項
   let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
   let books = storyData.books || [];
 
@@ -115,7 +114,6 @@ window.updateMapBgUrl = function(url) {
   if (cvs) cvs.style.backgroundImage = `url('${url}')`;
 };
 
-// 🌟 節點渲染 + 支援預覽畫布滑鼠拖動調整位置
 window.renderMapEditorNodes = function() {
   let maps = JSON.parse(localStorage.getItem('my_game_chapter_maps_config')) || {};
   let currentMap = maps[window.currentMapEditorId] || { nodes: [] };
@@ -133,7 +131,6 @@ window.renderMapEditorNodes = function() {
     const borderRadius = shape === 'square' ? '8px' : (shape === 'triangle' ? '0' : '50%');
     const clipPath = shape === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : 'none';
 
-    // 1. 在畫布上建立可視化節點
     const nd = document.createElement('div');
     nd.style.cssText = `
       position: absolute; left: ${node.x}px; top: ${node.y}px; transform: translate(-50%, -50%);
@@ -146,17 +143,19 @@ window.renderMapEditorNodes = function() {
       nd.innerHTML = `<div style="font-size:12px; font-weight:bold;">#${node.id || idx+1}</div><div style="font-size:8px; color:#aaa; overflow:hidden; text-overflow:ellipsis; max-width:60px;">${node.name}</div>`;
     }
     
-    // 讓節點可在畫布上直接用滑鼠拖動
     makeMapNodeInteractable(nd, idx);
     layer.appendChild(nd);
 
-    // 2. 右側控制面板項目 (支援形狀、大小、圖片自定義)
     const item = document.createElement('div');
     item.style.cssText = "background:#0f1218; border:1px solid #333; padding:8px; border-radius:6px;";
     item.innerHTML = `
-      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
         <span style="font-size:12px; color:#00ffff; font-weight:bold;">節點 #${idx+1}</span>
-        <button style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteMapEditorNode(${idx})">刪除</button>
+        <div style="display:flex; gap:4px;">
+          <button style="background:#333; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" ${idx === 0 ? 'disabled' : ''} onclick="moveMapEditorNode(${idx}, -1)">▲</button>
+          <button style="background:#333; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" ${idx === currentMap.nodes.length - 1 ? 'disabled' : ''} onclick="moveMapEditorNode(${idx}, 1)">▼</button>
+          <button style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteMapEditorNode(${idx})">刪除</button>
+        </div>
       </div>
       <input type="text" value="${node.name}" placeholder="節點名稱" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:3px; border-radius:3px;" oninput="updateMapNodeField(${idx}, 'name', this.value)">
       <input type="text" value="${node.imgUrl || ''}" placeholder="自定義圖片 URL (選填)" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:3px; border-radius:3px;" oninput="updateMapNodeField(${idx}, 'imgUrl', this.value)">
@@ -216,9 +215,22 @@ function makeMapNodeInteractable(el, idx) {
     if (!isDragging) return;
     isDragging = false;
     el.releasePointerCapture(e.pointerId);
-    renderMapEditorNodes(); // 更新右側數值
+    renderMapEditorNodes();
   };
 }
+
+window.moveMapEditorNode = function(idx, direction) {
+  let maps = JSON.parse(localStorage.getItem('my_game_chapter_maps_config')) || {};
+  let nodes = maps[window.currentMapEditorId].nodes;
+  const target = idx + direction;
+  if (target >= 0 && target < nodes.length) {
+    const temp = nodes[idx];
+    nodes[idx] = nodes[target];
+    nodes[target] = temp;
+    localStorage.setItem('my_game_chapter_maps_config', JSON.stringify(maps));
+    renderMapEditorNodes();
+  }
+};
 
 window.addMapEditorNode = function() {
   let maps = JSON.parse(localStorage.getItem('my_game_chapter_maps_config')) || {};
