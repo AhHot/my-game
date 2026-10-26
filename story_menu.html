@@ -127,7 +127,11 @@
                             const card = document.createElement('div');
                             card.className = 'chapter-card';
                             card.style.backgroundImage = `url('${chap.cover}')`;
-                            card.onclick = () => alert(`🚀 準備進入【${chap.title}】的關卡畫布！`);
+                            card.onclick = () => {
+    // 優先讀取後台設定的 targetMapId，若無則使用自身的 id
+    const targetMap = chap.targetMapId || chap.id;
+    window.location.href = `chapter_map.html?chapterId=${targetMap}`;
+};
                             card.innerHTML = `
                                 <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
                                 <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
