@@ -6,21 +6,28 @@
     <title>江湖歷程 - 關卡地圖</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #08090c; color: #fff; position: relative; }
+        
+        /* 1. 整個瀏覽器視窗維持全黑背景，製造四周黑框 */
+        html, body { width: 100vw; height: 100vh; overflow: hidden; background-color: #000; position: relative; }
 
-        
-        
+        /* 2. 核心等比縮放容器（精準鎖定在 1280x720 內） */
+        #map-canvas-container {
+            position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
+            transform-origin: 0 0; z-index: 10; overflow: hidden;
+            background-color: #08090c;
+        }
+
+        /* 3. 背景圖與網格現在被完美鎖在 1280x720 容器內部，確保等比縮放不跑版 */
         .page-bg { 
             position: absolute; inset: 0; width: 1280px; height: 720px; 
             background-size: cover; background-position: center; background-repeat: no-repeat;
             filter: brightness(0.5); z-index: 1; 
         }
 
-        .bg-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 40px 40px; pointer-events: none; z-index: 2; }
-
-        #map-canvas-container {
-            position: absolute; top: 0; left: 0; width: 1280px; height: 720px;
-            transform-origin: 0 0; z-index: 10; overflow: hidden;
+        .bg-grid { 
+            position: absolute; inset: 0; width: 1280px; height: 720px;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); 
+            background-size: 40px 40px; pointer-events: none; z-index: 2; 
         }
 
         .top-nav { position: absolute; top: 20px; left: 30px; z-index: 20; display: flex; align-items: center; gap: 20px; }
@@ -41,10 +48,11 @@
 </head>
 <body>
 
-    <div class="page-bg" id="map-bg"></div>
-    <div class="bg-grid"></div>
-
+    <!-- 🌟 將整個遊戲縮放容器包在最外層，背景圖與網格都包含在內 -->
     <div id="map-canvas-container">
+        <div class="page-bg" id="map-bg"></div>
+        <div class="bg-grid"></div>
+
         <div class="top-nav">
             <button class="nav-btn" onclick="window.location.href='story_menu.html'">◀ 返回章節選單</button>
             <div class="chapter-title" id="map-title">載入中...</div>
@@ -125,7 +133,6 @@
                         <div style="font-size:10px; color:#0ffff; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${size-10}px;">${stage.name}</div>
                     `;
                     nodeEl.onclick = () => {
-                        // 點擊後進入對應劇本與關卡節點
                         window.location.href = `dialogue_player.html?bookId=${book ? book.id : 'book_01'}&nodeIndex=${stage.nodeIndex}`;
                     };
                 }
