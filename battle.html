@@ -6,7 +6,6 @@
     <title>江湖歷程 - 戰棋戰鬥</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        /* 修正：使用 100% 確保畫面比例正常，不變形 */
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; position: relative; }
         
         #game { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
@@ -29,6 +28,33 @@
     </style>
     <!-- 1. 引入 Phaser 3 遊戲引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+
+    <!-- 2. 🛡️ 關鍵防護網：在載入 battle.js 之前，預先定義所有必要全域變數與防錯安全網，徹底根治黑屏 -->
+    <script>
+        window.CHARACTERS = [];
+        window.SKILLS = {};
+        window.STATUSES = {};
+        window.ITEMS = {};
+        window.LEVELS = [];
+        window.INVENTORY = [];
+        window.CONFIG = {
+            WIDTH: 1280, HEIGHT: 720, CELL_SIZE: 100, GRID_SIZE: 5,
+            MAX_ROUNDS: 20, ACTION_DELAY: 500, MP_REGEN_PER_ROUND: 0.2,
+            HIT_RATE_MIN: 0.1, HIT_RATE_MAX: 0.95, DEF_CONSTANT: 100,
+            MIN_DAMAGE_RATIO: 0.1, CRIT_RATE_CAP: 1.0,
+            hunHouToHp: 10, fengRuiToAtk: 5, jianRenToDef: 5,
+            lingDongToSpd: 2, jueQingToCrit: 1, maxCritFromStats: 50,
+            lingDongToEva: 1, maxEvaFromStats: 50, guiMiToHit: 1, guiMiToCritDmg: 1
+        };
+        window.getElementInfo = window.getElementInfo || function(element) {
+            const map = {
+                fire: { color: 0xe74c3c }, water: { color: 0x3498db },
+                wood: { color: 0x2ecc71 }, metal: { color: 0xf1c40f }, earth: { color: 0xd35400 }
+            };
+            return map[element] || { color: 0x3498db };
+        };
+        window.getElementMultiplier = window.getElementMultiplier || function(atkElem, defElem) { return 1.0; };
+    </script>
 </head>
 <body>
 
@@ -41,11 +67,11 @@
     <!-- Phaser 遊戲畫面掛載點 -->
     <div id="game"></div>
 
-    <!-- 2. 引入 battle.js 戰鬥邏輯核心 -->
+    <!-- 3. 引入 battle.js 戰鬥邏輯核心 -->
     <script src="battle.js"></script>
 
     <script>
-        // 3. 在 battle.js 初始化後，立即檢查網址參數並無縫切換至戰鬥布陣
+        // 4. 在 battle.js 初始化後，立即檢查網址參數並無縫切換至戰鬥布陣
         window.addEventListener('load', () => {
             setTimeout(() => {
                 if (window.game) {
@@ -66,7 +92,7 @@
                         }
                     }
                 }
-            }, 50);
+            }, 100);
         });
 
         // 取得當前篇章 ID
