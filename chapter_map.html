@@ -28,15 +28,13 @@
 
         /* 沉浸式關卡節點樣式 */
         .stage-node {
-            position: absolute; width: 95px; height: 95px; transform: translate(-50%, -50%);
-            border-radius: 50%; background: rgba(20, 24, 33, 0.9); border: 3px solid #3699ff;
+            position: absolute; transform: translate(-50%, -50%);
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             cursor: pointer; box-shadow: 0 5px 25px rgba(0,0,0,0.8); transition: transform 0.2s, border-color 0.2s;
             z-index: 15; text-align: center; padding: 5px;
         }
-        .stage-node:hover { transform: translate(-50%, -50%) scale(1.12); border-color: #00ffff; }
-        .stage-index { font-size: 15px; font-weight: bold; color: #fff; }
-        .stage-name { font-size: 10px; color: #aaa; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
+        .stage-node:hover:not(.locked) { transform: translate(-50%, -50%) scale(1.12); }
+        .stage-node.locked { filter: grayscale(100%) brightness(0.4); cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -65,57 +63,71 @@
         function initChapterMap() {
             autoScaleUI();
             const params = new URLSearchParams(window.location.search);
-            const chapterId = params.get('chapterId') || 'm1';
+            const chapterId = params.get('chapterId') || 'book_01';
 
-            // 1. 從 localStorage 讀取介面配置，找出對應大章節的名稱與背景圖
-            let config = null;
-            try { config = JSON.parse(localStorage.getItem('my_game_ui_full_config')); } catch(e){}
+            // 1. 讀取地圖編輯器存的設定
+            let mapsConfig = {};
+            try { mapsConfig = JSON.parse(localStorage.getItem('my_game_chapter_maps_config')) || {}; } catch(e){}
+            let mapData = mapsConfig[chapterId] || null;
 
-            let chapterName = '江湖關卡';
-            let bgUrl = 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop';
+            // 2. 讀取劇本資料來對應章節標題
+            let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
+            let book = storyData.books.find(b => b.id === chapterId) || storyData.books[0];
 
-            if (config && config.chapters) {
-                for (let cat in config.chapters) {
-                    let found = config.chapters[cat].find(c => c.id === chapterId || c.targetMapId === chapterId);
-                    if (found) {
-                        chapterName = found.title;
-                        if (found.cover) bgUrl = found.cover;
-                        break;
-                    }
-                }
+            document.getElementById('map-title').innerText = book ? book.title : '江湖關卡';
+            if (mapData && mapData.bgUrl) {
+                document.getElementById('map-bg').style.backgroundImage = `url('${mapData.bgUrl}')`;
+            } else if (book && book.cover) {
+                document.getElementById('map-bg').style.backgroundImage = `url('${book.cover}')`;
             }
 
-            document.getElementById('map-title').innerText = chapterName;
-            document.getElementById('map-bg').style.backgroundImage = `url('${bgUrl}')`;
+            // 3. 讀取玩家通關進度 (紀錄解鎖到第幾個 nodeIndex)
+            let progressMap = {};
+            try { progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {}; } catch(e){}
+            let maxUnlockedIndex = progressMap[chapterId] !== undefined ? progressMap[chapterId] : 0;
 
-            // 2. 尋找對應的劇本數據 (bookId) 來生成關卡節點
-            let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
-            let book = storyData.books.find(b => b.id === chapterId || b.id === 'book_' + chapterId.replace('m','')) || storyData.books[0];
-
-            // 3. 在畫布上渲染沉浸式關卡節點（預設之字形排版，未來也可在編輯器擴充座標自定義）
             const nodesContainer = document.getElementById('nodes-container');
             nodesContainer.innerHTML = '';
 
-            const defaultStages = [
-                { id: 1, name: '1-1 山麓前哨', x: 220, y: 380, bookId: book ? book.id : 'book_01', nodeIndex: 0 },
-                { id: 2, name: '1-2 密林險境', x: 480, y: 220, bookId: book ? book.id : 'book_01', nodeIndex: 1 },
-                { id: 3, name: '1-3 棧道伏擊', x: 780, y: 520, bookId: book ? book.id : 'book_01', nodeIndex: 2 },
-                { id: 4, name: '1-4 決戰巔峰', x: 1060, y: 320, bookId: book ? book.id : 'book_01', nodeIndex: 3 }
+            // 4. 取得節點列表 (優先使用地圖編輯器設定的節點，若無則給預設)
+            let stages = (mapData && mapData.nodes && mapData.nodes.length > 0) ? mapData.nodes : [
+                { id: 1, name: '1-1 前哨', x: 220, y: 380, nodeIndex: 0, shape: 'circle', size: 90 },
+                { id: 2, name: '1-2 密林', x: 500, y: 220, nodeIndex: 1, shape: 'circle', size: 90 },
+                { id: 3, name: '1-3 決戰', x: 800, y: 450, nodeIndex: 2, shape: 'circle', size: 90 }
             ];
 
-            defaultStages.forEach(stage => {
+            stages.forEach((stage, idx) => {
+                const isLocked = stage.nodeIndex > maxUnlockedIndex;
+                const size = stage.size || 90;
+                const shape = stage.shape || 'circle';
+                const borderRadius = shape === 'square' ? '12px' : (shape === 'triangle' ? '0' : '50%');
+                const clipPath = shape === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : 'none';
+
                 const nodeEl = document.createElement('div');
-                nodeEl.className = 'stage-node';
+                nodeEl.className = 'stage-node' + (isLocked ? ' locked' : '');
                 nodeEl.style.left = stage.x + 'px';
                 nodeEl.style.top = stage.y + 'px';
-                nodeEl.innerHTML = `
-                    <div class="stage-index">#${stage.id}</div>
-                    <div class="stage-name">${stage.name}</div>
-                `;
-                nodeEl.onclick = () => {
-                    // 點擊後無縫跳轉到我們之前做好的狀態導航劇情播放器
-                    window.location.href = `dialogue_player.html?bookId=${stage.bookId}&nodeIndex=${stage.nodeIndex}`;
-                };
+                nodeEl.style.width = size + 'px';
+                nodeEl.style.height = size + 'px';
+                nodeEl.style.borderRadius = borderRadius;
+                nodeEl.style.clipPath = clipPath;
+                nodeEl.style.border = isLocked ? '3px solid #666' : '3px solid #3699ff';
+                nodeEl.style.background = stage.imgUrl ? `url('${stage.imgUrl}') center/cover` : 'rgba(20, 24, 33, 0.9)';
+
+                if (isLocked) {
+                    nodeEl.innerHTML = `<div style="font-size:22px;">🔒</div><div style="font-size:9px; color:#aaa; margin-top:2px;">未解鎖</div>`;
+                    nodeEl.onclick = () => alert('🔒 此關卡尚未解鎖，請先通關前面的章節！');
+                } else {
+                    nodeEl.innerHTML = `
+                        <div style="font-size:15px; font-weight:bold; color:#fff;">#${stage.id || idx+1}</div>
+                        <div style="font-size:10px; color:#0ffff; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:${size-10}px;">${stage.name}</div>
+                    `;
+                    nodeEl.onclick = () => {
+                        // 點擊後進入對應劇本與關卡節點
+                        window.location.href = `dialogue_player.html?bookId=${book ? book.id : 'book_01'}&nodeIndex=${stage.nodeIndex}`;
+                    };
+                }
+
                 nodesContainer.appendChild(nodeEl);
             });
         }
