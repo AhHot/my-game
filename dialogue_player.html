@@ -418,19 +418,17 @@
         function skipStory(event) {
             event.stopPropagation();
             if (confirm('確定要跳過這段劇情嗎？')) {
-                finishStorySequence();
+               currentNodeIndex++;
+        loadNode(currentNodeIndex);
             }
         }
 
         function finishStorySequence() {
             alert('本章劇情播放完畢！');
-            // 🌟 劇情播放完畢後正確返回選單頁面，如果沒有 story_menu.html 則退回 index.html
-            if (document.referrer.includes('story_menu.html')) {
-                window.location.href = 'story_menu.html';
-            } else {
-                window.location.href = 'index.html';
+           // 🌟 修正：播放完畢後，正確返回對應章節的關卡地圖頁面
+    window.location.href = `chapter_map.html?chapterId=${bookId}`;
             }
-        }
+        
 
         function openHistory(event) {
             event.stopPropagation();
