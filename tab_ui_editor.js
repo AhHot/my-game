@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 劇本介面全能編輯器 (極致防禦版)
+// tab_ui_editor.js - 劇本介面全能編輯器 (支援卡片大小與跳轉 ID 綁定)
 window.renderTabUIEditor = function(container) {
   let targetContainer = container;
   if (!targetContainer || !(targetContainer instanceof HTMLElement)) {
@@ -20,7 +20,7 @@ window.renderTabUIEditor = function(container) {
     ],
     chapters: {
       main: [
-        { id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop' }
+        { id: 'm1', title: '第一章：青城山變', progress: '0/7', cover: 'https://images.unsplash.com/photo-1542224566-6e85f2e6772f?q=80&w=1000&auto=format&fit=crop', w: 420, h: 280, targetMapId: 'm1' }
       ],
       sub: []
     },
@@ -59,7 +59,7 @@ window.renderTabUIEditor = function(container) {
         <button class="btn" style="background:${window.selectedUIModule==='bg'?'#e67e22':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('bg')">🖼️ 底圖</button>
         <button class="btn" style="background:${window.selectedUIModule==='layout'?'#3498db':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('layout')">📐 座標與顯隱</button>
         <button class="btn" style="background:${window.selectedUIModule==='categories'?'#9b59b6':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('categories')">🏷️ 左側Tab</button>
-        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('chapters')">📚 章節卡片</button>
+        <button class="btn" style="background:${window.selectedUIModule==='chapters'?'#1abc9c':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('chapters')">📚 章節卡片與尺寸</button>
         <button class="btn" style="background:${window.selectedUIModule==='navs'?'#e84393':'#333'}; color:#fff; border:none; border-radius:4px; font-size:11px; flex:1; padding:8px; cursor:pointer;" onclick="switchEditorModule('navs')">🧭 上下導覽列</button>
       </div>
 
@@ -150,13 +150,15 @@ function renderWYSIWYGCanvas() {
         el.innerHTML = `<div style="color:#aaa; font-size:16px; margin:auto; background:rgba(0,0,0,0.6); padding:10px 20px; border-radius:6px;">當前分類尚無章節</div>`;
       } else {
         chapList.forEach(c => {
+          const cardW = c.w || 420;
+          const cardH = c.h || 280;
           const card = document.createElement('div');
-          card.style.cssText = `width: 420px; height: 280px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: url('${c.cover}') center/cover; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px;`;
+          card.style.cssText = `width: ${cardW}px; height: ${cardH}px; flex-shrink: 0; border-radius: 8px; overflow: hidden; background: url('${c.cover || ''}') center/cover; position: relative; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 10px 25px rgba(0,0,0,0.6); display: flex; align-items: flex-end; padding: 20px;`;
           card.innerHTML = `
             <div style="position:absolute; inset:0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);"></div>
             <div style="position:relative; z-index:2; display:flex; justify-content:space-between; width:100%; align-items:flex-end;">
               <div style="color:#fff; font-size:20px; font-weight:bold; text-shadow:0 2px 5px rgba(0,0,0,0.8);">${c.title}</div>
-              <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通關: ${c.progress}</div>
+              <div style="background:rgba(0,0,0,0.8); color:#00ffff; padding:4px 10px; border-radius:4px; font-size:12px; border:1px solid rgba(0,255,255,0.3);">通关: ${c.progress}</div>
             </div>
           `;
           el.appendChild(card);
@@ -329,8 +331,17 @@ function renderModuleControlPanel() {
               <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteChapterCard('${currentCatId}',${idx})">刪除</button>
             </div>
             <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-            <input type="text" value="${chap.cover}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-            <input type="text" value="${chap.progress}" placeholder="通關進度" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+            <input type="text" value="${chap.cover || ''}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+            
+            <div style="display:flex; gap:6px; margin-bottom:4px;">
+              <input type="text" value="${chap.progress || '0/7'}" placeholder="進度" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+              <input type="text" value="${chap.targetMapId || chap.id}" placeholder="地圖目標ID" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].targetMapId=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+            </div>
+
+            <div style="display:flex; gap:6px;">
+              <div style="flex:1;"><label style="font-size:10px; color:#888;">卡片寬(W):</label><input type="number" value="${chap.w || 420}" oninput="data.chapters['${currentCatId}'][${idx}].w=parseInt(this.value)||420; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+              <div style="flex:1;"><label style="font-size:10px; color:#888;">卡片高(H):</label><input type="number" value="${chap.h || 280}" oninput="data.chapters['${currentCatId}'][${idx}].h=parseInt(this.value)||280; renderWYSIWYGCanvas(); saveUIPageConfigSilently();" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -401,7 +412,10 @@ window.addNewChapterCard = function(catId) {
     id: 'chap_' + Date.now(),
     title: '新關卡章節',
     progress: '0/6',
-    cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop'
+    cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1000&auto=format&fit=crop',
+    w: 420,
+    h: 280,
+    targetMapId: 'm1'
   });
   renderWYSIWYGCanvas(); renderModuleControlPanel(); saveUIPageConfigSilently();
 };
