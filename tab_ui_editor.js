@@ -1,4 +1,4 @@
-// tab_ui_editor.js - 劇本介面全能編輯器 (支援卡片大小與跳轉 ID 綁定)
+// tab_ui_editor.js - 劇本介面全能編輯器 (修正卡片寬高輸入與即時儲存 Bug)
 window.renderTabUIEditor = function(container) {
   let targetContainer = container;
   if (!targetContainer || !(targetContainer instanceof HTMLElement)) {
@@ -330,27 +330,17 @@ function renderModuleControlPanel() {
               <span style="font-size:12px; color:#00ffff; font-weight:bold;">#${idx + 1} 章節</span>
               <button class="btn-del" style="background:#c0392b; color:#fff; border:none; border-radius:3px; padding:2px 6px; font-size:10px; cursor:pointer;" onclick="deleteChapterCard('${currentCatId}',${idx})">刪除</button>
             </div>
-            <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].title=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-            <input type="text" value="${chap.cover || ''}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].cover=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+            <input type="text" value="${chap.title}" placeholder="標題" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="window.updateChapterAttr('${currentCatId}', ${idx}, 'title', this.value)">
+            <input type="text" value="${chap.cover || ''}" placeholder="圖片 URL" style="width:100%; margin-bottom:4px; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="window.updateChapterAttr('${currentCatId}', ${idx}, 'cover', this.value)">
             
             <div style="display:flex; gap:6px; margin-bottom:4px;">
-              <input type="text" value="${chap.progress || '0/7'}" placeholder="進度" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].progress=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
-              <input type="text" value="${chap.targetMapId || chap.id}" placeholder="地圖目標ID" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="data.chapters['${currentCatId}'][${idx}].targetMapId=this.value; renderWYSIWYGCanvas(); saveUIPageConfigSilently();">
+              <input type="text" value="${chap.progress || '0/7'}" placeholder="進度" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="window.updateChapterAttr('${currentCatId}', ${idx}, 'progress', this.value)">
+              <input type="text" value="${chap.targetMapId || chap.id}" placeholder="地圖目標ID" style="flex:1; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px; border-radius:4px;" oninput="window.updateChapterAttr('${currentCatId}', ${idx}, 'targetMapId', this.value)">
             </div>
 
             <div style="display:flex; gap:6px;">
-              <div style="flex:1;">
-    <label style="font-size:10px; color:#888;">卡片寬(W):</label>
-    <input type="number" value="${chap.w || 420}" 
-        onchange="data.chapters['${currentCatId}'][${idx}].w=parseInt(this.value)||420; renderWYSIWYGCanvas(); saveUIPageConfig();" 
-        style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;">
-</div>
-<div style="flex:1;">
-    <label style="font-size:10px; color:#888;">卡片高(H):</label>
-    <input type="number" value="${chap.h || 280}" 
-        onchange="data.chapters['${currentCatId}'][${idx}].h=parseInt(this.value)||280; renderWYSIWYGCanvas(); saveUIPageConfig();" 
-        style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;">
-</div>
+              <div style="flex:1;"><label style="font-size:10px; color:#888;">卡片寬(W):</label><input type="number" value="${chap.w || 420}" onchange="window.updateChapterAttr('${currentCatId}', ${idx}, 'w', parseInt(this.value)||420)" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
+              <div style="flex:1;"><label style="font-size:10px; color:#888;">卡片高(H):</label><input type="number" value="${chap.h || 280}" onchange="window.updateChapterAttr('${currentCatId}', ${idx}, 'h', parseInt(this.value)||280)" style="width:100%; background:#1a1c29; color:#fff; border:1px solid #444; padding:4px;"></div>
             </div>
           </div>
         `).join('')}
@@ -380,6 +370,15 @@ function renderModuleControlPanel() {
     `;
   }
 }
+
+// 🌟 全域防護：精準修改章節屬性並同步寫入快取
+window.updateChapterAttr = function(catId, idx, attr, value) {
+  if (window.uiFullData && window.uiFullData.chapters && window.uiFullData.chapters[catId] && window.uiFullData.chapters[catId][idx]) {
+    window.uiFullData.chapters[catId][idx][attr] = value;
+    renderWYSIWYGCanvas();
+    saveUIPageConfigSilently();
+  }
+};
 
 window.addNewCustomUIComponent = function() {
   const name = prompt('請輸入自定義 UI 組件名稱：', '公告橫幅');
