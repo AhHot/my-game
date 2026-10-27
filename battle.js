@@ -14,7 +14,7 @@ try {
   const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
   window.DROP_RATES = gc.dropRates; window.GLOBAL_AFFIX_POOLS = gc.affixPools; window.GLOBAL_AFFIX_VALUES = gc.affixValues;
   window.EXP_TABLE = gc.expTable || []; window.GROWTH_MODELS = gc.growthModels || []; window.ART_CONFIG = gc.artConfig || {}; 
-  window.RANGE_PATTERNS = gc.rangePatterns; // 🌟 讀取自訂攻擊範圍模式
+  window.RANGE_PATTERNS = gc.rangePatterns || null;
 } catch(e) { window.ART_CONFIG = {}; }
 
 class Unit {
@@ -128,58 +128,93 @@ class Unit {
 const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
     let pool = [];
+    if (!skill) skill = { targetSide: 'enemy', targetRule: 'frontRow', rangePatternId: 'single' };
     if (skill.targetSide === 'self') return [actor];
-    if (skill.targetSide === 'player') pool = allUnits.filter(u => u.side === actor.side && u.isAlive());
-    else pool = allUnits.filter(u => u.side !== actor.side && u.isAlive());
-    if (pool.length === 0) return [];
+    if (skill.targetSide === 'player') pool = allUnits.filter(u => u && u.side === actor.side && u.isAlive());
+    else pool = allUnits.filter(u => u && u.side !== actor.side && u.isAlive());
+    if (pool.length === 0) return [actor];
+
+    if (skill.targetRule === 'all') return pool;
 
     // 1. 傳統規則選出主目標
     let mainTargets = [];
-    if (skill.targetRule === 'all') mainTargets = pool;
-    else if (skill.targetRule === 'frontRow') { const xs = pool.map(u => u.gridX); const m = pool[0].side === 'enemy' ? Math.max(...xs) : Math.min(...xs); mainTargets = pool.filter(u => u.gridX === m); }
-    else if (skill.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); mainTargets = pool.filter(u => u.hp === m); }
-    else if (skill.targetRule === 'highestHp') { const m = Math.max(...pool.map(u => u.hp)); mainTargets = pool.filter(u => u.hp === m); }
-    else if (skill.targetRule === 'random') { mainTargets = [pool[Math.floor(Math.random() * pool.length)]]; }
-    else { mainTargets = [pool[0]]; }
+    if (skill.targetRule === 'frontRow') { 
+      const xs = pool.map(u => u.gridX); 
+      const m = pool[0].side === 'enemy' ? Math.max(...xs) : Math.min(...xs); 
+      mainTargets = pool.filter(u => u.gridX === m); 
+    }
+    else if (skill.targetRule === 'lowestHp') { 
+      const m = Math.min(...pool.map(u => u.hp)); 
+      mainTargets = pool.filter(u => u.hp === m); 
+    }
+    else if (skill.targetRule === 'highestHp') { 
+      const m = Math.max(...pool.map(u => u.hp)); 
+      mainTargets = pool.filter(u => u.hp === m); 
+    }
+    else if (skill.targetRule === 'random') { 
+      mainTargets = [pool[Math.floor(Math.random() * pool.length)]]; 
+    }
+    else { 
+      mainTargets = [pool[0]]; 
+    }
 
-    if (mainTargets.length === 0) return [];
-    if (skill.targetRule === 'all') return mainTargets;
-
+    if (!mainTargets || mainTargets.length === 0) mainTargets = [pool[0]];
     let primaryTarget = mainTargets[0];
+    if (!primaryTarget) return [actor];
 
-    // 🌟 2. 根據技能選定的範圍模式擴散目標 (支援 1x1 及 2x2 Boss)
+    // 2. 獲取範圍模式（安全防護：支援動態讀取，若無則用預設）
     let defaultPatterns = [
       { id: 'single', pattern: [{x: 0, y: 0}] },
       { id: 'cross', pattern: [{x:0, y:0}, {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}] },
       { id: 'front_row_3', pattern: [{x:0, y:0}, {x:-1, y:0}, {x:1, y:0}] },
       { id: 'square_3x3', pattern: [{x:-1,y:-1},{x:0,y:-1},{x:1,y:-1},{x:-1,y:0},{x:0,y:0},{x:1,y:0},{x:-1,y:1},{x:0,y:1},{x:1,y:1}] }
     ];
-    let patterns = window.RANGE_PATTERNS || defaultPatterns;
+
+    let patterns = window.RANGE_PATTERNS;
+    if (!patterns || !Array.isArray(patterns) || patterns.length === 0) {
+      try {
+        const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
+        if (gc.rangePatterns && Array.isArray(gc.rangePatterns)) {
+          patterns = gc.rangePatterns;
+        }
+      } catch(e) {}
+    }
+    if (!patterns || !Array.isArray(patterns) || patterns.length === 0) {
+      patterns = defaultPatterns;
+    }
+
     let patternId = skill.rangePatternId || 'single';
     let foundPat = patterns.find(p => p.id === patternId);
-    let offsets = foundPat ? foundPat.pattern : [{x: 0, y: 0}];
+    let offsets = (foundPat && Array.isArray(foundPat.pattern)) ? foundPat.pattern : [{x: 0, y: 0}];
 
     let finalTargetsSet = new Set();
-    const centerX = primaryTarget.gridX;
-    const centerY = primaryTarget.gridY;
+    const centerX = primaryTarget.gridX ?? 0;
+    const centerY = primaryTarget.gridY ?? 0;
 
     offsets.forEach(offset => {
-      const targetGridX = centerX + offset.x;
-      const targetGridY = centerY + offset.y;
+      if (!offset) return;
+      const targetGridX = centerX + (offset.x || 0);
+      const targetGridY = centerY + (offset.y || 0);
 
       pool.forEach(u => {
-        if (targetGridX >= u.gridX && targetGridX < u.gridX + (u.sizeX || 1) &&
-            targetGridY >= u.gridY && targetGridY < u.gridY + (u.sizeY || 1)) {
+        if (!u) return;
+        const uX = u.gridX ?? 0;
+        const uY = u.gridY ?? 0;
+        const sX = u.sizeX || 1;
+        const sY = u.sizeY || 1;
+        if (targetGridX >= uX && targetGridX < uX + sX &&
+            targetGridY >= uY && targetGridY < uY + sY) {
           finalTargetsSet.add(u);
         }
       });
     });
 
-    return Array.from(finalTargetsSet);
+    const results = Array.from(finalTargetsSet);
+    return results.length > 0 ? results : [primaryTarget];
   },
 
   computeDamage(actor, target, skill) {
-    if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, lifestealAmount: 0 };
+    if (!skill || skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, lifestealAmount: 0 };
     let hit = Math.max(CONFIG.HIT_RATE_MIN, Math.min(CONFIG.HIT_RATE_MAX, 1 + actor.hitRate - target.dodgeRate));
     if (Math.random() > hit) return { damage: 0, isCrit: false, isMiss: true, lifestealAmount: 0 };
     let base = actor.atk * skill.multiplier;
@@ -213,6 +248,7 @@ const BattleLogic = {
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); },
 
   simulateSkill(actor, sk, allUnits) {
+    if (!sk) return;
     actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
     if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
 
@@ -221,6 +257,7 @@ const BattleLogic = {
     let heal = 0;
 
     targets.forEach(t => {
+      if (!t || !t.isAlive()) return;
       if (sk.healMultiplier > 0) {
         t.heal(Math.round(actor.atk * sk.healMultiplier));
       } else if (sk.shieldMultiplier > 0) {
@@ -236,15 +273,15 @@ const BattleLogic = {
 
     if (sk.effects && sk.effects.length > 0) {
       sk.effects.forEach(eff => {
-        if (Math.random() > eff.chance) return;
+        if (!eff || Math.random() > eff.chance) return;
         let et = [];
         if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') {
           et = targets;
         } else {
           let pool = eff.targetSide === 'enemy'
-            ? allUnits.filter(u => u.side !== actor.side && u.isAlive())
+            ? allUnits.filter(u => u && u.side !== actor.side && u.isAlive())
             : eff.targetSide === 'player'
-              ? allUnits.filter(u => u.side === actor.side && u.isAlive())
+              ? allUnits.filter(u => u && u.side === actor.side && u.isAlive())
               : [actor];
           if (eff.targetRule === 'all') et = pool;
           else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
@@ -270,7 +307,7 @@ const BattleLogic = {
   },
 
   simulateFollowup(tag, original, allUnits) {
-    let cand = allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
+    let cand = allUnits.filter(u => u && u.isAlive() && u.side === original.side && u !== original);
     cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
     for (let u of cand) {
       const fid = u.skillSlots.followup;
@@ -283,6 +320,7 @@ const BattleLogic = {
           u.mp = Math.max(0, u.mp - (sk.mpCost || 0));
           const targets = this.selectTargets(u, sk, allUnits);
           targets.forEach(t => {
+            if (!t || !t.isAlive()) return;
             const res = this.computeDamage(u, t, sk);
             if (!res.isMiss) t.takeDamage(res.damage);
           });
@@ -544,6 +582,7 @@ class BattleScene extends Phaser.Scene {
       actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0)); if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
       let heal = 0;
       targets.forEach(t => {
+        if (!t || !t.isAlive()) return;
         if (sk.healMultiplier > 0) { const h = Math.round(actor.atk * sk.healMultiplier); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.addLog(`${actor.name} 為 ${t.name} 回血 ${h}`, '#2ecc71'); }
         else if (sk.shieldMultiplier > 0) { const s = Math.round(actor.atk * sk.shieldMultiplier); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.addLog(`${actor.name} 為 ${t.name} 套盾 ${s}`, '#ddd'); }
         else {
@@ -560,10 +599,10 @@ class BattleScene extends Phaser.Scene {
       });
       if (sk.effects && sk.effects.length > 0) {
         sk.effects.forEach(eff => {
-          if (Math.random() > eff.chance) return;
+          if (!eff || Math.random() > eff.chance) return;
           let et = [];
           if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') et = targets;
-          else { let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u.side !== actor.side && u.isAlive()) : eff.targetSide === 'player' ? this.allUnits.filter(u => u.side === actor.side && u.isAlive()) : [actor]; if (eff.targetRule === 'all') et = pool; else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); } else et = [pool[0]]; }
+          else { let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u && u.side !== actor.side && u.isAlive()) : eff.targetSide === 'player' ? this.allUnits.filter(u => u && u.side === actor.side && u.isAlive()) : [actor]; if (eff.targetRule === 'all') et = pool; else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); } else et = [pool[0]]; }
           et.forEach(t => {
             if (!t || !t.isAlive()) return;
             if (eff.type === 'status') { t.addStatus(eff.value); this.showFloat(t, `+${STATUSES[eff.value]?.name || ''}`, '#0ff'); this.updateUnitView(t); }
@@ -584,7 +623,7 @@ class BattleScene extends Phaser.Scene {
   },
 
   checkFollowup(tag, original) {
-    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original); cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
+    let cand = this.allUnits.filter(u => u && u.isAlive() && u.side === original.side && u !== original); cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
     for (let u of cand) {
       const fid = u.skillSlots.followup; if (!fid || !SKILLS[fid]) continue;
       if (SKILLS[fid].comboTagIn === tag) {
@@ -599,7 +638,11 @@ class BattleScene extends Phaser.Scene {
     this.addLog(`⚡ ${actor.name} 追打【${sk.name}】`, '#fc0');
     this.time.delayedCall(300 / this.speedMultiplier, () => {
       actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
-      targets.forEach(t => { const r = BattleLogic.computeDamage(actor, t, sk); if (!r.isMiss) { t.takeDamage(r.damage); this.showDamage(t, r); this.updateUnitView(t); this.cameras.main.shake(80 / this.speedMultiplier, 0.005); } });
+      targets.forEach(t => { 
+        if (!t || !t.isAlive()) return;
+        const r = BattleLogic.computeDamage(actor, t, sk); 
+        if (!r.isMiss) { t.takeDamage(r.damage); this.showDamage(t, r); this.updateUnitView(t); this.cameras.main.shake(80 / this.speedMultiplier, 0.005); } 
+      });
       this.updateUnitView(actor); if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
     });
   },
