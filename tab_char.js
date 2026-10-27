@@ -1,10 +1,10 @@
 // ==========================================
-// 模块：角色面板 (tab_char.js)
+// 模組：角色面板 (tab_char.js)
 // ==========================================
 
 let currentCharSubTab = 'player';
 
-// 工具：切换角色子面板
+// 工具：切換角色子面板
 function switchCharSubTab(sub) {
   currentCharSubTab = sub;
   document.getElementById('tab-char-player').classList.toggle('active', sub === 'player');
@@ -12,13 +12,13 @@ function switchCharSubTab(sub) {
   window.renderTabChar(document.getElementById('app-content'));
 }
 
-// 工具：计算最终属性 (包含等级成长 + 基础 + 装备)
+// 工具：計算最終屬性 (包含等級成長 + 基礎 + 裝備)
 function calcPreviewStats(char) {
   let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
   let gm = globalData.growthModels.find(m => m.id === char.growthModel) || globalData.growthModels[0];
   let lv = char.level || 1;
   
-  // 1. 加上成长属性
+  // 1. 加上成長屬性
   if (lv > 1) {
     baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
     baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
@@ -43,7 +43,7 @@ function calcPreviewStats(char) {
   return { baseStats, maxHp, atk, def, speed, critRate, dodgeRate, hitRate, critResist, critDmg };
 }
 
-// 工具：实时刷新预览面板的 DOM (不重绘整个卡片)
+// 工具：實時刷新預覽面板的 DOM (不重繪整個卡片)
 function updatePreviewUI(idx) {
   const char = gameChars[idx];
   const preview = calcPreviewStats(char);
@@ -62,7 +62,7 @@ function updatePreviewUI(idx) {
   `;
 }
 
-// 工具：一键升级测试
+// 工具：一鍵升級測試
 window.testLevelUpAll = function(amount) {
   let log = "";
   gameChars.filter(c => c.side === 'player').forEach(c => { 
@@ -85,7 +85,7 @@ window.testResetLevel = function() {
   alert(`✅ 已重置所有玩家角色至 Lv.1，点数归零！`);
 };
 
-// 核心渲染函数
+// 核心渲染函數
 window.renderTabChar = function(container) {
   container.innerHTML = `
     <div class="search-bar"><input type="text" id="search-char" placeholder="🔍 搜索角色..." oninput="window.filterCharList()"></div>
@@ -108,7 +108,7 @@ window.filterCharList = function() {
     if (char.side !== currentCharSubTab) return;
     if (keyword && !char.name.toLowerCase().includes(keyword)) return;
     
-    // 初始化兼容字段
+    // 初始化相容欄位
     if (!char.skillSlots) char.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
     if (!char.equipment) char.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
     if (!char.level) char.level = 1;
@@ -117,6 +117,8 @@ window.filterCharList = function() {
     if (!char.growthModel) char.growthModel = 'm1';
     if (!char.sizeX) char.sizeX = 1;
     if (!char.sizeY) char.sizeY = 1;
+    if (char.avatarUrl === undefined) char.avatarUrl = '';
+    if (char.portraitUrl === undefined) char.portraitUrl = '';
 
     const preview = calcPreviewStats(char);
     let gmOptions = globalData.growthModels.map(m => `<option value="${m.id}" ${char.growthModel === m.id ? 'selected' : ''}>${m.name}</option>`).join('');
@@ -129,12 +131,27 @@ window.filterCharList = function() {
       </div>
       <div class="form-grid">
         <div class="form-item"><label>姓名</label><input type="text" value="${char.name}" onchange="window.updateChar(${index}, 'name', this.value)"></div>
-        <div class="form-item"><label>图标</label><input type="text" value="${char.emoji}" onchange="window.updateChar(${index}, 'emoji', this.value)"></div>
+        <div class="form-item"><label>图标(Emoji)</label><input type="text" value="${char.emoji}" onchange="window.updateChar(${index}, 'emoji', this.value)"></div>
         
+        <!-- 🌟 新增：小头像与大立绘设定 -->
+        <div class="form-item" style="grid-column: span 2; background: rgba(52, 152, 219, 0.08); padding: 10px; border-radius: 6px; border: 1px dashed #3498db;">
+          <label style="color:#3498db; font-weight:bold; margin-bottom:6px; display:block;">🖼️ 立绘与头像美术设定</label>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span style="font-size:12px; color:#aaa; width:80px;">小头像URL:</span>
+              <input type="text" style="flex:1;" value="${char.avatarUrl || ''}" placeholder="输入头像图片链接或路径" onchange="window.updateChar(${index}, 'avatarUrl', this.value)">
+            </div>
+            <div style="display:flex; align-items:center; gap:5px;">
+              <span style="font-size:12px; color:#aaa; width:80px;">大立绘URL:</span>
+              <input type="text" style="flex:1;" value="${char.portraitUrl || ''}" placeholder="输入大立绘图片链接或路径" onchange="window.updateChar(${index}, 'portraitUrl', this.value)">
+            </div>
+          </div>
+        </div>
+
         <div class="form-item"><label>等级 (Lv)</label><input type="number" min="1" max="60" value="${char.level}" oninput="window.updateCharRealTime(${index}, 'level', this.value)"></div>
         <div class="form-item"><label>当前经验</label><input type="number" value="${char.exp}" onchange="window.updateChar(${index}, 'exp', parseInt(this.value))"></div>
         
-        <!-- 🌟 新增：战场占格大小設定 (Boss/巨型單位支援) -->
+        <!-- 战场占格大小設定 -->
         <div class="form-item" style="grid-column: span 2; background: rgba(52, 152, 219, 0.1); padding: 10px; border-radius: 6px; border: 1px dashed #3498db;">
           <label style="color:#3498db; font-weight:bold; margin-bottom:6px; display:block;">⚔️ 战场占格大小 (宽 × 高，适合Boss设置)</label>
           <div style="display: flex; gap: 10px; align-items: center;">
@@ -172,7 +189,7 @@ window.filterCharList = function() {
           <select onchange="window.updateChar(${index}, 'element', this.value)">${window.getElementOptions(char.element)}</select>
         </div>
 
-        <!-- 🔥 基础面板属性 -->
+        <!-- 基礎面板屬性 -->
         <div class="sub-title" style="color:#00ff00;">基础面板属性 (不随等级变化，作为初始底子)</div>
         <div class="form-item"><label style="color:#e74c3c;">初始气血 (HP)</label><input type="number" value="${char.maxHp || 0}" oninput="window.updateCharRealTime(${index}, 'maxHp', this.value)"></div>
         <div class="form-item"><label style="color:#e67e22;">初始攻击 (ATK)</label><input type="number" value="${char.atk || 0}" oninput="window.updateCharRealTime(${index}, 'atk', this.value)"></div>
@@ -211,12 +228,10 @@ window.filterCharList = function() {
       </div>`;
     list.appendChild(div);
     
-    // 渲染初始预览
     updatePreviewUI(index);
   });
 };
 
-// --- 数据修改与实时绑定 ---
 window.updateChar = function(index, key, value) {
   gameChars[index][key] = value;
   saveData();
@@ -244,8 +259,32 @@ window.updateSkillSlot = function(c, s, v) {
 };
 
 window.addNewChar = function() {
-  gameChars.push({ id: 'char_'+Date.now(), name:'新角色', side: currentCharSubTab, level:1, exp:0, freePoints:0, growthModel:'m1', emoji:'🙂', element:'fire', maxHp:1000, atk:100, def:50, speed:10, sizeX:1, sizeY:1, critRate:0.1, critDmg:1.5, stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} }); 
-  saveData(); window.renderTabChar(document.getElementById('app-content'));
+  gameChars.push({ 
+    id: 'char_'+Date.now(), 
+    name:'新角色', 
+    side: currentCharSubTab, 
+    level:1, 
+    exp:0, 
+    freePoints:0, 
+    growthModel:'m1', 
+    emoji:'🙂', 
+    avatarUrl: '', 
+    portraitUrl: '', 
+    element:'fire', 
+    maxHp:1000, 
+    atk:100, 
+    def:50, 
+    speed:10, 
+    sizeX:1, 
+    sizeY:1, 
+    critRate:0.1, 
+    critDmg:1.5, 
+    stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, 
+    skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, 
+    equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} 
+  }); 
+  saveData(); 
+  window.renderTabChar(document.getElementById('app-content'));
 };
 
 window.deleteChar = function(index) { 
