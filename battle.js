@@ -1,4 +1,4 @@
-// 🛡️ 安全初始化所有全域變數，防止載入順序導致 ReferenceError 崩潰
+// 🛡️ 安全初始化所有全域變數，防止載入順序或變數未宣告導致腳本崩潰
 if (typeof window.CHARACTERS === 'undefined') { window.CHARACTERS = []; }
 if (typeof window.SKILLS === 'undefined') { window.SKILLS = {}; }
 if (typeof window.STATUSES === 'undefined') { window.STATUSES = {}; }
