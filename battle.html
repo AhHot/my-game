@@ -16,9 +16,35 @@
             z-index: 10;
         }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
+
+        /* 🌟 專門用來抓取並顯示黑屏元兇的錯誤提示框 */
+        #error-screen {
+            position: fixed; inset: 0; background: rgba(15, 15, 26, 0.95); color: #ff5252;
+            z-index: 999999; padding: 40px; font-size: 16px; overflow: auto; display: none;
+            word-break: break-all; white-space: pre-wrap; font-family: monospace;
+        }
+        #error-screen h2 { color: #ff5555; margin-bottom: 15px; font-size: 24px; }
     </style>
+    <script>
+        // 🛡️ 攔截所有 JavaScript 崩潰與報錯，直接印在畫面上
+        window.onerror = function(msg, url, line, col, error) {
+            const errBox = document.getElementById('error-screen');
+            if (errBox) {
+                errBox.style.display = 'block';
+                errBox.innerHTML = `<h2>🔥 遊戲捕捉到致命崩潰錯誤 (Black Screen Cause)：</h2>` +
+                    `<b>錯誤訊息：</b> ${msg}\n` +
+                    `<b>發生檔案：</b> ${url}\n` +
+                    `<b>程式行數：</b> 第 ${line} 行，第 ${col} 列\n\n` +
+                    `<b>詳細堆疊：</b>\n${error && error.stack ? error.stack : '無堆疊資訊'}`;
+            }
+            return true;
+        };
+    </script>
 </head>
 <body>
+    <!-- 錯誤顯示畫面 -->
+    <div id="error-screen"></div>
+
     <div id="game-scale-container">
         <div id="game"></div>
     </div>
@@ -54,16 +80,14 @@
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        // 安全初始化 Phaser 遊戲實例，確保場景順序正確
+        // 安全初始化 Phaser 遊戲實例
         window.addEventListener('load', () => {
             resizeGameUI();
 
             if (typeof Phaser === 'undefined') {
-                console.error("Phaser 未能成功載入！");
-                return;
+                throw new Error("Phaser 引擎未能成功載入，請檢查 CDN 網路連線！");
             }
 
-            // 初始化 Phaser 遊戲
             window.game = new Phaser.Game({
                 type: Phaser.AUTO,
                 parent: 'game',
@@ -76,7 +100,6 @@
                 scene: [FormationScene, BattleScene, ResultScene],
             });
 
-            // 確保遊戲實例建立後安全切入布陣場景
             setTimeout(() => {
                 if (window.game && window.game.scene) {
                     window.game.scene.start('FormationScene', { 
@@ -89,7 +112,7 @@
             }, 200);
         });
 
-        // 🌟 無縫接軌原生結算：當來自劇情時，靜默綁定點擊事件進行節點判斷
+        // 🌟 無縫接軌原生結算
         let isSeamlessPatched = false;
         const patchInterval = setInterval(() => {
             if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !isSeamlessPatched) {
@@ -98,24 +121,18 @@
 
                 const originalCreate = ResultScene.prototype.create;
                 ResultScene.prototype.create = function(data) {
-                    // 執行原本完美的 ResultScene 視覺渲染與動畫
                     if (originalCreate) originalCreate.call(this, data);
 
                     if (navFrom === 'story') {
-                        // 判斷當前戰鬥是否勝利
                         const sceneData = data || (this.sys && this.sys.settings && this.sys.settings.data) || {};
                         const isWin = sceneData.type === 'victory' || sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
 
                         if (isWin) {
-                            // 計算並預先準備好下一個目標 URL
                             const nextActionUrl = getNextStoryTargetUrl();
-
-                            // 監聽畫面上任何點擊或按鈕觸發（覆蓋原有退回佈陣的行為）
                             this.input.once('pointerdown', () => {
                                 window.location.href = nextActionUrl;
                             });
 
-                            // 如果原本 ResultScene 內有具體的「確定/繼續」按鈕，也一併綁定
                             if (this.confirmBtn) {
                                 this.confirmBtn.off('pointerdown'); 
                                 this.confirmBtn.once('pointerdown', () => {
@@ -128,11 +145,9 @@
             }
         }, 50);
 
-        // 🌟 算式：判斷是否還有下一個事件節點，返回正確的跳轉位址
         function getNextStoryTargetUrl() {
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
-                
                 let book = storyData.books.find(b => b.id === navBookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
