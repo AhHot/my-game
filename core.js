@@ -1,5 +1,5 @@
 // ==========================================
-// 公共數據核心：負責數據的讀寫與持久化[span_0](start_span)[span_0](end_span)
+// 公共數據核心：負責數據的讀寫與持久化
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -11,7 +11,6 @@ const FOLLOWUP_TAGS = [
   { val: 'te_shu', label: '【特殊】(少數字符專屬)' }
 ];
 
-// 標準攻擊範圍模式預設
 const DEFAULT_RANGE_PATTERNS = [
   { id: 'single', name: '📌 單體目標 (1格)', pattern: [{x: 0, y: 0}] },
   { id: 'cross', name: '➕ 十字範圍 (5格)', pattern: [{x:0, y:0}, {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}] },
@@ -125,7 +124,6 @@ const DEFAULT_GLOBAL_CONFIG = {
   }
 };
 
-// --- 全局數據變數 ---
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
 let editingElementIds = new Set();
 
@@ -198,7 +196,6 @@ function getElementOptions(selectedId) {
   return html;
 }
 
-// 🌟 安全對應範圍模式選單（附帶防呆與全域掛載）
 window.getRangePatternOptions = function(selectedId) {
   let html = '';
   let patterns = DEFAULT_RANGE_PATTERNS;
