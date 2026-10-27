@@ -8,7 +8,6 @@
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
         
-        /* 核心等比縮放容器 */
         #game-scale-container {
             position: absolute; top: 0; left: 0;
             width: 1280px; height: 720px;
@@ -17,7 +16,6 @@
         }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
 
-        /* 🌟 專門用來抓取並顯示黑屏元兇的錯誤提示框 */
         #error-screen {
             position: fixed; inset: 0; background: rgba(15, 15, 26, 0.95); color: #ff5252;
             z-index: 999999; padding: 40px; font-size: 16px; overflow: auto; display: none;
@@ -26,15 +24,14 @@
         #error-screen h2 { color: #ff5555; margin-bottom: 15px; font-size: 24px; }
     </style>
     <script>
-        // 🛡️ 攔截所有 JavaScript 崩潰與報錯，直接印在畫面上
         window.onerror = function(msg, url, line, col, error) {
             const errBox = document.getElementById('error-screen');
             if (errBox) {
                 errBox.style.display = 'block';
-                errBox.innerHTML = `<h2>🔥 遊戲捕捉到致命崩潰錯誤 (Black Screen Cause)：</h2>` +
+                errBox.innerHTML = `<h2>🔥 遊戲捕捉到崩潰錯誤：</h2>` +
                     `<b>錯誤訊息：</b> ${msg}\n` +
                     `<b>發生檔案：</b> ${url}\n` +
-                    `<b>程式行數：</b> 第 ${line} 行，第 ${col} 列\n\n` +
+                    `<b>程式行數：</b> 第 ${line} 行\n\n` +
                     `<b>詳細堆疊：</b>\n${error && error.stack ? error.stack : '無堆疊資訊'}`;
             }
             return true;
@@ -42,7 +39,6 @@
     </script>
 </head>
 <body>
-    <!-- 錯誤顯示畫面 -->
     <div id="error-screen"></div>
 
     <div id="game-scale-container">
@@ -80,13 +76,19 @@
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        // 安全初始化 Phaser 遊戲實例
         window.addEventListener('load', () => {
             resizeGameUI();
 
             if (typeof Phaser === 'undefined') {
-                throw new Error("Phaser 引擎未能成功載入，請檢查 CDN 網路連線！");
+                throw new Error("Phaser 引擎未能成功載入！");
             }
+
+            // 🛡️ 安全檢查場景是否存在，避免因為 battle.js 沒載入成功而直接報錯崩潰
+            const safeFormation = typeof FormationScene !== 'undefined' ? FormationScene : class extends Phaser.Scene {
+                create() { this.add.text(100, 100, "錯誤：battle.js 未能正確載入！", {color: "#f00", fontSize: "32px"}); }
+            };
+            const safeBattle = typeof BattleScene !== 'undefined' ? BattleScene : class extends Phaser.Scene {};
+            const safeResult = typeof ResultScene !== 'undefined' ? ResultScene : class extends Phaser.Scene {};
 
             window.game = new Phaser.Game({
                 type: Phaser.AUTO,
@@ -97,7 +99,7 @@
                     width: 1280,
                     height: 720
                 },
-                scene: [FormationScene, BattleScene, ResultScene],
+                scene: [safeFormation, safeBattle, safeResult],
             });
 
             setTimeout(() => {
@@ -112,7 +114,7 @@
             }, 200);
         });
 
-        // 🌟 無縫接軌原生結算
+        // 無縫接軌原生結算
         let isSeamlessPatched = false;
         const patchInterval = setInterval(() => {
             if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !isSeamlessPatched) {
