@@ -762,10 +762,5 @@ class ResultScene extends Phaser.Scene {
   }
 }
 
-window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('檢測到編輯器數據更新，是否立即刷新遊戲查看效果？')) window.location.reload(); } });
-
-window.game = new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-  scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
-});
+window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('檢測到編輯器數據更新，是否立即刷新遊戲查看效果？')) window.location.reload(); }
+                                          });
