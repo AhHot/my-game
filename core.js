@@ -1,5 +1,5 @@
 // ==========================================
-// 公共數據核心：負責數據的讀寫與持久化[span_1](start_span)[span_1](end_span)
+// 公共數據核心：負責數據的讀寫與持久化[span_0](start_span)[span_0](end_span)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -11,7 +11,7 @@ const FOLLOWUP_TAGS = [
   { val: 'te_shu', label: '【特殊】(少數字符專屬)' }
 ];
 
-// 🌟 新增：標準攻擊範圍模式預設（可對應 4x4 棋盤與各類範圍需求）
+// 標準攻擊範圍模式預設
 const DEFAULT_RANGE_PATTERNS = [
   { id: 'single', name: '📌 單體目標 (1格)', pattern: [{x: 0, y: 0}] },
   { id: 'cross', name: '➕ 十字範圍 (5格)', pattern: [{x:0, y:0}, {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}] },
@@ -108,7 +108,7 @@ const DEFAULT_GLOBAL_CONFIG = {
   dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
   affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
   affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
-  rangePatterns: JSON.parse(JSON.stringify(DEFAULT_RANGE_PATTERNS)), // 🌟 全局儲存範圍模式
+  rangePatterns: JSON.parse(JSON.stringify(DEFAULT_RANGE_PATTERNS)),
   elements: [
     { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
     { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
@@ -146,7 +146,7 @@ function loadAllData() {
   if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
   if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
   if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
-  if (!globalData.rangePatterns) globalData.rangePatterns = JSON.parse(JSON.stringify(DEFAULT_RANGE_PATTERNS)); // 🛡️ 確保範圍模式存在
+  if (!globalData.rangePatterns) globalData.rangePatterns = JSON.parse(JSON.stringify(DEFAULT_RANGE_PATTERNS));
   if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
   if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
 
@@ -166,7 +166,7 @@ function loadAllData() {
     if (!c.growthModel) c.growthModel = 'm1';
   });
   gameSkills.forEach(s => {
-    if (!s.rangePatternId) s.rangePatternId = 'single'; // 🛡️ 相容舊技能
+    if (!s.rangePatternId) s.rangePatternId = 'single';
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
@@ -198,15 +198,18 @@ function getElementOptions(selectedId) {
   return html;
 }
 
-// 🌟 新增：取得範圍模式選單的 HTML
-window.getRangePatternOptions=function (selectedId) {
+// 🌟 安全對應範圍模式選單（附帶防呆與全域掛載）
+window.getRangePatternOptions = function(selectedId) {
   let html = '';
-  const patterns = (globalData && globalData.rangePatterns) ? globalData.rangePatterns :DEFAULT_RANGE_PATTERNS;
+  let patterns = DEFAULT_RANGE_PATTERNS;
+  if (globalData && globalData.rangePatterns && Array.isArray(globalData.rangePatterns) && globalData.rangePatterns.length > 0) {
+    patterns = globalData.rangePatterns;
+  }
   patterns.forEach(p => {
     html += `<option value="${p.id}" ${selectedId === p.id ? 'selected' : ''}>${p.name}</option>`;
   });
   return html;
-}
+};
 
 function getSkillOptions(selectedId) {
   let html = `<option value="">(空)</option>`;
@@ -259,5 +262,4 @@ function generateRandomInstance(templateId) {
   return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras: extras, equippedBy: '', count: 1 };
 }
 
-// 啟動時加載數據
 loadAllData();
