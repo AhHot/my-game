@@ -69,7 +69,16 @@ function loadGameConfig() {
   return { config, elements, elementMatrix };
 }
 
-const { config: CONFIG, elements: ELEMENTS, elementMatrix: ELEMENT_MATRIX } = loadGameConfig();
+// 🛡️ 安全掛載至 window 全域，避免重複宣告衝突導致腳本崩潰
+const loadedData = loadGameConfig();
+window.CONFIG = loadedData.config;
+window.ELEMENTS = loadedData.elements;
+window.ELEMENT_MATRIX = loadedData.elementMatrix;
+
+// 兼容局部變數引用
+const CONFIG = window.CONFIG;
+const ELEMENTS = window.ELEMENTS;
+const ELEMENT_MATRIX = window.ELEMENT_MATRIX;
 
 function getElementInfo(id) {
   return ELEMENTS.find(e => e.id === id) || { id, name: id || '未知', icon: '❓', color: '#888888' };
