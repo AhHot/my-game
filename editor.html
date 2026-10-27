@@ -79,7 +79,7 @@
   </div>
 
   <div class="tabs">
-    <div class="tab active" data-tab="char" onclick="switchTab('char')">👾 角色</div>
+    <div class="tab" data-tab="char" onclick="switchTab('char')">👾 角色</div>
     <div class="tab" data-tab="skill" onclick="switchTab('skill')">⚔️ 技能</div>
     <!-- 🌟 新增：攻擊範圍模式編輯器分頁標籤 -->
     <div class="tab" data-tab="range" onclick="switchTab('range')">🎯 攻擊範圍</div>
@@ -126,7 +126,7 @@
       const container = document.getElementById('app-content');
       container.innerHTML = ''; 
 
-      if (tab === 'char' && window.renderTabChar) window.renderTabChar(container);
+      else if (tab === 'char' && window.renderTabChar) window.renderTabChar(container);
       else if (tab === 'growth' && window.renderTabGrowth) window.renderTabGrowth(container);
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
       // 🌟 新增：載入攻擊範圍編輯介面
