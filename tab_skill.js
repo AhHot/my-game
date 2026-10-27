@@ -1,17 +1,19 @@
 // ==========================================
-// 模組：技能面板 (tab_skill.js)[span_4](start_span)[span_4](end_span)
+// 模組：技能面板 (tab_skill.js)
 // ==========================================
 let currentSkillSubTab = 'active';
 
 window.switchSkillSubTab = function(sub) {
   currentSkillSubTab = sub;
   ['active', 'followup', 'passive'].forEach(s => {
-    document.getElementById(`tab-skill-${s}`).classList.toggle('active', sub === s);
+    const el = document.getElementById(`tab-skill-${s}`);
+    if (el) el.classList.toggle('active', sub === s);
   });
   window.renderTabSkill(document.getElementById('app-content'));
 };
 
 window.renderTabSkill = function(container) {
+  if (!container) return;
   const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '絕技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被動' }];
   const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '隨機目標' }, { val: 'all', label: '群體(全體)' }];
   const passiveTypes = [{ val: 'atkAdd', label: '攻擊力(%)' }, { val: 'hpAdd', label: '生命值(%)' }, { val: 'defAdd', label: '防禦力(%)' }, { val: 'speedAdd', label: '速度(%)' }];
@@ -28,8 +30,11 @@ window.renderTabSkill = function(container) {
   `;
 
   window.filterSkillList = function() {
-    const list = document.getElementById('skill-list'); list.innerHTML = '';
-    const keyword = document.getElementById('search-skill').value.toLowerCase();
+    const list = document.getElementById('skill-list'); if (!list) return; list.innerHTML = '';
+    const searchInput = document.getElementById('search-skill');
+    const keyword = searchInput ? searchInput.value.toLowerCase() : '';
+
+    if (!Array.isArray(gameSkills)) return;
 
     gameSkills.forEach((skill, index) => {
       if (currentSkillSubTab === 'active' && ['followup', 'passive'].includes(skill.type)) return;
@@ -39,7 +44,6 @@ window.renderTabSkill = function(container) {
 
       const isPassive = skill.type === 'passive';
       
-      // 效果渲染
       let effectsHtml = '';
       if (skill.effects && skill.effects.length > 0) {
         skill.effects.forEach((eff, effIdx) => {
@@ -83,7 +87,7 @@ window.renderTabSkill = function(container) {
                 <div class="form-item">
                   <label>狀態ID</label>
                   <select onchange="window.updateSkillEffect(${index}, ${effIdx}, 'value', this.value)">
-                    ${gameStatuses.map(st => `<option value="${st.id}" ${eff.value === st.id ? 'selected':''}>${st.name}</option>`).join('')}
+                    ${(window.gameStatuses || []).map(st => `<option value="${st.id}" ${eff.value === st.id ? 'selected':''}>${st.name}</option>`).join('')}
                   </select>
                 </div>` : `
                 <div class="form-item">
@@ -112,14 +116,13 @@ window.renderTabSkill = function(container) {
 
           <div class="form-item" style="grid-column: span 1;">
             <label style="color:#f1c40f; font-weight:bold;">技能元素屬性</label>
-            <select onchange="window.updateSkill(${index}, 'element', this.value)">${window.getElementOptions(skill.element)}</select>
+            <select onchange="window.updateSkill(${index}, 'element', this.value)">${window.getElementOptions ? window.getElementOptions(skill.element) : ''}</select>
           </div>
 
-          <!-- 🌟 新增：攻擊範圍模式選擇 -->
           <div class="form-item" style="grid-column: span 1; display:${isPassive?'none':'flex'}; flex-direction:column;">
             <label style="color:#3498db; font-weight:bold;">🎯 攻擊範圍模式</label>
             <select onchange="window.updateSkill(${index}, 'rangePatternId', this.value)">
-              ${window.getRangePatternOptions(skill.rangePatternId)}
+              ${window.getRangePatternOptions ? window.getRangePatternOptions(skill.rangePatternId) : ''}
             </select>
           </div>
 
@@ -174,13 +177,13 @@ window.renderTabSkill = function(container) {
               <div class="form-item">
                 <label style="color:#2ecc71;">發起標籤 (comboTagOut)</label>
                 <select onchange="window.updateSkill(${index}, 'comboTagOut', this.value)">
-                  ${FOLLOWUP_TAGS.map(t => `<option value="${t.val}" ${skill.comboTagOut===t.val?'selected':''}>${t.label}</option>`).join('')}
+                  ${(typeof FOLLOWUP_TAGS !== 'undefined' ? FOLLOWUP_TAGS : []).map(t => `<option value="${t.val}" ${skill.comboTagOut===t.val?'selected':''}>${t.label}</option>`).join('')}
                 </select>
               </div>
               <div class="form-item">
                 <label style="color:#e74c3c;">響應標籤 (comboTagIn)</label>
                 <select onchange="window.updateSkill(${index}, 'comboTagIn', this.value)">
-                  ${FOLLOWUP_TAGS.map(t => `<option value="${t.val}" ${skill.comboTagIn===t.val?'selected':''}>${t.label}</option>`).join('')}
+                  ${(typeof FOLLOWUP_TAGS !== 'undefined' ? FOLLOWUP_TAGS : []).map(t => `<option value="${t.val}" ${skill.comboTagIn===t.val?'selected':''}>${t.label}</option>`).join('')}
                 </select>
               </div>
               <div class="form-item">
