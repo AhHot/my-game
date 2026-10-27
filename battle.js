@@ -1,7 +1,17 @@
-if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
-if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
-if (typeof LEVELS === 'undefined') { window.LEVELS = []; }
-if (typeof INVENTORY === 'undefined') { window.INVENTORY = []; }
+// 🛡️ 安全初始化所有全域變數，防止載入順序導致 ReferenceError 崩潰
+if (typeof window.CHARACTERS === 'undefined') { window.CHARACTERS = []; }
+if (typeof window.SKILLS === 'undefined') { window.SKILLS = {}; }
+if (typeof window.STATUSES === 'undefined') { window.STATUSES = {}; }
+if (typeof window.ITEMS === 'undefined') { window.ITEMS = {}; }
+if (typeof window.LEVELS === 'undefined') { window.LEVELS = []; }
+if (typeof window.INVENTORY === 'undefined') { window.INVENTORY = []; }
+
+const CHARACTERS = window.CHARACTERS;
+const SKILLS = window.SKILLS;
+const STATUSES = window.STATUSES;
+const ITEMS = window.ITEMS;
+const LEVELS = window.LEVELS;
+const INVENTORY = window.INVENTORY;
 
 if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length = 0; CHARACTERS.push(...d); } } catch(e){} }
 if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k => delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id] = {...sk}); } } catch(e){} }
@@ -134,17 +144,14 @@ const BattleLogic = {
     else pool = allUnits.filter(u => u && u.side !== actor.side && u.isAlive());
     if (pool.length === 0) return [actor];
 
-    // 🌟 1. 如果目標規則是「全屏 (all)」，直接返回全體陣營存活單位
     if (skill.targetRule === 'all') return pool;
 
-    // 🌟 2. 如果目標規則是「前排 (frontRow)」，直接返回前排整排單位
     if (skill.targetRule === 'frontRow') { 
       const xs = pool.map(u => u.gridX ?? 0); 
       const m = pool[0].side === 'enemy' ? Math.max(...xs) : Math.min(...xs); 
       return pool.filter(u => (u.gridX ?? 0) === m); 
     }
 
-    // 🌟 3. 對於單體/點對點類型的規則（血量最低、最高、隨機、預設），先選出主目標
     let mainTargets = [];
     if (skill.targetRule === 'lowestHp') { 
       const m = Math.min(...pool.map(u => u.hp)); 
@@ -165,7 +172,6 @@ const BattleLogic = {
     let primaryTarget = mainTargets[0];
     if (!primaryTarget) return [actor];
 
-    // 🌟 4. 以主目標為中心，套用我們新加入的「自定義濺射範圍 (Range Pattern)」
     let defaultPatterns = [
       { id: 'single', pattern: [{x: 0, y: 0}] },
       { id: 'cross', pattern: [{x:0, y:0}, {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}] },
