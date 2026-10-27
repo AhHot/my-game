@@ -1,5 +1,5 @@
 // ==========================================
-// 公共數據核心：負責數據的讀寫與持久化
+// 公共數據核心：負責數據的讀寫與持久化（統一 Key 避免衝突）
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -87,13 +87,6 @@ const DEFAULT_AFFIX_VALUES = {
   speed: { min: 1, max: 4 }
 };
 
-const AFFIX_NAMES = {
-  atkFlat: '攻擊力(固定)', defFlat: '防禦力(固定)', hpFlat: '生命值(固定)',
-  atkPercent: '攻擊力(%)', defPercent: '防禦力(%)', hpPercent: '生命值(%)',
-  critRate: '暴擊率(%)', critDmg: '暴擊傷害(%)', critResist: '抗暴率(%)',
-  dodgeRate: '閃避率(%)', hitRate: '命中率(%)', lifesteal: '吸血(%)', speed: '速度(固定)'
-};
-
 const DEFAULT_GLOBAL_CONFIG = {
   config: {
     WIDTH: 1280, HEIGHT: 720, MAX_ROUNDS: 50, ACTION_DELAY: 900, GRID_SIZE: 4, CELL_SIZE: 110,
@@ -125,15 +118,15 @@ const DEFAULT_GLOBAL_CONFIG = {
 };
 
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
-let editingElementIds = new Set();
 
 function loadAllData() {
-  try { gameChars = JSON.parse(localStorage.getItem('my_game_data_v22')) || JSON.parse(JSON.stringify(DEFAULT_CHARS)); } catch(e) { gameChars = JSON.parse(JSON.stringify(DEFAULT_CHARS)); }
-  try { gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v22')) || JSON.parse(JSON.stringify(DEFAULT_SKILLS)); } catch(e) { gameSkills = JSON.parse(JSON.stringify(DEFAULT_SKILLS)); }
-  try { gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v22')) || JSON.parse(JSON.stringify(DEFAULT_STATUS)); } catch(e) { gameStatuses = JSON.parse(JSON.stringify(DEFAULT_STATUS)); }
-  try { gameItems = JSON.parse(localStorage.getItem('my_game_items_v22')) || JSON.parse(JSON.stringify(DEFAULT_ITEMS)); } catch(e) { gameItems = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); }
-  try { gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22')) || JSON.parse(JSON.stringify(DEFAULT_LEVELS)); } catch(e) { gameLevels = JSON.parse(JSON.stringify(DEFAULT_LEVELS)); }
-  try { inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []; } catch(e) { inventory = []; }
+  // 統一優先讀取標準 LocalStorage 鍵，防止與 data.js 衝突
+  try { gameChars = JSON.parse(localStorage.getItem('my_game_characters')) || JSON.parse(localStorage.getItem('my_game_data_v22')) || JSON.parse(JSON.stringify(DEFAULT_CHARS)); } catch(e) { gameChars = JSON.parse(JSON.stringify(DEFAULT_CHARS)); }
+  try { gameSkills = JSON.parse(localStorage.getItem('my_game_skills_sync')) || JSON.parse(localStorage.getItem('my_game_skills_v22')) || JSON.parse(JSON.stringify(DEFAULT_SKILLS)); } catch(e) { gameSkills = JSON.parse(JSON.stringify(DEFAULT_SKILLS)); }
+  try { gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_sync')) || JSON.parse(localStorage.getItem('my_game_statuses_v22')) || JSON.parse(JSON.stringify(DEFAULT_STATUS)); } catch(e) { gameStatuses = JSON.parse(JSON.stringify(DEFAULT_STATUS)); }
+  try { gameItems = JSON.parse(localStorage.getItem('my_game_items_sync')) || JSON.parse(localStorage.getItem('my_game_items_v22')) || JSON.parse(JSON.stringify(DEFAULT_ITEMS)); } catch(e) { gameItems = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); }
+  try { gameLevels = JSON.parse(localStorage.getItem('my_game_levels_sync')) || JSON.parse(localStorage.getItem('my_game_levels_v22')) || JSON.parse(JSON.stringify(DEFAULT_LEVELS)); } catch(e) { gameLevels = JSON.parse(JSON.stringify(DEFAULT_LEVELS)); }
+  try { inventory = JSON.parse(localStorage.getItem('my_game_inventory_sync')) || JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []; } catch(e) { inventory = []; }
   try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); } catch(e) { globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); }
 
   if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
@@ -172,6 +165,7 @@ function loadAllData() {
 }
 
 function saveData() {
+  // 雙向同步雙重 Key，保證戰鬥與編輯器資料絕對一致
   localStorage.setItem('my_game_data_v22', JSON.stringify(gameChars));
   localStorage.setItem('my_game_skills_v22', JSON.stringify(gameSkills));
   localStorage.setItem('my_game_statuses_v22', JSON.stringify(gameStatuses));
@@ -188,13 +182,16 @@ function saveData() {
   localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
 }
 
-function getElementOptions(selectedId) {
+// 🛡️ 確保安全掛載至 window 全域，防止 TypeError
+window.getElementOptions = function(selectedId) {
   let html = '';
-  globalData.elements.forEach(el => {
-    html += `<option value="${el.id}" ${selectedId === el.id ? 'selected' : ''}>${el.icon || ''} ${el.name || el.id}</option>`;
-  });
+  if (globalData && globalData.elements) {
+    globalData.elements.forEach(el => {
+      html += `<option value="${el.id}" ${selectedId === el.id ? 'selected' : ''}>${el.icon || ''} ${el.name || el.id}</option>`;
+    });
+  }
   return html;
-}
+};
 
 window.getRangePatternOptions = function(selectedId) {
   let html = '';
@@ -207,56 +204,5 @@ window.getRangePatternOptions = function(selectedId) {
   });
   return html;
 };
-
-function getSkillOptions(selectedId) {
-  let html = `<option value="">(空)</option>`;
-  gameSkills.forEach(sk => { html += `<option value="${sk.id}" ${selectedId === sk.id ? 'selected' : ''}>[${sk.type}] ${sk.name}</option>`; });
-  return html;
-}
-
-function genUid() { return 'u_' + Date.now() + Math.floor(Math.random()*1000); }
-
-function generateRandomInstance(templateId) {
-  const template = gameItems.find(t => t.id === templateId);
-  if (!template) return null;
-  
-  const r = Math.random() * 100;
-  const config = globalData.dropRates.find(d => r >= d.min && r < d.max) || globalData.dropRates[0];
-  const quality = config.q;
-  const qMult = config.m;
-  const extraCount = config.n;
-
-  const baseAtk = Math.floor((Math.floor(Math.random() * ((template.atkMax||0) - (template.atkMin||0) + 1)) + (template.atkMin||0)) * qMult);
-  const baseDef = Math.floor((Math.floor(Math.random() * ((template.defMax||0) - (template.defMin||0) + 1)) + (template.defMin||0)) * qMult);
-  const baseHp = Math.floor((Math.floor(Math.random() * ((template.hpMax||0) - (template.hpMin||0) + 1)) + (template.hpMin||0)) * qMult);
-
-  let pool = template.category === 'armor' ? [...globalData.affixPools.armor] : (template.category === 'weapon' ? [...globalData.affixPools.weapon] : [...globalData.affixPools.accessory]);
-  const extras = [];
-  const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
-
-  for (let i = 0; i < extraCount; i++) {
-    if(pool.length === 0) break;
-    const idx = Math.floor(Math.random() * pool.length);
-    const stat = pool.splice(idx, 1)[0];
-    const cfg = globalData.affixValues[stat] || { min: 0, max: 0 };
-    let val = 0;
-    if (cfg.max >= cfg.min) val = Math.random() * (cfg.max - cfg.min) + cfg.min;
-    else val = cfg.min;
-    if (intTypes.includes(stat)) val = Math.round(val);
-    else val = Math.round((val / 100) * 100) / 100;
-    extras.push({ stat, value: val });
-  }
-
-  const extraKeys = ['atkPercent', 'defPercent', 'hpPercent', 'critRate', 'critDmg', 'lifesteal', 'hitRate', 'dodgeRate', 'critResist', 'speed'];
-  extraKeys.forEach(k => { 
-    if (template[k] && template[k] !== 0) {
-      const exIdx = extras.findIndex(e => e.stat === k);
-      if (exIdx !== -1) extras.splice(exIdx, 1);
-      extras.push({ stat: k, value: template[k] / 100 }); 
-    }
-  });
-
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras: extras, equippedBy: '', count: 1 };
-}
 
 loadAllData();
