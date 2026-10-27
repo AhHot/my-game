@@ -16,41 +16,15 @@
             z-index: 10;
         }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
-
-        /* 錯誤提示框 */
-        #error-screen {
-            position: fixed; inset: 0; background: rgba(15, 15, 26, 0.95); color: #ff5252;
-            z-index: 999999; padding: 40px; font-size: 16px; overflow: auto; display: none;
-            word-break: break-all; white-space: pre-wrap; font-family: monospace;
-        }
-        #error-screen h2 { color: #ff5555; margin-bottom: 15px; font-size: 24px; }
     </style>
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            const errBox = document.getElementById('error-screen');
-            if (errBox) {
-                errBox.style.display = 'block';
-                errBox.innerHTML = `<h2>🔥 遊戲捕捉到崩潰錯誤：</h2>` +
-                    `<b>錯誤訊息：</b> ${msg}\n` +
-                    `<b>發生檔案：</b> ${url}\n` +
-                    `<b>程式行數：</b> 第 ${line} 行\n\n` +
-                    `<b>詳細堆疊：</b>\n${error && error.stack ? error.stack : '無堆疊資訊'}`;
-            }
-            return true;
-        };
-    </script>
 </head>
 <body>
-    <div id="error-screen"></div>
-
     <div id="game-scale-container">
         <div id="game"></div>
     </div>
 
-    <!-- 完整載入所有相依模組與編輯器元件 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
-    <script src="core.js"></script>
     <script src="battle.js"></script>
     <script src="character_system.js"></script>
     <script src="tab_char.js"></script>
@@ -58,7 +32,6 @@
     <script>
         function resizeGameUI() {
             const container = document.getElementById('game-scale-container');
-            if (!container) return;
             const scaleX = window.innerWidth / 1280;
             const scaleY = window.innerHeight / 720;
             const scale = Math.min(scaleX, scaleY);
@@ -78,39 +51,34 @@
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
+        // 初始化 Phaser 遊戲實例
+        window.game = new Phaser.Game({
+            type: Phaser.AUTO,
+            parent: 'game',
+            backgroundColor: '#0f0f1a',
+            scale: {
+                mode: Phaser.Scale.NONE,
+                width: 1280,
+                height: 720
+            },
+            scene: [FormationScene, BattleScene, ResultScene],
+        });
+
         window.addEventListener('load', () => {
             resizeGameUI();
-
-            if (typeof Phaser === 'undefined') {
-                throw new Error("Phaser 引擎未能成功載入！");
-            }
-
-            // 🛡️ 修正背景顏色引號，確保語法 100% 正確
-            window.game = new Phaser.Game({
-                type: Phaser.AUTO,
-                parent: 'game',
-                backgroundColor: '#0f0f1a',
-                scale: {
-                    mode: Phaser.Scale.NONE,
-                    width: 1280,
-                    height: 720
-                },
-                scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
-            });
-
-            setTimeout(() => {
-                if (window.game && window.game.scene) {
+            if (window.game && window.game.scene) {
+                setTimeout(() => {
                     window.game.scene.start('FormationScene', { 
                         levelIndex: targetLevelIndex,
                         from: navFrom,
                         bookId: navBookId,
                         nodeIndex: navNodeIndex
                     });
-                }
-            }, 200);
+                }, 100);
+            }
         });
 
-        // 🌟 無縫接軌原生結算與劇情返回
+        // 🌟 無縫接軌原生結算：當來自劇情時，靜默綁定點擊事件進行節點判斷
         let isSeamlessPatched = false;
         const patchInterval = setInterval(() => {
             if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !isSeamlessPatched) {
@@ -119,20 +87,26 @@
 
                 const originalCreate = ResultScene.prototype.create;
                 ResultScene.prototype.create = function(data) {
+                    // 執行原本完美的 ResultScene 視覺渲染與動畫
                     if (originalCreate) originalCreate.call(this, data);
 
                     if (navFrom === 'story') {
+                        // 判斷當前戰鬥是否勝利
                         const sceneData = data || (this.sys && this.sys.settings && this.sys.settings.data) || {};
-                        const isWin = sceneData.type === 'victory' || sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
+                        const isWin = sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
 
                         if (isWin) {
+                            // 計算並預先準備好下一個目標 URL
                             const nextActionUrl = getNextStoryTargetUrl();
+
+                            // 監聽畫面上任何點擊或按鈕觸發（覆蓋原有退回佈陣的行為）
                             this.input.once('pointerdown', () => {
                                 window.location.href = nextActionUrl;
                             });
 
+                            // 如果原本 ResultScene 內有具體的「確定/繼續」按鈕，也一併綁定
                             if (this.confirmBtn) {
-                                this.confirmBtn.off('pointerdown'); 
+                                this.confirmBtn.off('pointerdown'); // 移除原有的重啟佈陣監聽
                                 this.confirmBtn.once('pointerdown', () => {
                                     window.location.href = nextActionUrl;
                                 });
@@ -143,9 +117,12 @@
             }
         }, 50);
 
+        // 🌟 算式：判斷是否還有下一個事件節點，返回正確的跳轉位址
         function getNextStoryTargetUrl() {
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
+                
+                // 智慧相容新舊分類代號（如 main_01 等）
                 let book = storyData.books.find(b => b.id === navBookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
@@ -155,6 +132,7 @@
                 const nodes = book && book.nodes ? book.nodes : [];
                 const nextNodeIndex = navNodeIndex + 1;
 
+                // 更新該章節的關卡通關進度
                 let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                 let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
                 if (nextNodeIndex > currentMax) {
@@ -162,9 +140,12 @@
                     localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
                 }
 
+                // 判斷後面是否還有事件節點
                 if (nextNodeIndex < nodes.length) {
+                    // 還有節點 -> 前往下一個劇情/事件
                     return `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
                 } else {
+                    // 這是最後一個節點 -> 返還章節地圖
                     return `chapter_map.html?chapterId=${realBookId}`;
                 }
             } catch(e) {
