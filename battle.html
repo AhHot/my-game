@@ -23,8 +23,10 @@
         <div id="game"></div>
     </div>
 
+    <!-- 依賴指令碼載入 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
+    <script src="core.js"></script>
     <script src="battle.js"></script>
     <script src="character_system.js"></script>
     <script src="tab_char.js"></script>
@@ -32,6 +34,7 @@
     <script>
         function resizeGameUI() {
             const container = document.getElementById('game-scale-container');
+            if (!container) return;
             const scaleX = window.innerWidth / 1280;
             const scaleY = window.innerHeight / 720;
             const scale = Math.min(scaleX, scaleY);
@@ -51,31 +54,39 @@
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        // 初始化 Phaser 遊戲實例
-        window.game = new Phaser.Game({
-            type: Phaser.AUTO,
-            parent: 'game',
-            backgroundColor: '#0f0f1a',
-            scale: {
-                mode: Phaser.Scale.NONE,
-                width: 1280,
-                height: 720
-            },
-            scene: [FormationScene, BattleScene, ResultScene],
-        });
-
+        // 安全初始化 Phaser 遊戲實例，確保場景順序正確
         window.addEventListener('load', () => {
             resizeGameUI();
-            if (window.game && window.game.scene) {
-                setTimeout(() => {
+
+            if (typeof Phaser === 'undefined') {
+                console.error("Phaser 未能成功載入！");
+                return;
+            }
+
+            // 初始化 Phaser 遊戲
+            window.game = new Phaser.Game({
+                type: Phaser.AUTO,
+                parent: 'game',
+                backgroundColor: '#0f0f1a',
+                scale: {
+                    mode: Phaser.Scale.NONE,
+                    width: 1280,
+                    height: 720
+                },
+                scene: [FormationScene, BattleScene, ResultScene],
+            });
+
+            // 確保遊戲實例建立後安全切入布陣場景
+            setTimeout(() => {
+                if (window.game && window.game.scene) {
                     window.game.scene.start('FormationScene', { 
                         levelIndex: targetLevelIndex,
                         from: navFrom,
                         bookId: navBookId,
                         nodeIndex: navNodeIndex
                     });
-                }, 100);
-            }
+                }
+            }, 200);
         });
 
         // 🌟 無縫接軌原生結算：當來自劇情時，靜默綁定點擊事件進行節點判斷
@@ -93,7 +104,7 @@
                     if (navFrom === 'story') {
                         // 判斷當前戰鬥是否勝利
                         const sceneData = data || (this.sys && this.sys.settings && this.sys.settings.data) || {};
-                        const isWin = sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
+                        const isWin = sceneData.type === 'victory' || sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
 
                         if (isWin) {
                             // 計算並預先準備好下一個目標 URL
@@ -106,7 +117,7 @@
 
                             // 如果原本 ResultScene 內有具體的「確定/繼續」按鈕，也一併綁定
                             if (this.confirmBtn) {
-                                this.confirmBtn.off('pointerdown'); // 移除原有的重啟佈陣監聽
+                                this.confirmBtn.off('pointerdown'); 
                                 this.confirmBtn.once('pointerdown', () => {
                                     window.location.href = nextActionUrl;
                                 });
@@ -122,7 +133,6 @@
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
                 
-                // 智慧相容新舊分類代號（如 main_01 等）
                 let book = storyData.books.find(b => b.id === navBookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
@@ -132,7 +142,6 @@
                 const nodes = book && book.nodes ? book.nodes : [];
                 const nextNodeIndex = navNodeIndex + 1;
 
-                // 更新該章節的關卡通關進度
                 let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                 let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
                 if (nextNodeIndex > currentMax) {
@@ -140,12 +149,9 @@
                     localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
                 }
 
-                // 判斷後面是否還有事件節點
                 if (nextNodeIndex < nodes.length) {
-                    // 還有節點 -> 前往下一個劇情/事件
                     return `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
                 } else {
-                    // 這是最後一個節點 -> 返還章節地圖
                     return `chapter_map.html?chapterId=${realBookId}`;
                 }
             } catch(e) {
