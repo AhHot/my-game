@@ -9,7 +9,6 @@
     let currentFilter = 'all';
     let globalExpTable = [];
 
-    // 初始化並將全螢幕 UI 注入到 1280x720 比例縮放容器內，確保畫面絕不跑版或超出螢幕
     function initCharacterSystemDOM() {
         if (document.getElementById('fullscreen-ui')) return;
 
@@ -186,8 +185,16 @@
         players.forEach(p => {
             const btn = document.createElement('div');
             btn.className = 'char-avatar-btn';
-            btn.style.cssText = "width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s;";
-            btn.innerHTML = p.emoji || '👤';
+            btn.style.cssText = "width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s; overflow: hidden;";
+            
+            // 🌟 優先讀取自定義小頭像，若無則完美回退顯示 emoji
+            if (p.avatarUrl) {
+                btn.style.background = `url('${p.avatarUrl}') center/cover`;
+                btn.innerHTML = '';
+            } else {
+                btn.innerHTML = p.emoji || '👤';
+            }
+
             btn.onclick = () => selectCharacter(p);
             if (selectedChar && selectedChar.id === p.id) btn.classList.add('active');
             box.appendChild(btn);
@@ -213,6 +220,13 @@
         document.getElementById('ui-char-name').innerText = selectedChar.name;
         document.getElementById('ui-char-level').innerText = `Lv. ${selectedChar.level || 1}`;
         
+        // 🌟 动态更新左侧面板的大立绘背景
+        const portraitEl = document.querySelector('.char-portrait');
+        if (portraitEl) {
+            const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
+            portraitEl.style.background = `url('${bgImg}') center/cover`;
+        }
+
         const cLv = selectedChar.level || 1;
         const cExp = selectedChar.exp || 0;
         const reqExp = getExpNeeded(cLv);
