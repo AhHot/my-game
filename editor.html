@@ -71,8 +71,8 @@
     <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真实模拟 100 次</button>
     <button class="btn" style="background:#3498db;" onclick="testLevelUpAll(10)">🔼 全员 +10级</button>
     <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置 Lv.1</button>
-    <button onclick="switchTab('range')">🎯 攻擊範圍</button>
-    <!-- 新增的匯出與導入按鈕 -->
+    
+    <!-- 匯出與導入按鈕 -->
     <button class="btn" style="background:#27ae60;" onclick="exportGameData()">📤 導出全部數據</button>
     <button class="btn" style="background:#f39c12;" onclick="document.getElementById('import-file-input').click()">📥 導入全部數據</button>
     <input type="file" id="import-file-input" style="display:none" accept=".json" onchange="importGameData(event)">
@@ -81,6 +81,8 @@
   <div class="tabs">
     <div class="tab active" data-tab="char" onclick="switchTab('char')">👾 角色</div>
     <div class="tab" data-tab="skill" onclick="switchTab('skill')">⚔️ 技能</div>
+    <!-- 🌟 新增：攻擊範圍模式編輯器分頁標籤 -->
+    <div class="tab" data-tab="range" onclick="switchTab('range')">🎯 攻擊範圍</div>
     <div class="tab" data-tab="status" onclick="switchTab('status')">🌊 状态</div>
     <div class="tab" data-tab="item" onclick="switchTab('item')">🎒 物品</div>
     <div class="tab" data-tab="stage" onclick="switchTab('stage')">🗺️ 关卡</div>
@@ -88,9 +90,7 @@
     <div class="tab" data-tab="growth" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" data-tab="global" onclick="switchTab('global')">⚙️ 全局设置</div>
     <div class="tab" data-tab="main_ui" onclick="switchTab('main_ui')">🖼️ 主頁UI</div>
-    <!-- 🌟 新增：劇本 UI 可視化佈局編輯按鈕 -->
     <div class="tab" data-tab="ui_editor" onclick="switchTab('ui_editor')">🎨 劇本UI佈局</div>
-    <div class="tab" data-tab="chapter_map" onclick="switchTab('chapter_map')">🎨 章節UI佈局</div>
   </div>
 
   <div id="app-content"></div>
@@ -104,6 +104,7 @@
   <script src="tab_char.js"></script>
   <script src="tab_growth.js"></script>
   <script src="tab_skill.js"></script>
+  <!-- 🌟 新增：引入自訂攻擊範圍編輯模組 -->
   <script src="tab_range.js"></script>
   <script src="tab_status.js"></script>
   <script src="tab_item.js"></script>
@@ -111,9 +112,7 @@
   <script src="tab_global.js"></script>
   <script src="tab_story.js"></script>
   <script src="tab_main_ui.js"></script>
-  <!-- 🌟 新增：引入劇本 UI 佈局編輯模組 -->
   <script src="tab_ui_editor.js"></script>
-  <script src="tab_chapter_map.js"></script>
 
   <script>
     let currentTab = 'char';
@@ -130,21 +129,18 @@
       if (tab === 'char' && window.renderTabChar) window.renderTabChar(container);
       else if (tab === 'growth' && window.renderTabGrowth) window.renderTabGrowth(container);
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
-        else if (tabName === 'range') {
-  window.renderTabRange(document.getElementById('app-content'));
-}
+      // 🌟 新增：載入攻擊範圍編輯介面
+      else if (tab === 'range' && window.renderTabRange) window.renderTabRange(container);
       else if (tab === 'status' && window.renderTabStatus) window.renderTabStatus(container);
       else if (tab === 'item' && window.renderTabItem) window.renderTabItem(container);
       else if (tab === 'stage' && window.renderTabStage) window.renderTabStage(container);
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
       else if (tab === 'story' && window.renderTabStory) window.renderTabStory(container);
       else if (tab === 'main_ui' && window.renderTabMainUI) window.renderTabMainUI(container);
-      // 🌟 新增：載入可視化 UI 佈局編輯器
       else if (tab === 'ui_editor' && window.renderTabUIEditor) window.renderTabUIEditor(container);
-      else if (tab === 'chapter_map' && window.renderTabChapterMap) window.renderTabChapterMap(container);
     }
 
-    // 📤 導出全部數據功能 (修復 iOS / 手機無法下載問題)
+    // 📤 導出全部數據功能
     window.exportGameData = function() {
       const dataToExport = {};
       const keysToExport = [
