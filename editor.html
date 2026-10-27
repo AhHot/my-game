@@ -81,7 +81,6 @@
   <div class="tabs">
     <div class="tab active" data-tab="char" onclick="switchTab('char')">👾 角色</div>
     <div class="tab" data-tab="skill" onclick="switchTab('skill')">⚔️ 技能</div>
-    <div class="tab" data-tab="range" onclick="switchTab('range')">⚔️ 技能範圍</div>
     <div class="tab" data-tab="status" onclick="switchTab('status')">🌊 状态</div>
     <div class="tab" data-tab="item" onclick="switchTab('item')">🎒 物品</div>
     <div class="tab" data-tab="stage" onclick="switchTab('stage')">🗺️ 关卡</div>
@@ -105,8 +104,6 @@
   <script src="tab_char.js"></script>
   <script src="tab_growth.js"></script>
   <script src="tab_skill.js"></script>
-  <script src="tab_range.js"></script>
-  <script src="tab_range.js"></script>
   <script src="tab_status.js"></script>
   <script src="tab_item.js"></script>
   <script src="tab_stage.js"></script>
@@ -132,8 +129,6 @@
       if (tab === 'char' && window.renderTabChar) window.renderTabChar(container);
       else if (tab === 'growth' && window.renderTabGrowth) window.renderTabGrowth(container);
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
-        else if (tab === 'range'&& window.renderTabRange) window.renderTabRange(container);
-}
       else if (tab === 'status' && window.renderTabStatus) window.renderTabStatus(container);
       else if (tab === 'item' && window.renderTabItem) window.renderTabItem(container);
       else if (tab === 'stage' && window.renderTabStage) window.renderTabStage(container);

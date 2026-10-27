@@ -1,35 +1,27 @@
 // ==========================================
-// 公共數據核心：負責數據的讀寫與持久化[span_1](start_span)[span_1](end_span)
+// 公共数据核心：负责数据的读写与持久化
 // ==========================================
 
 const FOLLOWUP_TAGS = [
-  { val: '', label: '無 (不產生/不響應)' },
-  { val: 'po_shi', label: '【破勢】(刀劍兵刃系)' },
-  { val: 'zhen_chan', label: '【震顫】(拳棍擊打系)' },
-  { val: 'zhi_qi', label: '【滯氣】(內功氣功系)' },
+  { val: '', label: '无 (不产生/不响应)' },
+  { val: 'po_shi', label: '【破势】(刀剑兵刃系)' },
+  { val: 'zhen_chan', label: '【震颤】(拳棍击打系)' },
+  { val: 'zhi_qi', label: '【滞气】(内功气功系)' },
   { val: 'feng_hou', label: '【封喉】(刺客收割系)' },
-  { val: 'te_shu', label: '【特殊】(少數字符專屬)' }
-];
-
-// 🌟 新增：標準攻擊範圍模式預設（可對應 4x4 棋盤與各類範圍需求）
-const DEFAULT_RANGE_PATTERNS = [
-  { id: 'single', name: '📌 單體目標 (1格)', pattern: [{x: 0, y: 0}] },
-  { id: 'cross', name: '➕ 十字範圍 (5格)', pattern: [{x:0, y:0}, {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}] },
-  { id: 'front_row_3', name: '🧱 前方橫向3格', pattern: [{x:0, y:0}, {x:-1, y:0}, {x:1, y:0}] },
-  { id: 'square_3x3', name: '⏹️ 九宮格 (3x3)', pattern: [{x:-1,y:-1},{x:0,y:-1},{x:1,y:-1},{x:-1,y:0},{x:0,y:0},{x:1,y:0},{x:-1,y:1},{x:0,y:1},{x:1,y:1}] }
+  { val: 'te_shu', label: '【特殊】(少数字符专属)' }
 ];
 
 const DEFAULT_GROWTH_MODELS = [
   { id: 'm1', name: '1. 均衡全能', fengRui: 1, hunHou: 1, lingDong: 1, jianRen: 1, guiMi: 0.5, jueQing: 0.5 },
-  { id: 'm2', name: '2. 物理狂戰', fengRui: 2, hunHou: 1.5, lingDong: 0, jianRen: 1, guiMi: 0, jueQing: 0.5 },
-  { id: 'm3', name: '3. 輕靈刺客', fengRui: 1, hunHou: 0.5, lingDong: 2, jianRen: 0, guiMi: 1, jueQing: 0.5 },
-  { id: 'm4', name: '4. 金剛鐵壁', fengRui: 0, hunHou: 2, lingDong: 0.5, jianRen: 2, guiMi: 0.5, jueQing: 0 },
-  { id: 'm5', name: '5. 百步穿楊', fengRui: 1, hunHou: 0.5, lingDong: 1, jianRen: 0.5, guiMi: 1.5, jueQing: 0.5 },
-  { id: 'm6', name: '6. 氣宗內家', fengRui: 0.5, hunHou: 1, lingDong: 0.5, jianRen: 0.5, guiMi: 2, jueQing: 0.5 },
-  { id: 'm7', name: '7. 快劍遊俠', fengRui: 1, hunHou: 0.5, lingDong: 1.5, jianRen: 0.5, guiMi: 1, jueQing: 0.5 },
-  { id: 'm8', name: '8. 極致爆發', fengRui: 1.5, hunHou: 0, lingDong: 0.5, jianRen: 0, guiMi: 0.5, jueQing: 2.5 },
-  { id: 'm9', name: '9. 不倒戰象', fengRui: 0.5, hunHou: 2.5, lingDong: 0, jianRen: 1.5, guiMi: 0.5, jueQing: 0 },
-  { id: 'm10', name: '10. 奇門遁甲', fengRui: 0.5, hunHou: 0.5, lingDong: 1, jianRen: 1, guiMi: 1, jueQing: 1 }
+  { id: 'm2', name: '2. 物理狂战', fengRui: 2, hunHou: 1.5, lingDong: 0, jianRen: 1, guiMi: 0, jueQing: 0.5 },
+  { id: 'm3', name: '3. 轻灵刺客', fengRui: 1, hunHou: 0.5, lingDong: 2, jianRen: 0, guiMi: 1, jueQing: 0.5 },
+  { id: 'm4', name: '4. 金刚铁壁', fengRui: 0, hunHou: 2, lingDong: 0.5, jianRen: 2, guiMi: 0.5, jueQing: 0 },
+  { id: 'm5', name: '5. 百步穿杨', fengRui: 1, hunHou: 0.5, lingDong: 1, jianRen: 0.5, guiMi: 1.5, jueQing: 0.5 },
+  { id: 'm6', name: '6. 气宗内家', fengRui: 0.5, hunHou: 1, lingDong: 0.5, jianRen: 0.5, guiMi: 2, jueQing: 0.5 },
+  { id: 'm7', name: '7. 快剑游侠', fengRui: 1, hunHou: 0.5, lingDong: 1.5, jianRen: 0.5, guiMi: 1, jueQing: 0.5 },
+  { id: 'm8', name: '8. 极致爆发', fengRui: 1.5, hunHou: 0, lingDong: 0.5, jianRen: 0, guiMi: 0.5, jueQing: 2.5 },
+  { id: 'm9', name: '9. 不倒战象', fengRui: 0.5, hunHou: 2.5, lingDong: 0, jianRen: 1.5, guiMi: 0.5, jueQing: 0 },
+  { id: 'm10', name: '10. 奇门遁甲', fengRui: 0.5, hunHou: 0.5, lingDong: 1, jianRen: 1, guiMi: 1, jueQing: 1 }
 ];
 
 const DEFAULT_EXP_TABLE = [];
@@ -42,28 +34,28 @@ for (let i = 1; i <= 60; i++) {
 }
 
 const DEFAULT_CHARS = [
-  { id: 'p_warrior', name: '戰士', side: 'player', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '⚔️', element: 'fire', maxHp: 1000, atk: 100, def: 50, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0, lifesteal: 0, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
-  { id: 'e_skeleton', name: '骷髏兵', side: 'enemy', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '💀', element: 'dark', maxHp: 1000, atk: 100, def: 50, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, lifesteal: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
+  { id: 'p_warrior', name: '战士', side: 'player', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '⚔️', element: 'fire', maxHp: 1000, atk: 100, def: 50, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0, lifesteal: 0, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
+  { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '💀', element: 'dark', maxHp: 1000, atk: 100, def: 50, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, lifesteal: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
 ];
 
 const DEFAULT_SKILLS = [
-  { id: 'skill_slash', name: '斬擊', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', rangePatternId: 'single', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
-  { id: 'skill_fireball', name: '火球術', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', rangePatternId: 'cross', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
-  { id: 'skill_heal', name: '聖光術', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', rangePatternId: 'single', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
-  { id: 'skill_follow_1', name: '追打·烈焰斬', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', rangePatternId: 'single', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
+  { id: 'skill_slash', name: '斩击', type: 'normal', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 1.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
+  { id: 'skill_fireball', name: '火球术', type: 'skill', element: 'fire', targetSide: 'enemy', targetRule: 'frontRow', multiplier: 3.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 20, cooldown: 2, comboTagOut: 'po_shi', comboTagIn: '', maxTriggers: 1, effects: [ { type: 'status', value: 'status_burn', chance: 1.0, targetSide: 'enemy', targetRule: 'sameAsMain' } ] },
+  { id: 'skill_heal', name: '圣光术', type: 'skill', element: 'light', targetSide: 'player', targetRule: 'lowestHp', multiplier: 0, healMultiplier: 2.5, shieldMultiplier: 0, mpCost: 20, cooldown: 1, comboTagOut: '', comboTagIn: '', maxTriggers: 1, effects: [] },
+  { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
 ];
 
 const DEFAULT_STATUS = [ 
-  { id: 'status_burn', name: '灼燒', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
-  { id: 'status_stun', name: '眩暈', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true }
+  { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
+  { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true }
 ];
 
 const DEFAULT_ITEMS = [ 
-  { id: 'item_sword', name: '鐵劍', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }, 
-  { id: 'item_exp_pill', name: '小還丹', category: 'consumable', icon: '💊', desc: '使用後獲得1000點經驗', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' } 
+  { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }, 
+  { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' } 
 ];
 
-const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 關', enemyList: [], rewardItemId: '', rewardExp: 100 } ];
+const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '', rewardExp: 100 } ];
 
 const DEFAULT_DROP_RATES = [
   { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
@@ -89,10 +81,10 @@ const DEFAULT_AFFIX_VALUES = {
 };
 
 const AFFIX_NAMES = {
-  atkFlat: '攻擊力(固定)', defFlat: '防禦力(固定)', hpFlat: '生命值(固定)',
-  atkPercent: '攻擊力(%)', defPercent: '防禦力(%)', hpPercent: '生命值(%)',
-  critRate: '暴擊率(%)', critDmg: '暴擊傷害(%)', critResist: '抗暴率(%)',
-  dodgeRate: '閃避率(%)', hitRate: '命中率(%)', lifesteal: '吸血(%)', speed: '速度(固定)'
+  atkFlat: '攻击力(固定)', defFlat: '防御力(固定)', hpFlat: '生命值(固定)',
+  atkPercent: '攻击力(%)', defPercent: '防御力(%)', hpPercent: '生命值(%)',
+  critRate: '暴击率(%)', critDmg: '暴击伤害(%)', critResist: '抗暴率(%)',
+  dodgeRate: '闪避率(%)', hitRate: '命中率(%)', lifesteal: '吸血(%)', speed: '速度(固定)'
 };
 
 const DEFAULT_GLOBAL_CONFIG = {
@@ -108,11 +100,10 @@ const DEFAULT_GLOBAL_CONFIG = {
   dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
   affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
   affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
-  rangePatterns: JSON.parse(JSON.stringify(DEFAULT_RANGE_PATTERNS)), // 🌟 全局儲存範圍模式
   elements: [
     { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
     { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
-    { id: 'wind', name: '風', icon: '🌪️', color: '#4caf50' },
+    { id: 'wind', name: '风', icon: '🌪️', color: '#4caf50' },
     { id: 'light', name: '光', icon: '✨', color: '#ffc107' },
     { id: 'dark', name: '暗', icon: '🌑', color: '#9c27b0' }
   ],
@@ -125,7 +116,7 @@ const DEFAULT_GLOBAL_CONFIG = {
   }
 };
 
-// --- 全局數據變數 ---
+// --- 全局数据变量 ---
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
 let editingElementIds = new Set();
 
@@ -138,6 +129,7 @@ function loadAllData() {
   try { inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []; } catch(e) { inventory = []; }
   try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); } catch(e) { globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); }
 
+  // 🛡️ 終極守門員：確保後台的所有配置都完整存在，絕不讓數據漏掉
   if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
   Object.keys(DEFAULT_GLOBAL_CONFIG.config).forEach(k => {
     if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
@@ -146,10 +138,10 @@ function loadAllData() {
   if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
   if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
   if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
-  if (!globalData.rangePatterns) globalData.rangePatterns = JSON.parse(JSON.stringify(DEFAULT_RANGE_PATTERNS)); // 🛡️ 確保範圍模式存在
   if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
   if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
 
+  // 🛡️ 核心修復：逐一檢查「詞條數值池」，只要缺了任何一條，自動補齊！
   if (!globalData.affixValues) globalData.affixValues = {};
   Object.keys(DEFAULT_AFFIX_VALUES).forEach(k => {
     if (!globalData.affixValues[k] || typeof globalData.affixValues[k].min === 'undefined') {
@@ -157,6 +149,7 @@ function loadAllData() {
     }
   });
 
+  // 兼容旧数据
   gameChars.forEach(c => {
     if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
@@ -165,11 +158,9 @@ function loadAllData() {
     if (c.freePoints === undefined) c.freePoints = 0;
     if (!c.growthModel) c.growthModel = 'm1';
   });
-  gameSkills.forEach(s => {
-    if (!s.rangePatternId) s.rangePatternId = 'single'; // 🛡️ 相容舊技能
-  });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
+  // 🛡️ 加載完畢後，強制保存一次，確保剛剛補齊的數值立刻寫進瀏覽器！
   saveData(); 
 }
 
@@ -190,20 +181,11 @@ function saveData() {
   localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
 }
 
+// 提供公共的工具函数
 function getElementOptions(selectedId) {
   let html = '';
   globalData.elements.forEach(el => {
     html += `<option value="${el.id}" ${selectedId === el.id ? 'selected' : ''}>${el.icon || ''} ${el.name || el.id}</option>`;
-  });
-  return html;
-}
-
-// 🌟 新增：取得範圍模式選單的 HTML
-function getRangePatternOptions(selectedId) {
-  let html = '';
-  const patterns = globalData.rangePatterns || DEFAULT_RANGE_PATTERNS;
-  patterns.forEach(p => {
-    html += `<option value="${p.id}" ${selectedId === p.id ? 'selected' : ''}>${p.name}</option>`;
   });
   return html;
 }
@@ -259,5 +241,5 @@ function generateRandomInstance(templateId) {
   return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras: extras, equippedBy: '', count: 1 };
 }
 
-// 啟動時加載數據
+// 启动时加载数据
 loadAllData();
