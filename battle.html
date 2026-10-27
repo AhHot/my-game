@@ -47,7 +47,7 @@
         <div id="game"></div>
     </div>
 
-    <!-- 完整保留所有相依模組檔案 -->
+    <!-- 依序載入相依模組 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="data.js"></script>
     <script src="core.js"></script>
@@ -85,16 +85,17 @@
                 throw new Error("Phaser 引擎未能成功載入！");
             }
 
+            // 🛡️ 確保所有場景完整且順序一致地傳入，統一由此處建立單一遊戲實例
             window.game = new Phaser.Game({
                 type: Phaser.AUTO,
                 parent: 'game',
-                backgroundColor: '#0f0f1a',
+                backgroundColor: '#0f0f1a`,
                 scale: {
                     mode: Phaser.Scale.NONE,
                     width: 1280,
                     height: 720
                 },
-                scene: [FormationScene, BattleScene, ResultScene],
+                scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
             });
 
             setTimeout(() => {
