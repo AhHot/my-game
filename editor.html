@@ -71,7 +71,7 @@
     <button class="btn" style="background:#9b59b6;" onclick="runFastSimulation()">⚡ 真实模拟 100 次</button>
     <button class="btn" style="background:#3498db;" onclick="testLevelUpAll(10)">🔼 全员 +10级</button>
     <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置 Lv.1</button>
-    
+    <button onclick="switchTab('range')">🎯 攻擊範圍</button>
     <!-- 新增的匯出與導入按鈕 -->
     <button class="btn" style="background:#27ae60;" onclick="exportGameData()">📤 導出全部數據</button>
     <button class="btn" style="background:#f39c12;" onclick="document.getElementById('import-file-input').click()">📥 導入全部數據</button>
@@ -104,6 +104,7 @@
   <script src="tab_char.js"></script>
   <script src="tab_growth.js"></script>
   <script src="tab_skill.js"></script>
+  <script src="tab_range.js"></script>
   <script src="tab_status.js"></script>
   <script src="tab_item.js"></script>
   <script src="tab_stage.js"></script>
@@ -129,6 +130,9 @@
       if (tab === 'char' && window.renderTabChar) window.renderTabChar(container);
       else if (tab === 'growth' && window.renderTabGrowth) window.renderTabGrowth(container);
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
+        else if (tabName === 'range') {
+  window.renderTabRange(document.getElementById('app-content'));
+}
       else if (tab === 'status' && window.renderTabStatus) window.renderTabStatus(container);
       else if (tab === 'item' && window.renderTabItem) window.renderTabItem(container);
       else if (tab === 'stage' && window.renderTabStage) window.renderTabStage(container);
