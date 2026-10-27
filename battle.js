@@ -134,16 +134,19 @@ const BattleLogic = {
     else pool = allUnits.filter(u => u && u.side !== actor.side && u.isAlive());
     if (pool.length === 0) return [actor];
 
+    // 🌟 1. 如果目標規則是「全屏 (all)」，直接返回全體陣營存活單位
     if (skill.targetRule === 'all') return pool;
 
-    // 1. 傳統規則選出主目標
-    let mainTargets = [];
+    // 🌟 2. 如果目標規則是「前排 (frontRow)」，直接返回前排整排單位
     if (skill.targetRule === 'frontRow') { 
-      const xs = pool.map(u => u.gridX); 
+      const xs = pool.map(u => u.gridX ?? 0); 
       const m = pool[0].side === 'enemy' ? Math.max(...xs) : Math.min(...xs); 
-      mainTargets = pool.filter(u => u.gridX === m); 
+      return pool.filter(u => (u.gridX ?? 0) === m); 
     }
-    else if (skill.targetRule === 'lowestHp') { 
+
+    // 🌟 3. 對於單體/點對點類型的規則（血量最低、最高、隨機、預設），先選出主目標
+    let mainTargets = [];
+    if (skill.targetRule === 'lowestHp') { 
       const m = Math.min(...pool.map(u => u.hp)); 
       mainTargets = pool.filter(u => u.hp === m); 
     }
@@ -162,7 +165,7 @@ const BattleLogic = {
     let primaryTarget = mainTargets[0];
     if (!primaryTarget) return [actor];
 
-    // 2. 獲取範圍模式（安全防護：支援動態讀取，若無則用預設）
+    // 🌟 4. 以主目標為中心，套用我們新加入的「自定義濺射範圍 (Range Pattern)」
     let defaultPatterns = [
       { id: 'single', pattern: [{x: 0, y: 0}] },
       { id: 'cross', pattern: [{x:0, y:0}, {x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}] },
