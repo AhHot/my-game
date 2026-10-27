@@ -199,9 +199,9 @@ function getElementOptions(selectedId) {
 }
 
 // 🌟 新增：取得範圍模式選單的 HTML
-function getRangePatternOptions(selectedId) {
+window.getRangePatternOptions=function (selectedId) {
   let html = '';
-  const patterns = globalData.rangePatterns || DEFAULT_RANGE_PATTERNS;
+  const patterns = (globalData && globalData.rangePatterns) ? globalData.rangePatterns :DEFAULT_RANGE_PATTERNS;
   patterns.forEach(p => {
     html += `<option value="${p.id}" ${selectedId === p.id ? 'selected' : ''}>${p.name}</option>`;
   });
