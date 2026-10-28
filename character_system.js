@@ -1,797 +1,689 @@
-if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
-if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
-if (typeof LEVELS === 'undefined') { window.LEVELS = []; }
-if (typeof INVENTORY === 'undefined') { window.INVENTORY = []; }
+// ============================================================
+// 模組：完整人物與背包系統 (character_system.js)
+// 完美修復：手動分配意境點數正確同步至 Unit 屬性轉換計算
+// ============================================================
+(function() {
+    let selectedChar = null;
+    let currentUnit = null;
+    let currentTab = 'skill';
+    let currentFilter = 'all';
+    let globalExpTable = [];
 
-if (localStorage.getItem('my_game_characters')) { try { const d = JSON.parse(localStorage.getItem('my_game_characters')); if (Array.isArray(d) && d.length) { CHARACTERS.length = 0; CHARACTERS.push(...d); } } catch(e){} }
-if (localStorage.getItem('my_game_skills_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_skills_sync')); if (Array.isArray(d) && d.length) { Object.keys(SKILLS).forEach(k => delete SKILLS[k]); d.forEach(sk => SKILLS[sk.id] = {...sk}); } } catch(e){} }
-if (localStorage.getItem('my_game_statuses_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_statuses_sync')); if (Array.isArray(d) && d.length) { Object.keys(STATUSES).forEach(k => delete STATUSES[k]); d.forEach(st => STATUSES[st.id] = {...st}); } } catch(e){} }
-if (localStorage.getItem('my_game_items_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_items_sync')); if (Array.isArray(d) && d.length) { Object.keys(ITEMS).forEach(k => delete ITEMS[k]); d.forEach(it => ITEMS[it.id] = {...it}); } } catch(e){} }
-if (localStorage.getItem('my_game_levels_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_levels_sync')); if (Array.isArray(d) && d.length) { LEVELS.length = 0; LEVELS.push(...d); } } catch(e){} }
-if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse(localStorage.getItem('my_game_inventory_sync')); if (Array.isArray(d)) { INVENTORY.length = 0; INVENTORY.push(...d); } } catch(e){} }
+    function initCharacterSystemDOM() {
+        if (document.getElementById('fullscreen-ui')) return;
 
-try {
-  const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
-  window.DROP_RATES = gc.dropRates; window.GLOBAL_AFFIX_POOLS = gc.affixPools; window.GLOBAL_AFFIX_VALUES = gc.affixValues;
-  window.EXP_TABLE = gc.expTable || []; window.GROWTH_MODELS = gc.growthModels || []; window.ART_CONFIG = gc.artConfig || {}; 
-} catch(e) { window.ART_CONFIG = {}; }
+        const scaleContainer = document.getElementById('game-scale-container') || document.body;
+        
+        const uiDiv = document.createElement('div');
+        uiDiv.id = 'fullscreen-ui';
+        uiDiv.className = 'interactive-ui';
+        uiDiv.style.cssText = "display: none; position: absolute; width: 1280px; height: 720px; background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd; flex-direction: row; pointer-events: auto;";
+        
+        uiDiv.innerHTML = `
+            <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
 
-class Unit {
-  constructor(data) {
-    Object.assign(this, data);
-    if (!this.skillSlots) this.skillSlots = { normal: '', skill: '', ultimate: '', followup: '', learned: '' };
-    if (!this.equipment) this.equipment = {};
-    if (this.equipment.armor && !this.equipment.body) { this.equipment.body = this.equipment.armor; delete this.equipment.armor; }
-    if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
-    ['weapon', 'head', 'body', 'legs', 'ring', 'necklace'].forEach(s => { if (!this.equipment[s]) this.equipment[s] = ''; });
-    this.level = this.level || 1; this.exp = this.exp || 0; this.sizeX = this.sizeX || 1; this.sizeY = this.sizeY || 1;
-    this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0; this.critRate = this.critRate || 0; this.critResist = this.critResist || 0; 
-    this.dmgIncrease = this.dmgIncrease || 0; this.dmgReduction = this.dmgReduction || 0; this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
-    this.trueDmg = this.trueDmg || 0; this.critDmg = this.critDmg || 1.5; this.lifesteal = this.lifesteal || 0;
+            <!-- 左侧基础面板 (宽度固定 420px) -->
+            <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
+                
+                <!-- 立繪高度 380px，上方貼邊、左右置中 (top center) -->
+                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
+                
+                <!-- 底部头像切换列 -->
+                <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
+                
+                <!-- 小箭头弹出详细信息按鈕 -->
+                <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 40%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
+            </div>
 
-    let baseStats = JSON.parse(JSON.stringify(data.stats || { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }));
-    let gm = (window.GROWTH_MODELS || []).find(m => m.id === this.growthModel) || (window.GROWTH_MODELS || [])[0];
-    if (gm && this.level > 1) {
-      baseStats.fengRui += (gm.fengRui||0)*(this.level-1); baseStats.hunHou += (gm.hunHou||0)*(this.level-1); baseStats.lingDong += (gm.lingDong||0)*(this.level-1);
-      baseStats.jianRen += (gm.jianRen||0)*(this.level-1); baseStats.guiMi += (gm.guiMi||0)*(this.level-1); baseStats.jueQing += (gm.jueQing||0)*(this.level-1);
+            <!-- 右侧区域 -->
+            <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
+                
+                <!-- Tab 顺序：預設技能在左，背包在右 -->
+                <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
+                    <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
+                    <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
+                </div>
+
+                <!-- 背包介面容器 -->
+                <div id="inv-container" style="flex: 1; display: none; flex-direction: column; overflow: hidden;">
+                    <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 8px 20px; background: #e67e22; border: 1px solid #e67e22; border-radius: 20px; cursor: pointer; font-size: 18px; color: #fff; font-weight: bold;">全部</div>
+                        <div class="filter-btn" onclick="window.setFilter('equip', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">装备</div>
+                        <div class="filter-btn" onclick="window.setFilter('consumable', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">消耗品</div>
+                        <div class="filter-btn" onclick="window.setFilter('material', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">材料</div>
+                        <div class="filter-btn" onclick="window.setFilter('quest', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">任务</div>
+                    </div>
+                    <div id="inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 15px; align-content: start; padding-bottom: 20px;"></div>
+                </div>
+
+                <!-- 技能介面容器 -->
+                <div id="skill-container" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; padding-bottom: 20px;"></div>
+            </div>
+
+            <!-- 彈窗：物品詳情 -->
+            <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
+                <div class="card-close" onclick="window.hideTooltip()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
+                <div id="tooltip-content"></div>
+                <button class="btn-action btn-equip" id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
+            </div>
+
+            <!-- 彈窗：詳細屬性 -->
+            <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
+                <div class="card-close" onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
+                <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
+                <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom:8px;">【攻伐】</div>
+                <div class="detail-grid" id="detail-atk" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
+                <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom:8px;">【守御】</div>
+                <div class="detail-grid" id="detail-def" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
+                <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom:8px;">【克制与特殊】</div>
+                <div class="detail-grid" id="detail-special" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
+            </div>
+        `;
+        
+        scaleContainer.appendChild(uiDiv);
     }
-    this.maxHp = (this.maxHp || 0) + baseStats.hunHou * CONFIG.hunHouToHp;
-    this.atk = (this.atk || 0) + baseStats.fengRui * CONFIG.fengRuiToAtk;
-    this.def = (this.def || 0) + baseStats.jianRen * CONFIG.jianRenToDef;
-    this.speed = (this.speed || 0) + baseStats.lingDong * CONFIG.lingDongToSpd;
-    this.critRate = this.critRate + Math.min((baseStats.jueQing * CONFIG.jueQingToCrit / 100), CONFIG.maxCritFromStats / 100);
-    this.dodgeRate = this.dodgeRate + Math.min((baseStats.lingDong * CONFIG.lingDongToEva / 100), CONFIG.maxEvaFromStats / 100);
-    this.hitRate = this.hitRate + (baseStats.guiMi * CONFIG.guiMiToHit / 100);
-    this.critResist = this.critResist + (baseStats.jianRen * CONFIG.jianRenToRes / 100);
-    this.critDmg = this.critDmg + (baseStats.guiMi * CONFIG.guiMiToCritDmg / 100);
 
-    let eqAtkAdd=0, eqDefAdd=0, eqHpAdd=0, eqAtkPct=0, eqDefPct=0, eqHpPct=0;
-    Object.values(this.equipment).forEach(uid => {
-      if (!uid) return; const inst = INVENTORY.find(i => i.uid === uid);
-      if (inst) {
-        eqAtkAdd += (inst.baseAtk||0); eqDefAdd += (inst.baseDef||0); eqHpAdd += (inst.baseHp||0);
-        if (inst.extras) inst.extras.forEach(ex => {
-          let val = ex.value;
-          if (ex.stat === 'atkFlat') eqAtkAdd += val; else if (ex.stat === 'defFlat') eqDefAdd += val; else if (ex.stat === 'hpFlat') eqHpAdd += val;
-          else if (ex.stat === 'atkPercent') eqAtkPct += val; else if (ex.stat === 'defPercent') eqDefPct += val; else if (ex.stat === 'hpPercent') eqHpPct += val;
-          else if (this[ex.stat] !== undefined) this[ex.stat] += val;
-        });
-      }
-    });
-    this.maxHp = Math.floor((this.maxHp + eqHpAdd) * (1 + eqHpPct));
-    this.atk = Math.floor((this.atk + eqAtkAdd) * (1 + eqAtkPct));
-    this.def = Math.floor((this.def + eqDefAdd) * (1 + eqDefPct));
-    this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
-    
-    this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
-    this.passives.forEach(sk => {
-      if (sk.isAura) return;
-      if (sk.passiveType === 'atkAdd') { this.atk += this.baseAtk * sk.passiveValue; this.baseAtk += this.baseAtk * sk.passiveValue; }
-      if (sk.passiveType === 'hpAdd') this.maxHp += this.maxHp * sk.passiveValue;
-      if (sk.passiveType === 'defAdd') { this.def += this.baseDef * sk.passiveValue; this.baseDef += this.baseDef * sk.passiveValue; }
-      if (sk.passiveType === 'speedAdd') { this.speed += this.baseSpeed * sk.passiveValue; this.baseSpeed += this.baseSpeed * sk.passiveValue; }
-    });
-    this.hp = this.maxHp; this.maxMp = 100; this.mp = 100; this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; this.shield = 0; this.skipTurn = false;
-  }
-  isAlive() { return this.hp > 0; }
-  gainMp(a) { this.mp = Math.min(100, this.mp + a); }
-  takeDamage(dmg) {
-    if (this.shield > 0) {
-      if (dmg <= this.shield) { this.shield -= dmg; return 0; }
-      else { const r = dmg - this.shield; this.shield = 0; this.hp = Math.max(0, this.hp - r); return r; }
-    }
-    this.hp = Math.max(0, this.hp - dmg); return dmg;
-  }
-  heal(a) { if (this.isAlive()) this.hp = Math.min(this.maxHp, this.hp + a); }
-  addShield(a) { if (this.isAlive()) this.shield += a; }
-  reduceCooldowns() { for (let k in this.cooldowns) if (this.cooldowns[k] > 0) this.cooldowns[k]--; }
-  resetFollowups() { this.followupCounts = {}; }
-  applyAura(allUnits) {
-    this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
-    allUnits.forEach(ally => {
-      if (ally.side !== this.side || !ally.isAlive()) return;
-      ally.passives.forEach(sk => {
-        if (!sk.isAura) return;
-        const dist = Math.abs(ally.gridX - this.gridX) + Math.abs(ally.gridY - this.gridY);
-        if (dist <= sk.auraRange) {
-          if (sk.passiveType === 'atkAdd') this.atk += this.baseAtk * sk.passiveValue;
-          if (sk.passiveType === 'defAdd') this.def += this.baseDef * sk.passiveValue;
-          if (sk.passiveType === 'speedAdd') this.speed += this.baseSpeed * sk.passiveValue;
+    function getFinalStatsForUI(char) {
+        let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
+        let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
+        let lv = char.level || 1;
+        
+        if (gm && lv > 1) {
+            baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
+            baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
+            baseStats.lingDong += (gm.lingDong || 0) * (lv-1);
+            baseStats.jianRen += (gm.jianRen || 0) * (lv-1);
+            baseStats.guiMi += (gm.guiMi || 0) * (lv-1);
+            baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
         }
-      });
-    });
-    this.statuses.forEach(st => {
-      const c = STATUSES[st.id]; if (!c) return;
-      if (c.statMod === 'atk') this.atk += this.baseAtk * c.statValue;
-      if (c.statMod === 'def') this.def += this.baseDef * c.statValue;
-      if (c.statMod === 'speed') this.speed += this.baseSpeed * c.statValue;
-    });
-    this.atk = Math.max(1, Math.floor(this.atk)); this.def = Math.max(0, Math.floor(this.def)); this.speed = Math.max(1, Math.floor(this.speed));
-    if (this.hp > this.maxHp) this.hp = this.maxHp;
-  }
-  tickStatuses() {
-    for (let i = this.statuses.length - 1; i >= 0; i--) {
-      const st = this.statuses[i]; const c = STATUSES[st.id];
-      if (c && c.isDot && c.dotValue > 0) this.takeDamage(c.dotValue);
-      st.duration--; if (st.duration <= 0) this.statuses.splice(i, 1);
+
+        if (!char.allocatedStats) char.allocatedStats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+        baseStats.fengRui += char.allocatedStats.fengRui || 0;
+        baseStats.hunHou += char.allocatedStats.hunHou || 0;
+        baseStats.lingDong += char.allocatedStats.lingDong || 0;
+        baseStats.jianRen += char.allocatedStats.jianRen || 0;
+        baseStats.guiMi += char.allocatedStats.guiMi || 0;
+        baseStats.jueQing += char.allocatedStats.jueQing || 0;
+
+        return {
+            fengRui: Math.floor(baseStats.fengRui),
+            hunHou: Math.floor(baseStats.hunHou),
+            lingDong: Math.floor(baseStats.lingDong),
+            jianRen: Math.floor(baseStats.jianRen),
+            guiMi: Math.floor(baseStats.guiMi),
+            jueQing: Math.floor(baseStats.jueQing)
+        };
     }
-  }
-  addStatus(id) {
-    if (!id || !STATUSES[id]) return;
-    if (STATUSES[id].isStun) { this.skipTurn = true; if (!this.statuses.find(s => s.id === id)) this.statuses.push({ id, duration: 1 }); return; }
-    const ex = this.statuses.find(s => s.id === id);
-    if (ex) ex.duration = STATUSES[id].duration; else this.statuses.push({ id, duration: STATUSES[id].duration });
-  }
-}
 
-const BattleLogic = {
-  selectTargets(actor, skill, allUnits) {
-    let pool = [];
-    if (skill.targetSide === 'self') return [actor];
-    if (skill.targetSide === 'player') pool = allUnits.filter(u => u.side === actor.side && u.isAlive());
-    else pool = allUnits.filter(u => u.side !== actor.side && u.isAlive());
-    if (pool.length === 0) return [];
-    if (skill.targetRule === 'all') return pool;
-    if (skill.targetRule === 'frontRow') { const xs = pool.map(u => u.gridX); const m = pool[0].side === 'enemy' ? Math.max(...xs) : Math.min(...xs); return pool.filter(u => u.gridX === m); }
-    if (skill.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); return pool.filter(u => u.hp === m); }
-    if (skill.targetRule === 'highestHp') { const m = Math.max(...pool.map(u => u.hp)); return pool.filter(u => u.hp === m); }
-    if (skill.targetRule === 'random') return [pool[Math.floor(Math.random() * pool.length)]];
-    return [pool[0]];
-  },
-  computeDamage(actor, target, skill) {
-    if (skill.multiplier === 0) return { damage: 0, isCrit: false, isMiss: false, lifestealAmount: 0 };
-    let hit = Math.max(CONFIG.HIT_RATE_MIN, Math.min(CONFIG.HIT_RATE_MAX, 1 + actor.hitRate - target.dodgeRate));
-    if (Math.random() > hit) return { damage: 0, isCrit: false, isMiss: true, lifestealAmount: 0 };
-    let base = actor.atk * skill.multiplier;
-    let def = target.def / (target.def + CONFIG.DEF_CONSTANT);
-    let dmg = Math.max(base * (1 - def), base * CONFIG.MIN_DAMAGE_RATIO);
-    let cr = Math.max(0, Math.min(CONFIG.CRIT_RATE_CAP, actor.critRate - target.critResist));
-    const isCrit = Math.random() < cr; if (isCrit) dmg *= actor.critDmg;
-    dmg *= Math.max(0.1, 1 + actor.dmgIncrease - actor.dmgReduction);
-    dmg *= Math.max(0.1, 1 + target.dmgTakenIncrease - target.dmgReduction);
-    dmg *= getElementMultiplier(skill.element, target.element);
-    dmg += actor.trueDmg;
-    const d = Math.round(dmg);
-    return { damage: d, isCrit, isMiss: false, lifestealAmount: Math.round(d * actor.lifesteal) };
-  },
-  chooseSkill(actor, allUnits) {
-    const slots = actor.skillSlots || {};
-    let avail = Object.values(slots).filter(id => id && SKILLS[id] && !['passive', 'followup'].includes(SKILLS[id].type)).map(id => SKILLS[id]);
-    let usable = avail.filter(sk => {
-      const cd = actor.cooldowns[sk.id] || 0;
-      if (actor.mp < (sk.mpCost || 0) || cd > 0) return false;
-      if (sk.healMultiplier > 0 && sk.multiplier === 0) { if (!allUnits.filter(u => u.side === actor.side && u.isAlive()).some(u => u.hp < u.maxHp)) return false; }
-      return true;
-    });
-    const w = { ultimate: 3, skill: 2, normal: 1 };
-    usable.sort((a, b) => (w[b.type] || 0) - (w[a.type] || 0));
-    if (usable.length > 0) return usable[0];
-    const fb = Object.values(SKILLS).find(s => s.type === 'normal');
-    if (fb) return fb;
-    return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] };
-  },
-  buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); },
+    function getExpNeeded(level) {
+        if(level >= 60) return 9999999;
+        return globalExpTable[level - 1] || 100;
+    }
 
-  simulateSkill(actor, sk, allUnits) {
-    actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
-    if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
-
-    const targets = this.selectTargets(actor, sk, allUnits);
-    if (targets.length === 0) return;
-    let heal = 0;
-
-    targets.forEach(t => {
-      if (sk.healMultiplier > 0) {
-        t.heal(Math.round(actor.atk * sk.healMultiplier));
-      } else if (sk.shieldMultiplier > 0) {
-        t.addShield(Math.round(actor.atk * sk.shieldMultiplier));
-      } else {
-        const res = this.computeDamage(actor, t, sk);
-        if (!res.isMiss) {
-          t.takeDamage(res.damage);
-          if (res.lifestealAmount > 0) heal += res.lifestealAmount;
+    function addCharacterExp(char, amount) {
+        if (char.level >= 60) return;
+        char.exp = (char.exp || 0) + amount;
+        let currentLv = char.level || 1;
+        let reqExp = getExpNeeded(currentLv);
+        let leveledUp = false;
+        while (char.exp >= reqExp && currentLv < 60) {
+            char.exp -= reqExp;
+            currentLv++;
+            char.freePoints = (char.freePoints || 0) + 3;
+            reqExp = getExpNeeded(currentLv);
+            leveledUp = true;
         }
-      }
-    });
+        char.level = currentLv;
+        return leveledUp;
+    }
 
-    if (sk.effects && sk.effects.length > 0) {
-      sk.effects.forEach(eff => {
-        if (Math.random() > eff.chance) return;
-        let et = [];
-        if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') {
-          et = targets;
-        } else {
-          let pool = eff.targetSide === 'enemy'
-            ? allUnits.filter(u => u.side !== actor.side && u.isAlive())
-            : eff.targetSide === 'player'
-              ? allUnits.filter(u => u.side === actor.side && u.isAlive())
-              : [actor];
-          if (eff.targetRule === 'all') et = pool;
-          else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
-          else et = [pool[0]];
+    window.openCharacterUI = function() {
+        initCharacterSystemDOM();
+        const uiContainer = document.getElementById('fullscreen-ui');
+        if (uiContainer) uiContainer.style.display = 'flex';
+
+        if (window.game && window.game.scene) {
+            const activeScenes = window.game.scene.getScenes(true);
+            activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
         }
-        et.forEach(t => {
-          if (!t || !t.isAlive()) return;
-          if (eff.type === 'status') t.addStatus(eff.value);
-          else if (eff.type === 'heal_pct') t.heal(Math.round(actor.atk * eff.value));
-          else if (eff.type === 'heal_flat') t.heal(Math.round(eff.value));
-          else if (eff.type === 'shield_pct') t.addShield(Math.round(actor.atk * eff.value));
-          else if (eff.type === 'shield_flat') t.addShield(Math.round(eff.value));
-          else if (eff.type === 'mp') t.gainMp(eff.value);
-        });
-      });
-    }
+        
+        if (typeof CHARACTERS === 'undefined') return;
 
-    if (heal > 0) actor.heal(heal);
-    if (actor.isAlive()) actor.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
-    actor.reduceCooldowns();
-
-    if (sk.comboTagOut) this.simulateFollowup(sk.comboTagOut, actor, allUnits);
-  },
-
-  simulateFollowup(tag, original, allUnits) {
-    let cand = allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
-    cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
-    for (let u of cand) {
-      const fid = u.skillSlots.followup;
-      if (!fid || !SKILLS[fid]) continue;
-      if (SKILLS[fid].comboTagIn === tag) {
-        const used = u.followupCounts[fid] || 0;
-        if (used < (SKILLS[fid].maxTriggers || 1)) {
-          u.followupCounts[fid] = used + 1;
-          const sk = SKILLS[fid];
-          u.mp = Math.max(0, u.mp - (sk.mpCost || 0));
-          const targets = this.selectTargets(u, sk, allUnits);
-          targets.forEach(t => {
-            const res = this.computeDamage(u, t, sk);
-            if (!res.isMiss) t.takeDamage(res.damage);
-          });
-          break;
-        }
-      }
-    }
-  }
-};
-
-// 🌟 完美同步人物介面的圖片載入與微圓角外框機制（完全無 Emoji）
-function createCharacterAvatarView(scene, container, dataOrUnit, size) {
-  const half = size / 2;
-  const radius = size > 60 ? 10 : 6;
-
-  // 1. 底色矩形外框（元素屬性色）
-  const rectBg = scene.add.rectangle(0, 0, size, size, Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color);
-  rectBg.setStrokeStyle(3, 0xffffff, 0.9);
-  container.add(rectBg);
-
-  // 2. 完美對齊人物介面的 Image 動態載入與遮罩機制
-  if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    const imgObj = new Image();
-    imgObj.crossOrigin = 'anonymous';
-    imgObj.src = dataOrUnit.avatarUrl;
-    imgObj.onload = () => {
-      if (scene && scene.textures && !scene.textures.exists(key)) {
-        scene.textures.addImage(key, imgObj);
-        if (container && container.active) {
-          const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-          
-          // 使用與人物介面一致的微圓角遮罩
-          const maskShape = scene.make.graphics();
-          maskShape.fillStyle(0xffffff);
-          maskShape.fillRoundedRect(-half, -half, size, size, radius);
-          avatarImg.setMask(maskShape.createGeometryMask());
-
-          container.add(avatarImg);
-        }
-      }
-    };
-  }
-}
-
-function generateRandomInstance(templateId) {
-  const t = ITEMS[templateId]; if (!t) return null;
-  const dropRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
-  const r = Math.random() * 100;
-  let config = dropRates.find(d => r >= d.min && r < d.max) || dropRates[0];
-  const q = config.q; const m = config.m; const n = config.n;
-  const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
-  const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
-  const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
-  let pool = t.category === 'armor' ? [...(window.GLOBAL_AFFIX_POOLS?.armor||[])] : (t.category === 'weapon' ? [...(window.GLOBAL_AFFIX_POOLS?.weapon||[])] : [...(window.GLOBAL_AFFIX_POOLS?.accessory||[])]);
-  const extras = []; const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
-  for (let i = 0; i < n; i++) {
-    if(pool.length === 0) break;
-    const idx = Math.floor(Math.random() * pool.length);
-    const stat = pool.splice(idx, 1)[0];
-    const cfg = window.GLOBAL_AFFIX_VALUES?.[stat] || { min: 0, max: 0 };
-    let val = cfg.max >= cfg.min ? Math.random() * (cfg.max - cfg.min) + cfg.min : cfg.min;
-    if (intTypes.includes(stat)) val = Math.round(val); else val = Math.round((val / 100) * 100) / 100;
-    extras.push({ stat, value: val });
-  }
-  return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: d, baseHp: h, extras: extras, equippedBy: '', count: 1 };
-}
-
-function addCharacterExp(char, amount) {
-  if (char.level >= 60) return false;
-  char.exp = (char.exp || 0) + amount;
-  let currentLv = char.level || 1;
-  let reqExp = window.EXP_TABLE[currentLv - 1] || 100;
-  let leveledUp = false;
-  while (char.exp >= reqExp && currentLv < 60) {
-    char.exp -= reqExp; currentLv++;
-    char.freePoints = (char.freePoints || 0) + 3;
-    reqExp = window.EXP_TABLE[currentLv - 1] || 100;
-    leveledUp = true;
-  }
-  char.level = currentLv; return leveledUp;
-}
-
-class MainMenuScene extends Phaser.Scene {
-  constructor() { super('MainMenuScene'); }
-  create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
-    this.add.text(CONFIG.WIDTH / 2, 200, '中大型策略战棋', { fontSize: '64px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
-    const b = this.add.text(CONFIG.WIDTH / 2, 500, '⚔️ 开始推图', { fontSize: '42px', color: '#ffffff', backgroundColor: '#e67e22', padding: { x: 50, y: 20 } }).setOrigin(0.5).setInteractive();
-    b.on('pointerdown', () => this.scene.start('FormationScene', { levelIndex: 0 }));
-    const e = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '20px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
-    e.on('pointerdown', () => { window.location.href = 'editor.html'; });
-    const invBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
-    invBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
-  }
-}
-
-class FormationScene extends Phaser.Scene {
-  constructor() { super('FormationScene'); }
-  init(data) {
-    this.currentLevelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
-    this.navFrom = (data && data.from) ? data.from : 'direct';
-    this.navBookId = (data && data.bookId) ? data.bookId : '';
-    this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
-  }
-  create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
-    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
-    const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
-    const lv = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(20, 20, `v14.0 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
-    const editBtn = this.add.text(CONFIG.WIDTH - 180, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
-    editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
-    const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
-    refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
-    const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
-    teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
-    this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-    const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
-    for (let i = 0; i <= CONFIG.GRID_SIZE; i++) { g.lineBetween(gridLeft, gridTop + i * cell, gridLeft + gridW, gridTop + i * cell); g.lineBetween(gridLeft + i * cell, gridTop, gridLeft + i * cell, gridTop + gridW); }
-    const bg = this.add.graphics(); bg.fillStyle(0x16213e, 0.8); bg.fillRoundedRect(standbyLeft - 20, 100, 500, 500, 10); bg.lineStyle(2, 0x3498DB, 0.5); bg.strokeRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
-    const startBtn = this.add.text(CONFIG.WIDTH - 150, CONFIG.HEIGHT - 60, '⚔️ 开始战斗', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive();
-    
-    startBtn.on('pointerdown', () => { 
-      if (CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length === 0) return alert('至少需要上阵1名角色！'); 
-      this.scene.start('BattleScene', { 
-        levelIndex: this.currentLevelIndex,
-        from: this.navFrom,
-        bookId: this.navBookId,
-        nodeIndex: this.navNodeIndex
-      }); 
-    });
-
-    this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
-    this.unitContainers = [];
-    CHARACTERS.filter(c => c.side === 'player').forEach(data => {
-      data.gridX = -1; data.gridY = -1;
-      const c = this.add.container(0, 0);
-      
-      // 🌟 布陣頭像：微圓角外框 + 完美顯示圖片（無 Emoji）
-      createCharacterAvatarView(this, c, data, 84);
-
-      c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
-
-      c.setSize(80, 80).setInteractive({ draggable: true }); this.input.setDraggable(c);
-      c.unitData = data; c.isOnGrid = false; this.unitContainers.push(c);
-      c.on('dragstart', () => { if (c.isOnGrid) { for (let y = data.gridY; y < data.gridY + data.sizeY; y++) for (let x = data.gridX; x < data.gridX + data.sizeX; x++) this.gridState[y][x] = null; } c.setDepth(100); });
-      c.on('drag', (p, dx, dy) => { c.x = dx; c.y = dy; });
-      c.on('dragend', () => {
-        c.setDepth(0); let col = Math.floor((c.x - gridLeft) / cell), row = Math.floor((c.y - gridTop) / cell); let ok = true;
-        if (col < 0 || col + data.sizeX > CONFIG.GRID_SIZE || row < 0 || row + data.sizeY > CONFIG.GRID_SIZE) ok = false;
-        if (ok) { for (let y = row; y < row + data.sizeY; y++) for (let x = col; x < col + data.sizeX; x++) if (this.gridState[y][x]) ok = false; }
-        if (ok) {
-          for (let y = row; y < row + data.sizeY; y++) for (let x = col; x < col + data.sizeX; x++) this.gridState[y][x] = data;
-          data.gridX = col; data.gridY = row; c.isOnGrid = true; const s = Math.max(data.sizeX, data.sizeY);
-          c.setScale(1 + (s - 1) * 0.15); c.x = gridLeft + col * cell + (cell * data.sizeX) / 2; c.y = gridTop + row * cell + (cell * data.sizeY) / 2;
-        } else { data.gridX = -1; data.gridY = -1; c.isOnGrid = false; c.setScale(1); }
-        this.layoutStandby(standbyLeft);
-      });
-    });
-    this.layoutStandby(standbyLeft);
-  }
-  layoutStandby(left) {
-    const list = this.unitContainers.filter(c => !c.isOnGrid); const n = this.unitContainers.filter(c => c.isOnGrid).length;
-    this.countText.setText(`当前上阵: ${n} / 5`).setColor(n >= 5 ? '#e74c3c' : '#f1c40f');
-    list.forEach((c, i) => { this.tweens.add({ targets: c, x: left + 40 + (i % 4) * 120, y: 180 + Math.floor(i / 4) * 120, duration: 200 }); });
-  }
-}
-
-class BattleScene extends Phaser.Scene {
-  constructor() { super('BattleScene'); }
-  init(data) {
-    this.currentLevelIndex = (data && data.levelIndex !== undefined) ? data.levelIndex : 0;
-    this.navFrom = (data && data.from) ? data.from : 'direct';
-    this.navBookId = (data && data.bookId) ? data.bookId : '';
-    this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
-  }
-  preload() {
-    const art = window.ART_CONFIG || {};
-    if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
-  }
-  create() {
-    this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
-    this.speedMultiplier = 1; this.isSkipping = false; this.battleEnded = false;
-    const sBtn = this.add.text(30, 20, '⏩ 1x 速度', { fontSize: '18px', color: '#fff', backgroundColor: '#2980b9', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive().setDepth(200);
-    sBtn.on('pointerdown', () => { this.speedMultiplier = this.speedMultiplier === 1 ? 2 : 1; sBtn.setText(`⏩ ${this.speedMultiplier}x 速度`); sBtn.setBackgroundColor(this.speedMultiplier === 2 ? '#e67e22' : '#2980b9'); });
-    const skip = this.add.text(CONFIG.WIDTH - 20, 20, '⏭️ 跳过战斗', { fontSize: '18px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive().setDepth(200);
-    skip.on('pointerdown', () => { if (this.isSkipping || this.battleEnded) return; this.isSkipping = true; this.fastForward(); });
-    const lv = LEVELS[this.currentLevelIndex] || { enemyList: [] };
-    const fighters = [];
-    CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).forEach(c => fighters.push({ ...c }));
-    if (Array.isArray(lv.enemyList)) {
-      lv.enemyList.forEach(item => {
-        const orig = CHARACTERS.find(c => c.id === item.id);
-        if (orig) { const inst = JSON.parse(JSON.stringify(orig)); inst.gridX = item.x; inst.gridY = item.y; fighters.push(inst); }
-      });
-    }
-    if (fighters.filter(f => f.side === 'enemy').length === 0) fighters.push({ id: 'e_fb', name: '木桩', side: 'enemy', level: 1, element: 'fire', maxHp: 5000, atk: 10, def: 10, speed: 5, sizeX: 1, sizeY: 1, critRate: 0, critDmg: 1, hitRate: 0, dodgeRate: 0, critResist: 0, stats: { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, skillSlots: {}, equipment: {} });
-    fighters.forEach(d => { const u = new Unit(d); this.allUnits.push(u); });
-    this.allUnits.forEach(u => u.applyAura(this.allUnits)); this.allUnits.forEach(u => this.createUnitView(u));
-    this.roundText = this.add.text(CONFIG.WIDTH / 2, 24, '第 1 回合', { fontSize: '30px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5, 0);
-    this.logBg = this.add.rectangle(CONFIG.WIDTH / 2, 620, 600, 80, 0x000000, 0.7).setStrokeStyle(1, 0x3498db).setDepth(50);
-    this.logHistory = []; this.logTexts = [];
-    this.time.delayedCall(800, () => this.startBattle());
-  }
-
-  drawBattlefield() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
-    const art = window.ART_CONFIG?.boardBg;
-    if (this.textures.exists('art_boardBg')) {
-      const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.4);
-      const iw = bgImg.width, ih = bgImg.height;
-      const boxW = CONFIG.WIDTH, boxH = CONFIG.HEIGHT;
-      const drawW = boxW * (art.scale || 1); const drawH = drawW * (ih / iw);
-      bgImg.setDisplaySize(drawW, drawH);
-      let offsetX = (boxW - drawW) * ((art.posX ?? 50) / 100); let offsetY = (boxH - drawH) * ((art.posY ?? 50) / 100);
-      bgImg.setPosition(offsetX, offsetY);
-    }
-    const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
-    const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
-    
-    this.drawGrid(enemyLeft, gridTop, cell, true);
-    this.drawGrid(playerLeft, gridTop, cell, false);
-    
-    this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#CC99FF', fontStyle: 'bold' });
-    this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#FF8888', fontStyle: 'bold' });
-    this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
-  }
-  
-  drawGrid(startX, startY, cell, isEnemy) {
-    const g = this.add.graphics();
-    const fillColor = isEnemy ? 0xCC99FF : 0xFF8888;
-    const fillAlpha = 0.15;
-    const strokeAlpha = 0.4;
-
-    for(let y=0; y<CONFIG.GRID_SIZE; y++) {
-      for(let x=0; x<CONFIG.GRID_SIZE; x++) {
-        const px = startX + x * cell;
-        const py = startY + y * cell;
-        g.fillStyle(fillColor, fillAlpha);
-        g.fillRoundedRect(px + 2, py + 2, cell - 4, cell - 4, 6);
-        g.lineStyle(1.5, fillColor, strokeAlpha);
-        g.strokeRoundedRect(px + 2, py + 2, cell - 4, cell - 4, 6);
-      }
-    }
-  }
-
-  createUnitView(unit) {
-    const cell = CONFIG.CELL_SIZE; let x, y;
-    if (unit.side === 'enemy') { x = this.enemyLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
-    else { x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
-    const c = this.add.container(x, y);
-    const scale = Math.max(unit.sizeX, unit.sizeY);
-    const r = Math.min((cell / 2) * 0.85 * scale, 50); 
-    const sideLen = r * 2;
-    
-    // 🌟 戰鬥頭像：微圓角框 + 完美顯示圖片（無 Emoji）
-    createCharacterAvatarView(this, c, unit, sideLen);
-
-    const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-    
-    const bw = Math.min(cell * scale * 0.85, 100); 
-    const hpBg = this.add.rectangle(-bw/2, r + 32, bw + 4, 10, 0x000000, 0.8).setOrigin(0, 0.5).setStrokeStyle(1, 0x555555);
-    const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, 0xFF4444).setOrigin(0, 0.5);
-    hpBar.maxWidth = bw;
-
-    const hpText = this.add.text(0, r + 32, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-    const shieldText = this.add.text(0, r + 18, '', { fontSize: '10px', color: '#fff', fontStyle: 'bold', backgroundColor: '#555', padding: {x:2,y:1} }).setOrigin(0.5);
-    const mpBg = this.add.rectangle(-bw/2, r + 44, bw + 4, 5, 0x000000, 0.8).setOrigin(0, 0.5);
-    const mpBar = this.add.rectangle(-bw/2 + 2, r + 44, bw, 3, 0x3498DB).setOrigin(0, 0.5);
-    const mpText = this.add.text(bw/2 + 5, r + 44, '', { fontSize: '9px', color: '#88ccff' }).setOrigin(0, 0.5);
-    const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
-    
-    c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, rectBg: null, hpBar, mpBar, statusText, hpText, shieldText, mpText });
-    this.updateUnitView(unit);
-  }
-
-  startBattle() { if (this.isSkipping || this.battleEnded) return; this.round = 1; this.allUnits.forEach(u => u.resetFollowups()); this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); this.actionIndex = 0; this.nextAction(); }
-  nextAction() {
-    if (this.isSkipping || this.battleEnded) return;
-    const p = this.allUnits.filter(u => u.side === 'player' && u.isAlive()); const e = this.allUnits.filter(u => u.side === 'enemy' && u.isAlive());
-    if (p.length === 0) return this.endBattle('defeat'); if (e.length === 0) return this.endBattle('victory'); if (this.round > CONFIG.MAX_ROUNDS) return this.endBattle('timeout');
-    if (this.actionIndex >= this.actionOrder.length) {
-      this.round++; this.roundText.setText(`第 ${this.round} 回合`);
-      this.allUnits.forEach(u => { if (!u.isAlive()) return; u.resetFollowups(); const old = u.hp; u.tickStatuses(); if (u.hp < old) this.showDamage(u, { damage: old - u.hp, isCrit: false }, '#ff00ff'); this.updateUnitView(u); });
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) return this.endBattle('defeat');
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) return this.endBattle('victory');
-      this.actionOrder = BattleLogic.buildActionOrder(this.allUnits); this.actionIndex = 0;
-      this.time.delayedCall(800 / this.speedMultiplier, () => this.nextAction()); return;
-    }
-    const actor = this.actionOrder[this.actionIndex++];
-    if (!actor.isAlive()) return this.time.delayedCall(80 / this.speedMultiplier, () => this.nextAction());
-    this.allUnits.forEach(u => u.applyAura(this.allUnits)); this.allUnits.forEach(u => this.updateUnitView(u)); this.execute(actor);
-  }
-
-  execute(actor) {
-    if (this.battleEnded) return;
-    if (actor.skipTurn) { actor.skipTurn = false; const i = actor.statuses.findIndex(s => STATUSES[s.id]?.isStun); if (i !== -1) actor.statuses.splice(i, 1); this.updateUnitView(actor); this.addLog(`${actor.name} 眩晕跳过`, '#f1c40f'); const c = this.unitViews.get(actor).container; this.tweens.add({ targets: c, angle: 10, yoyo: true, repeat: 3, duration: 100 }); return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction()); }
-    const sk = BattleLogic.chooseSkill(actor, this.allUnits);
-    if (!sk) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
-    const targets = BattleLogic.selectTargets(actor, sk, this.allUnits);
-    if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
-    const v = this.unitViews.get(actor);
-    if (v) {
-      const origX = v.container.x; const origY = v.container.y; const target = targets[0]; const tv = this.unitViews.get(target);
-      if (tv && sk.multiplier > 0) {
-        const dirX = tv.container.x > origX ? 1 : -1; const dirY = tv.container.y > origY ? 1 : -1;
-        this.tweens.add({ targets: v.container, x: origX + (30 * dirX), y: origY + (30 * dirY), duration: 150 / this.speedMultiplier, yoyo: true, ease: 'Quad.easeOut' });
-      } else { this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.1, scaleY: v.container.scaleY * 1.1, duration: 150 / this.speedMultiplier, yoyo: true }); }
-    }
-    this.addLog(`${actor.name} 使用【${sk.name}】`, sk.type === 'ultimate' ? '#e74c3c' : '#fff');
-    this.time.delayedCall(450 / this.speedMultiplier, () => {
-      actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0)); if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
-      let heal = 0;
-      targets.forEach(t => {
-        if (sk.healMultiplier > 0) { const h = Math.round(actor.atk * sk.healMultiplier); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.addLog(`${actor.name} 为 ${t.name} 回血 ${h}`, '#2ecc71'); }
-        else if (sk.shieldMultiplier > 0) { const s = Math.round(actor.atk * sk.shieldMultiplier); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.addLog(`${actor.name} 为 ${t.name} 套盾 ${s}`, '#ddd'); }
-        else {
-          const r = BattleLogic.computeDamage(actor, t, sk);
-          if (r.isMiss) { this.showFloat(t, 'MISS', '#aaa'); this.addLog(`${t.name} 闪避了攻击`, '#aaa'); }
-          else {
-            t.takeDamage(r.damage); if (r.lifestealAmount > 0) heal += r.lifestealAmount;
-            this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
-            const tv2 = this.unitViews.get(t);
-            if (tv2) { 
-              this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
-            }
-          }
-        }
-        this.updateUnitView(t);
-      });
-      if (sk.effects && sk.effects.length > 0) {
-        sk.effects.forEach(eff => {
-          if (Math.random() > eff.chance) return;
-          let et = [];
-          if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') et = targets;
-          else { let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u.side !== actor.side && u.isAlive()) : eff.targetSide === 'player' ? this.allUnits.filter(u => u.side === actor.side && u.isAlive()) : [actor]; if (eff.targetRule === 'all') et = pool; else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); } else et = [pool[0]]; }
-          et.forEach(t => {
-            if (!t || !t.isAlive()) return;
-            if (eff.type === 'status') { t.addStatus(eff.value); this.showFloat(t, `+${STATUSES[eff.value]?.name || ''}`, '#0ff'); this.updateUnitView(t); }
-            else if (eff.type === 'heal_pct') { const h = Math.round(actor.atk * eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
-            else if (eff.type === 'heal_flat') { const h = Math.round(eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
-            else if (eff.type === 'shield_pct') { const s = Math.round(actor.atk * eff.value); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.updateUnitView(t); }
-            else if (eff.type === 'shield_flat') { const s = Math.round(eff.value); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.updateUnitView(t); }
-            else if (eff.type === 'mp') { t.gainMp(eff.value); this.showFloat(t, `MP+${eff.value}%`, '#8cf'); this.updateUnitView(t); }
-          });
-        });
-      }
-      if (heal > 0) { actor.heal(heal); this.showFloat(actor, `+${heal}`, '#2ecc71'); this.updateUnitView(actor); }
-      if (actor.isAlive()) actor.gainMp(CONFIG.MP_REGEN_PER_ROUND * 100);
-      actor.reduceCooldowns(); this.updateUnitView(actor);
-      if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
-      this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
-    });
-  }
-
-  checkFollowup(tag, original) {
-    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original); cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
-    for (let u of cand) {
-      const fid = u.skillSlots.followup; if (!fid || !SKILLS[fid]) continue;
-      if (SKILLS[fid].comboTagIn === tag) {
-        const used = u.followupCounts[fid] || 0; if (used < (SKILLS[fid].maxTriggers || 1)) { u.followupCounts[fid] = used + 1; this.doFollowup(u, SKILLS[fid]); break; }
-      }
-    }
-  }
-  doFollowup(actor, sk) {
-    const targets = BattleLogic.selectTargets(actor, sk, this.allUnits); if (targets.length === 0) return;
-    const v = this.unitViews.get(actor);
-    if (v) { this.showFloat(actor, '⚡追打', '#fc0'); this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.2, scaleY: v.container.scaleY * 1.2, duration: 150 / this.speedMultiplier, yoyo: true }); }
-    this.addLog(`⚡ ${actor.name} 追打【${sk.name}】`, '#fc0');
-    this.time.delayedCall(300 / this.speedMultiplier, () => {
-      actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
-      targets.forEach(t => { const r = BattleLogic.computeDamage(actor, t, sk); if (!r.isMiss) { t.takeDamage(r.damage); this.showDamage(t, r); this.updateUnitView(t); this.cameras.main.shake(80 / this.speedMultiplier, 0.005); } });
-      this.updateUnitView(actor); if (sk.comboTagOut) this.checkFollowup(sk.comboTagOut, actor);
-    });
-  }
-
-  showDamage(u, r, c) {
-    const v = this.unitViews.get(u); if (!v) return;
-    const col = c || (r.isCrit ? '#fc0' : '#f55'); const s = r.isCrit ? '42px' : '28px';
-    const t = this.add.text(v.container.x, v.container.y - 70, r.isCrit ? `-${r.damage} 暴击` : `-${r.damage}`, { fontSize: s, color: col, fontStyle: 'bold', stroke: '#000', strokeThickness: 5 }).setOrigin(0.5).setDepth(100);
-    if (r.isCrit) { t.setScale(1.5); this.tweens.add({ targets: t, scaleX: 1, scaleY: 1, duration: 200 }); }
-    this.tweens.add({ targets: t, y: t.y - 90, alpha: 0, duration: 900 / this.speedMultiplier, onComplete: () => t.destroy() });
-  }
-  showFloat(u, txt, col) {
-    const v = this.unitViews.get(u); if (!v) return;
-    const t = this.add.text(v.container.x, v.container.y - 30, txt, { fontSize: '24px', color: col, fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5).setDepth(100);
-    this.tweens.add({ targets: t, y: t.y - 50, alpha: 0, duration: 800 / this.speedMultiplier, onComplete: () => t.destroy() });
-  }
-  addLog(txt, col = '#fff') {
-    this.logHistory.unshift({ text: txt, color: col }); if (this.logHistory.length > 4) this.logHistory.pop();
-    this.logTexts.forEach(t => t.destroy()); this.logTexts = [];
-    this.logHistory.forEach((l, i) => { const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51); this.logTexts.push(t); });
-  }
-  
-  updateUnitView(u) {
-    const v = this.unitViews.get(u); if (!v) return;
-    let ratio = Math.max(0, u.hp / u.maxHp);
-    v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
-    v.hpText.setText(`${u.hp}/${u.maxHp}`);
-    this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
-    v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
-    if (!u.isAlive()) { v.container.setAlpha(0.25); }
-  }
-
-  fastForward() {
-    for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
-        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
-      }
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
-        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
-      }
-
-      this.allUnits.forEach(u => {
-        if (!u.isAlive()) return;
-        u.resetFollowups();
-        u.tickStatuses();
-      });
-
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
-        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
-      }
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
-        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
-      }
-
-      const order = BattleLogic.buildActionOrder(this.allUnits);
-      for (let a of order) {
-        if (!a.isAlive()) continue;
-        this.allUnits.forEach(u => u.applyAura(this.allUnits));
-        if (a.skipTurn) {
-          a.skipTurn = false;
-          const i = a.statuses.findIndex(s => STATUSES[s.id]?.isStun);
-          if (i !== -1) a.statuses.splice(i, 1);
-          continue;
-        }
-        const sk = BattleLogic.chooseSkill(a, this.allUnits);
-        if (!sk) continue;
-        BattleLogic.simulateSkill(a, sk, this.allUnits);
-
-        if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
-          this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
-        }
-        if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
-          this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
-        }
-      }
-    }
-    this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex });
-  }
-
-  endBattle(type) {
-    this.battleEnded = true;
-    const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    const t = this.add.text(CONFIG.WIDTH / 2, 250, txt[type], { fontSize: '60px', color: col[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
-    this.tweens.add({ targets: t, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 800 });
-    const b = this.add.text(CONFIG.WIDTH / 2, 450, '👉 点击继续', { fontSize: '28px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive().setDepth(201);
-    b.on('pointerdown', () => this.scene.start('ResultScene', { 
-      type, 
-      levelIndex: this.currentLevelIndex,
-      from: this.navFrom,
-      bookId: this.navBookId,
-      nodeIndex: this.navNodeIndex
-    }));
-  }
-}
-
-class ResultScene extends Phaser.Scene {
-  constructor() { super('ResultScene'); }
-  init(d) {
-    this.resultType = d ? d.type : 'victory'; 
-    this.currentLevelIndex = (d && d.levelIndex !== undefined) ? d.levelIndex : 0; 
-    this.navFrom = (d && d.from) ? d.from : 'direct';
-    this.navBookId = (d && d.bookId) ? d.bookId : '';
-    this.navNodeIndex = (d && d.nodeIndex !== undefined) ? d.nodeIndex : 0;
-  }
-  create() {
-    this.cameras.main.setBackgroundColor('#1a1a2e');
-    const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-
-    if (this.resultType === 'victory') {
-      const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
-      if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
-      if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
         try {
-          const inst = generateRandomInstance(lv.rewardItemId);
-          if (inst) {
-            const tpl = ITEMS[inst.itemId];
-            if (tpl && !['weapon', 'armor', 'accessory'].includes(tpl.category)) { const existing = INVENTORY.find(i => i.itemId === tpl.id && !i.equippedBy); if (existing && existing.count < (tpl.maxStack || 1)) existing.count++; else INVENTORY.push(inst); } 
-            else INVENTORY.push(inst);
-            const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
-            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
-            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 10, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
-          }
-        } catch (err) { console.error("掉落报错：", err); }
-      }
-      if(totalExp > 0) { this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 80, `全队获得 ${totalExp} 经验`, { fontSize: '24px', color: '#f1c40f' }).setOrigin(0.5); if(levelUpInfo.length > 0) { this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 120, levelUpInfo.join('，'), { fontSize: '20px', color: '#2ecc71' }).setOrigin(0.5); } }
-      localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
+            const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
+            globalExpTable = gc.expTable || [];
+            window.GROWTH_MODELS = gc.growthModels || [];
+        } catch(e) {}
+
+        renderCharList();
+        const players = CHARACTERS.filter(c => c.side === 'player');
+        if(players.length > 0) selectCharacter(players[0]);
+    };
+
+    window.closeCharacterUI = function() {
+        const uiContainer = document.getElementById('fullscreen-ui');
+        if (uiContainer) uiContainer.style.display = 'none';
+        window.hideTooltip();
+        window.hideDetailCard();
+        if (window.game && window.game.scene) {
+            const activeScenes = window.game.scene.getScenes(true);
+            activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
+        }
+    };
+
+    function renderCharList() {
+        const box = document.getElementById('ui-char-list');
+        if(!box) return;
+        box.innerHTML = '';
+        const players = CHARACTERS.filter(c => c.side === 'player');
+        
+        players.forEach(p => {
+            const btn = document.createElement('div');
+            btn.className = 'char-avatar-btn';
+            btn.style.cssText = "width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s; overflow: hidden;";
+            
+            if (p.avatarUrl) {
+                btn.style.background = `url('${p.avatarUrl}') center/cover`;
+                btn.innerHTML = '';
+            } else {
+                btn.innerHTML = p.emoji || '👤';
+            }
+
+            btn.onclick = () => selectCharacter(p);
+            if (selectedChar && selectedChar.id === p.id) btn.classList.add('active');
+            box.appendChild(btn);
+        });
     }
 
-    if (this.resultType === 'victory') {
-      if (this.navFrom === 'story') {
-        const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, '📖 繼續劇情', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
-        b.on('pointerdown', () => {
-          window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`;
-        });
-      } else {
-        let label = '➡️ 进入下一关';
-        let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
-        if (this.currentLevelIndex >= LEVELS.length - 1) {
-          label = '🏠 返回主選單';
-          action = () => { window.location.href = 'index.html'; };
+    function selectCharacter(charData) {
+        selectedChar = charData;
+        
+        // 🌟 核心修復：在傳給 Unit 之前，先將 allocatedStats 暫時合併到 stats 中，
+        // 讓底層 battle.js 的 Unit 類別能夠正確計算出攻擊、暴擊、氣血等屬性轉換！
+        let tempCharForUnit = JSON.parse(JSON.stringify(charData));
+        let finalStats = getFinalStatsForUI(charData);
+        tempCharForUnit.stats = finalStats;
+        
+        currentUnit = new Unit(tempCharForUnit); 
+        
+        document.querySelectorAll('.char-avatar-btn').forEach(b => b.classList.remove('active'));
+        const idx = CHARACTERS.filter(c=>c.side==='player').findIndex(c=>c.id === charData.id);
+        const listEl = document.getElementById('ui-char-list');
+        if(idx !== -1 && listEl && listEl.children[idx]) {
+            listEl.children[idx].classList.add('active');
         }
-        const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
-        b.on('pointerdown', action);
-      }
-    } else {
-      const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 140, CONFIG.HEIGHT / 2 + 200, '🔄 重新挑戰', { fontSize: '32px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
-      retryBtn.on('pointerdown', () => {
-        this.scene.start('FormationScene', { 
-          levelIndex: this.currentLevelIndex,
-          from: this.navFrom,
-          bookId: this.navBookId,
-          nodeIndex: this.navNodeIndex - 1 
-        });
-      });
 
-      const exitBtn = this.add.text(CONFIG.WIDTH / 2 + 140, CONFIG.HEIGHT / 2 + 200, '🚪 放棄撤退', { fontSize: '32px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
-      exitBtn.on('pointerdown', () => {
-        if (this.navFrom === 'story') {
-          window.location.href = 'story_menu.html';
+        refreshLeftPanel();
+        refreshRightPanel();
+    }
+
+    function refreshLeftPanel() {
+        const portraitEl = document.querySelector('.char-portrait');
+        if (portraitEl) {
+            const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
+            portraitEl.style.height = '380px';
+            portraitEl.style.background = `url('${bgImg}') top center/cover`;
+            
+            let infoOverlay = document.getElementById('portrait-info-overlay');
+            if (!infoOverlay) {
+                infoOverlay = document.createElement('div');
+                infoOverlay.id = 'portrait-info-overlay';
+                infoOverlay.style.cssText = "position: absolute; bottom: 0; left: 0; right: 0; padding: 15px 20px; background: linear-gradient(to top, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 60%, transparent 100%); display: flex; flex-direction: column; gap: 6px;";
+                portraitEl.appendChild(infoOverlay);
+            }
+
+            const cLv = selectedChar.level || 1;
+            const cExp = selectedChar.exp || 0;
+            const reqExp = getExpNeeded(cLv);
+            const pct = Math.min(100, (cExp / reqExp) * 100);
+
+            infoOverlay.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <h2 style="color: #f1c40f; font-size: 24px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
+                    <span style="color: #2ecc71; font-weight: bold; font-size: 16px;">Lv. ${cLv}</span>
+                </div>
+                <div>
+                    <div style="font-size: 10px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`}</div>
+                    <div style="width: 100%; height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;"><div style="width: ${pct}%; height: 100%; background: #3498db;"></div></div>
+                </div>
+            `;
+        }
+
+        let dynamicBox = document.getElementById('left-dynamic-content');
+        if (!dynamicBox) {
+            dynamicBox = document.createElement('div');
+            dynamicBox.id = 'left-dynamic-content';
+            dynamicBox.style.cssText = "flex: 1; padding: 12px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 10px;";
+            const leftPanel = document.getElementById('left-panel');
+            const charListArea = document.getElementById('ui-char-list');
+            leftPanel.insertBefore(dynamicBox, charListArea);
+        }
+
+        if (currentTab === 'skill') {
+            const fp = selectedChar.freePoints || 0;
+            const stats = getFinalStatsForUI(selectedChar);
+            const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
+            
+            let statsHtml = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <div style="color: #f1c40f; font-size: 13px; font-weight: bold;">剩余点数: ${fp}</div>
+                    <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-weight: bold;">重置意境</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            `;
+            Object.keys(statNames).forEach(k => {
+                statsHtml += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 6px; border: 1px solid #333;">
+                        <div><span style="color: #888; font-size: 12px;">${statNames[k]}</span><b style="color: #fff; margin-left: 4px; font-size: 13px;">${stats[k] || 0}</b></div>
+                        <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 20px; height: 20px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 12px;">+</button>
+                    </div>
+                `;
+            });
+            statsHtml += `</div>`;
+
+            let coreFourHtml = `
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 2px;">
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.maxHp}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.atk}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.def}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.speed.toFixed(1)}</b></div>
+                </div>
+            `;
+
+            dynamicBox.innerHTML = statsHtml + coreFourHtml;
+
         } else {
-          window.location.href = 'index.html';
+            dynamicBox.innerHTML = `<div style="color: #3498db; font-size: 13px; font-weight: bold; margin-bottom: 2px;">📦 装备槽位</div><div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;"></div>`;
+            renderEquipSlots();
         }
-      });
+
+        document.getElementById('detail-atk').innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">命中率</span> <b style="color: #fff;">${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
+        `;
+        document.getElementById('detail-def').innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">闪避率</span> <b style="color: #fff;">${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">韧性(抗暴)</span> <b style="color: #fff;">${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
+        `;
+        document.getElementById('detail-special').innerHTML = `
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">吸血</span> <b style="color: #fff;">${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">内力恢复</span> <b style="color: #fff;">+10% / 回合</b></div>
+        `;
     }
-  }
-}
 
-window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload(); } });
+    window.allocatePoint = function(statKey) {
+        if (!selectedChar.freePoints || selectedChar.freePoints <= 0) return;
+        
+        selectedChar.freePoints--;
+        if (!selectedChar.allocatedStats) selectedChar.allocatedStats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+        selectedChar.allocatedStats[statKey] = (selectedChar.allocatedStats[statKey] || 0) + 1;
+        
+        saveGameData();
+        selectCharacter(selectedChar);
+    };
 
-if (document.getElementById('game') && !window.game) {
-  window.game = new Phaser.Game({
-    type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-    scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
-  });
-}
+    window.resetCharacterStats = function() {
+        if (!selectedChar) return;
+        if (!selectedChar.allocatedStats) return;
+
+        let totalAllocated = 0;
+        Object.keys(selectedChar.allocatedStats).forEach(k => {
+            totalAllocated += (selectedChar.allocatedStats[k] || 0);
+            selectedChar.allocatedStats[k] = 0;
+        });
+
+        if (totalAllocated > 0) {
+            selectedChar.freePoints = (selectedChar.freePoints || 0) + totalAllocated;
+            saveGameData();
+            selectCharacter(selectedChar);
+            window.showToast('已成功重置意境加点，点数已全部返还！', '#e67e22');
+        } else {
+            window.showToast('当前没有手动分配的意境点数', '#888');
+        }
+    };
+
+    function renderEquipSlots() {
+        const container = document.getElementById('ui-equip-slots');
+        if(!container) return;
+        container.innerHTML = '';
+        
+        const slots = [
+            { key: 'weapon', name: '武器' },
+            { key: 'head', name: '头部' },
+            { key: 'body', name: '衣服' },
+            { key: 'legs', name: '腿部' },
+            { key: 'ring', name: '戒指' },
+            { key: 'necklace', name: '项链' }
+        ];
+        const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+
+        slots.forEach(slot => {
+            const uid = selectedChar.equipment ? selectedChar.equipment[slot.key] : '';
+            const inst = uid ? INVENTORY.find(i => i.uid === uid) : null;
+            const tpl = inst ? ITEMS[inst.itemId] : null;
+
+            const div = document.createElement('div');
+            div.className = 'equip-slot' + (inst ? '' : ' empty');
+            div.style.cssText = "height: 50px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            
+            if (inst && tpl) {
+                div.innerHTML = `
+                    <div class="eq-icon" style="font-size: 20px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 10px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;">${tpl.name}</div>
+                `;
+                div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
+                div.style.borderColor = qColors[inst.quality];
+            } else {
+                div.innerHTML = `<span style="font-size:11px; color:#777;">${slot.name}</span>`;
+            }
+            container.appendChild(div);
+        });
+    }
+
+    function refreshRightPanel() {
+        if (currentTab === 'inv') {
+            document.getElementById('inv-container').style.display = 'flex';
+            document.getElementById('skill-container').style.display = 'none';
+            renderInventory();
+        } else {
+            document.getElementById('inv-container').style.display = 'none';
+            document.getElementById('skill-container').style.display = 'flex';
+            renderSkills();
+        }
+    }
+
+    window.switchRightTab = function(tab) {
+        currentTab = tab;
+        document.getElementById('rt-btn-inv').classList.remove('active');
+        document.getElementById('rt-btn-skill').classList.remove('active');
+        document.getElementById('rt-btn-inv').style.background = '#1a1c29';
+        document.getElementById('rt-btn-inv').style.color = '#888';
+        document.getElementById('rt-btn-skill').style.background = '#1a1c29';
+        document.getElementById('rt-btn-skill').style.color = '#888';
+
+        if(tab === 'inv') {
+            document.getElementById('rt-btn-inv').classList.add('active');
+            document.getElementById('rt-btn-inv').style.background = '#3498db';
+            document.getElementById('rt-btn-inv').style.color = '#fff';
+        } else {
+            document.getElementById('rt-btn-skill').classList.add('active');
+            document.getElementById('rt-btn-skill').style.background = '#3498db';
+            document.getElementById('rt-btn-skill').style.color = '#fff';
+        }
+        
+        refreshLeftPanel();
+        refreshRightPanel();
+    };
+
+    window.setFilter = function(type, btn) {
+        currentFilter = type;
+        document.querySelectorAll('.filter-btn').forEach(b => {
+            b.classList.remove('active');
+            b.style.background = '#222';
+            b.style.borderColor = '#444';
+            b.style.color = '#aaa';
+            b.style.fontWeight = 'normal';
+        });
+        btn.classList.add('active');
+        btn.style.background = '#e67e22';
+        btn.style.borderColor = '#e67e22';
+        btn.style.color = '#fff';
+        btn.style.fontWeight = 'bold';
+        renderInventory();
+    };
+
+    function renderInventory() {
+        const grid = document.getElementById('inventory-grid');
+        if(!grid) return;
+        grid.innerHTML = '';
+        
+        const allItems = INVENTORY.filter(i => !i.equippedBy || i.equippedBy === '');
+        
+        const filteredItems = allItems.filter(inst => {
+            const tpl = ITEMS[inst.itemId];
+            if(!tpl) return false;
+            if(currentFilter === 'all') return true;
+            if(currentFilter === 'equip') return ['weapon', 'armor', 'accessory'].includes(tpl.category);
+            return tpl.category === currentFilter;
+        });
+
+        const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+
+        for (let i = 0; i < 200; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'inv-slot';
+            slot.style.cssText = "aspect-ratio: 1; background: #1a1c29; border: 2px solid #333; border-radius: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative; transition: border-color 0.2s;";
+
+            if (filteredItems[i]) {
+                const inst = filteredItems[i];
+                const itemTpl = ITEMS[inst.itemId];
+                if (itemTpl) {
+                    const countStr = (inst.count && inst.count > 1) ? `<div class="item-count" style="position: absolute; bottom: 4px; right: 4px; font-size: 14px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.8); padding: 2px 6px; border-radius: 6px;">x${inst.count}</div>` : '';
+                    slot.innerHTML = `
+                        <div class="item-icon" style="font-size: 36px; margin-bottom: 5px; border-bottom: 2px solid ${qColors[inst.quality] || '#fff'}">${itemTpl.icon || '📦'}</div>
+                        <div class="item-name" style="color:${qColors[inst.quality] || '#fff'}; font-size: 14px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px;">${itemTpl.name}</div>
+                        ${countStr}
+                    `;
+                    slot.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, itemTpl, false); };
+                }
+            } else {
+                slot.innerHTML = `<div style="color:#222; font-size:16px;">空</div>`;
+            }
+            grid.appendChild(slot);
+        }
+    }
+
+    function renderSkills() {
+        const box = document.getElementById('skill-container');
+        if(!box) return;
+        box.innerHTML = '';
+        
+        const slots = selectedChar.skillSlots || {};
+        const slotNames = { normal: '普攻', skill: '招式', ultimate: '绝技', followup: '追打', learned: '学习' };
+        
+        let hasSkill = false;
+        for (let key in slots) {
+            if (!slots[key]) continue;
+            const sk = SKILLS[slots[key]];
+            if (!sk) continue;
+            hasSkill = true;
+
+            const div = document.createElement('div');
+            div.className = 'skill-card';
+            div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 20px;";
+            
+            let desc = '';
+            if (sk.multiplier > 0) desc += `造成 ${(sk.multiplier * 100).toFixed(0)}% 攻击力伤害。 `;
+            if (sk.healMultiplier > 0) desc += `恢复 ${(sk.healMultiplier * 100).toFixed(0)}% 攻击力的生命。 `;
+            if (sk.mpCost > 0) desc += `消耗内力: ${sk.mpCost}%。 `;
+            if (sk.cooldown > 0) desc += `冷却: ${sk.cooldown} 回合。 `;
+            
+            let effectsStr = '';
+            if (sk.effects && sk.effects.length > 0) {
+                sk.effects.forEach(e => {
+                    if (e.type === 'status') effectsStr += `附加[${STATUSES[e.value]?.name || e.value}] `;
+                });
+            }
+
+            div.innerHTML = `
+                <div class="skill-header" style="display: flex; justify-content: space-between; font-weight: bold; color: #f1c40f; margin-bottom: 10px; font-size: 22px;">
+                    <span>[${slotNames[key] || key}] ${sk.name}</span>
+                    <span style="color:#888; font-size:18px;">${sk.element ? sk.element : ''}</span>
+                </div>
+                <div class="skill-desc" style="font-size: 18px; color: #bbb; line-height: 1.6;">${desc}<br>${effectsStr}</div>
+            `;
+            box.appendChild(div);
+        }
+        
+        if (!hasSkill) box.innerHTML = '<div style="color:#888; text-align:center; margin-top:50px; font-size:20px;">该角色尚未装备技能</div>';
+    }
+
+    window.showTooltip = function(inst, itemTpl, isEquipped) {
+        const tooltip = document.getElementById('item-tooltip');
+        const content = document.getElementById('tooltip-content');
+        const btn = document.getElementById('btn-item-action');
+        
+        let html = `
+            <div class="tt-title" style="font-size: 26px; font-weight: bold; margin-bottom: 8px; text-align: center; color:${getQualityColor(inst.quality)}">${itemTpl.name}</div>
+            <div class="tt-sub" style="font-size: 18px; color: #888; text-align: center; margin-bottom: 20px;">${itemTpl.category}</div>
+        `;
+
+        if (!['weapon', 'armor', 'accessory'].includes(itemTpl.category)) {
+            html += `<div style="margin:20px 0; font-size:20px; color:#ccc; text-align:center;">${itemTpl.desc || '暂无描述'}</div>`;
+            content.innerHTML = html;
+
+            if (itemTpl.category === 'consumable' && itemTpl.useEffect && itemTpl.useEffect !== 'None') {
+                btn.innerText = '使用';
+                btn.className = 'btn-action btn-use';
+                btn.style.background = '#2ecc71';
+                btn.onclick = () => window.useItem(inst, itemTpl);
+            } else {
+                btn.innerText = '关闭';
+                btn.className = 'btn-action btn-close';
+                btn.style.background = '#555';
+                btn.onclick = window.hideTooltip;
+            }
+        } else {
+            let slotKey = itemTpl.equipSlot || (itemTpl.category === 'weapon' ? 'weapon' : (itemTpl.category === 'armor' ? 'body' : 'ring'));
+            let equippedInst = null;
+            if (selectedChar.equipment && selectedChar.equipment[slotKey]) {
+                equippedInst = INVENTORY.find(i => i.uid === selectedChar.equipment[slotKey]);
+            }
+
+            html += `<div class="tt-stats" style="font-size: 20px; margin-top: 15px;">`;
+            const compareStats = (statName, currentVal, newVal, isPercent = false) => {
+                let diff = newVal - currentVal;
+                if (inst.uid === equippedInst?.uid) diff = 0;
+                
+                let diffStr = '';
+                if (diff > 0) diffStr = ` <span class="tt-diff-up" style="color: #2ecc71; font-weight: bold;">(▲ +${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
+                else if (diff < 0) diffStr = ` <span class="tt-diff-down" style="color: #e74c3c; font-weight: bold;">(▼ ${isPercent ? (diff*100).toFixed(1)+'%' : diff})</span>`;
+                
+                let newValStr = isPercent ? (newVal*100).toFixed(1)+'%' : newVal;
+                return `<div class="tt-row" style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span style="color: #888;">${statName}</span> <span class="tt-base" style="color: #fff;">${newValStr}${diffStr}</span></div>`;
+            };
+
+            if (inst.baseAtk || equippedInst?.baseAtk) html += compareStats('攻击力', equippedInst?.baseAtk || 0, inst.baseAtk || 0);
+            if (inst.baseDef || equippedInst?.baseDef) html += compareStats('防御力', equippedInst?.baseDef || 0, inst.baseDef || 0);
+            if (inst.baseHp || equippedInst?.baseHp) html += compareStats('生命值', equippedInst?.baseHp || 0, inst.baseHp || 0);
+
+            let allExtraStats = new Set();
+            if (inst.extras) inst.extras.forEach(ex => allExtraStats.add(ex.stat));
+            if (equippedInst && equippedInst.extras) equippedInst.extras.forEach(ex => allExtraStats.add(ex.stat));
+
+            if (allExtraStats.size > 0) {
+                html += `<div style="border-top:1px dashed #444; margin:15px 0;"></div>`;
+                const statNames = { atkPercent: '攻击力%', defPercent: '防御力%', hpPercent: '生命值%', critRate: '暴击率', critDmg: '暴击伤害', critResist: '抗暴率', hitRate: '命中率', dodgeRate: '闪避率', lifesteal: '吸血', speed: '速度', atkFlat:'攻击力', defFlat:'防御力', hpFlat:'生命值' };
+                
+                allExtraStats.forEach(stat => {
+                    let newVal = inst.extras ? (inst.extras.find(e => e.stat === stat)?.value || 0) : 0;
+                    let oldVal = equippedInst?.extras ? (equippedInst.extras.find(e => e.extras.find(e => e.stat === stat)?.value || 0)) : 0; // fallback safe
+                    let isPct = stat.includes('Percent') || ['critRate','critDmg','critResist','hitRate','dodgeRate','lifesteal'].includes(stat);
+                    html += compareStats(statNames[stat] || stat, oldVal, newVal, isPct);
+                });
+            }
+            html += `</div>`;
+            content.innerHTML = html;
+
+            if (isEquipped) {
+                btn.innerText = '脱下';
+                btn.className = 'btn-action btn-unequip';
+                btn.style.background = '#e74c3c';
+                btn.onclick = () => {
+                    inst.equippedBy = '';
+                    selectedChar.equipment[slotKey] = '';
+                    saveGameData();
+                    window.hideTooltip();
+                    selectCharacter(selectedChar);
+                };
+            } else {
+                btn.innerText = equippedInst ? '替换' : '穿戴';
+                btn.className = 'btn-action btn-equip';
+                btn.style.background = '#e67e22';
+                btn.onclick = () => {
+                    if (equippedInst) equippedInst.equippedBy = ''; 
+                    inst.equippedBy = selectedChar.id;
+                    if(!selectedChar.equipment) selectedChar.equipment = {};
+                    selectedChar.equipment[slotKey] = inst.uid;
+
+                    saveGameData();
+                    window.hideTooltip();
+                    selectCharacter(selectedChar);
+                };
+            }
+        }
+        tooltip.style.display = 'block';
+    };
+
+    window.useItem = function(inst, itemTpl) {
+        let leveledUp = false;
+        
+        if (itemTpl.useEffect === 'AddExp') {
+            leveledUp = addCharacterExp(selectedChar, itemTpl.useValue || 0);
+            window.showToast(`获得 ${itemTpl.useValue} 点经验！`, '#3498db');
+        } 
+        else if (itemTpl.useEffect === 'AddStat') {
+            if (!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+            const key = itemTpl.useStatKey;
+            if (key) {
+                selectedChar.stats[key] = (selectedChar.stats[key] || 0) + (itemTpl.useValue || 1);
+                const statName = {fengRui:'锋锐', hunHou:'浑厚', lingDong:'灵动', jianRen:'坚韧', guiMi:'诡秘', jueQing:'绝情'}[key] || key;
+                window.showToast(`${statName} 永久 +${itemTpl.useValue || 1}`, '#f1c40f');
+            }
+        }
+        else if (itemTpl.useEffect === 'PackageEquip' || itemTpl.useEffect === 'RandomEquip') {
+            alert('該道具功能暫未開放');
+            return; 
+        }
+
+        if (inst.count && inst.count > 1) {
+            inst.count -= 1;
+        } else {
+            const idx = INVENTORY.findIndex(i => i.uid === inst.uid);
+            if (idx !== -1) INVENTORY.splice(idx, 1);
+        }
+
+        saveGameData();
+        window.hideTooltip();
+        selectCharacter(selectedChar);
+        
+        if(leveledUp) {
+            setTimeout(() => window.showToast(`LEVEL UP! 升级到 Lv.${selectedChar.level}，获得 3 点意境点！`, '#f1c40f'), 1000);
+        }
+    };
+
+    window.hideTooltip = function() {
+        const tt = document.getElementById('item-tooltip');
+        if(tt) tt.style.display = 'none';
+    };
+
+    window.showDetailCard = function() {
+        const dc = document.getElementById('detail-card');
+        if(dc) dc.style.display = 'block';
+    };
+
+    window.hideDetailCard = function() {
+        const dc = document.getElementById('detail-card');
+        if(dc) dc.style.display = 'none';
+    };
+
+    function getQualityColor(q) {
+        const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+        return qc[q] || '#fff';
+    }
+
+    window.showToast = function(msg, color = '#2ecc71') {
+        const toast = document.getElementById('global-toast');
+        if(!toast) return;
+        toast.innerText = msg;
+        toast.style.background = color;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+    };
+
+    function saveGameData() {
+        localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
+        localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY));
+    }
+})();
