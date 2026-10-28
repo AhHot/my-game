@@ -323,8 +323,11 @@ class FormationScene extends Phaser.Scene {
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
+    
+    // 👤 人物與背包按鈕（完美保留與其他模組聯動）
     const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
     teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
+    
     this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
@@ -689,7 +692,6 @@ class ResultScene extends Phaser.Scene {
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
 
-    // 處理經驗值與裝備掉落獎勵
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
       if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
@@ -710,16 +712,13 @@ class ResultScene extends Phaser.Scene {
       localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
     }
 
-    // 🌟 智慧導航按鈕判定
     if (this.resultType === 'victory') {
       if (this.navFrom === 'story') {
-        // 劇情戰鬥勝利：跳出「📖 繼續劇情」
         const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, '📖 繼續劇情', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
         b.on('pointerdown', () => {
           window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`;
         });
       } else {
-        // 日常戰鬥勝利：跳出「➡️ 下一關」或「返回選關」
         let label = '➡️ 进入下一关';
         let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
         if (this.currentLevelIndex >= LEVELS.length - 1) {
@@ -730,14 +729,13 @@ class ResultScene extends Phaser.Scene {
         b.on('pointerdown', action);
       }
     } else {
-      // 戰鬥失敗：提供「🔄 重新挑戰」與「🚪 放棄/返回」雙按鈕
       const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 140, CONFIG.HEIGHT / 2 + 200, '🔄 重新挑戰', { fontSize: '32px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
       retryBtn.on('pointerdown', () => {
         this.scene.start('FormationScene', { 
           levelIndex: this.currentLevelIndex,
           from: this.navFrom,
           bookId: this.navBookId,
-          nodeIndex: this.navNodeIndex - 1 // 重試當前戰鬥節點
+          nodeIndex: this.navNodeIndex - 1 
         });
       });
 
