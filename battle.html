@@ -23,25 +23,55 @@
             display: block;
             touch-action: none !important;
         }
+
+        /* ★ 美化：左下角人物與背包按鈕 */
+        #btn-pack {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #8E44AD, #9B59B6);
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            border: 2px solid #D2B4DE;
+            border-radius: 30px;
+            box-shadow: 0 6px 20px rgba(155, 89, 182, 0.5);
+            cursor: pointer;
+            z-index: 100;
+            font-family: "Microsoft YaHei", sans-serif;
+            transition: transform 0.1s, box-shadow 0.1s;
+            touch-action: manipulation;
+        }
+        #btn-pack:active {
+            transform: scale(0.92);
+            box-shadow: 0 2px 10px rgba(155, 89, 182, 0.5);
+        }
     </style>
 </head>
 <body>
     <div id="game"></div>
+    
+    <!-- ★ 替換原本的 Phaser 文字，改用 HTML 按鈕 -->
+    <button id="btn-pack" onclick="window.openCharacterUI()">🎒 人物与背包</button>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
-    <script src="data.js"></script>
-    <script src="battle.js"></script>
-    <script src="character_system.js"></script>
-    <script src="tab_char.js"></script>
+    <script src="data.js?v=15"></script>
+    <script src="battle.js?v=15"></script>
+    <script src="character_system.js?v=15"></script>
+    <script src="tab_char.js?v=15"></script>
 
     <script>
+        setInterval(() => {
+            document.querySelectorAll('.phaser-dom-element').forEach(el => el.remove());
+        }, 500);
+
         const urlParams = new URLSearchParams(window.location.search);
         const targetLevelIndex = parseInt(urlParams.get('levelIndex') || '0');
         const navFrom = urlParams.get('from') || 'direct';
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        // ★ 核心改動：完全移除 dom 配置，使用純 Canvas 渲染！
         window.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'game',
@@ -70,9 +100,35 @@
                     });
                 }, 100);
             }
+
+            // ★★★ 核心修復：包裹原本的背包方法，使其完美適應手機屏幕並防卡死 ★★★
+            if (window.openCharacterUI) {
+                const originalOpen = window.openCharacterUI;
+                window.openCharacterUI = function() {
+                    try {
+                        originalOpen();
+                        const ui = document.getElementById('fullscreen-ui');
+                        if (ui) {
+                            // 強制讓背包 UI 使用和 Phaser Canvas 相同的縮放比例
+                            const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+                            ui.style.position = 'fixed';
+                            ui.style.transformOrigin = 'top left';
+                            ui.style.transform = `scale(${scale})`;
+                            ui.style.left = `${(window.innerWidth - 1280 * scale) / 2}px`;
+                            ui.style.top = `${(window.innerHeight - 720 * scale) / 2}px`;
+                            ui.style.zIndex = 9999;
+                        }
+                    } catch(e) {
+                        console.error("打開背包UI報錯：", e);
+                        // 如果報錯導致 UI 打不開，強制恢復遊戲輸入，防止畫面卡死
+                        if (window.game && window.game.scene) {
+                            window.game.scene.getScenes(true).forEach(s => { if(s.input) s.input.enabled = true; });
+                        }
+                    }
+                };
+            }
         });
 
-        // 劇情無縫接軌邏輯保持不變
         let isSeamlessPatched = false;
         const patchInterval = setInterval(() => {
             if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !isSeamlessPatched) {
