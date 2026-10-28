@@ -1,11 +1,11 @@
 // ============================================================
 // 模組：完整人物與背包系統 (character_system.js)
-// 完整還原 5大Tab、詳細屬性彈窗、裝備對比與道具互動
+// 完美支援：立繪高度600px、預設技能頁籤、左右聯動動態顯示
 // ============================================================
 (function() {
     let selectedChar = null;
     let currentUnit = null;
-    let currentTab = 'inv';
+    let currentTab = 'skill'; // 🌟 預設預設為技能介面
     let currentFilter = 'all';
     let globalExpTable = [];
 
@@ -22,46 +22,30 @@
         uiDiv.innerHTML = `
             <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
 
-            <!-- 左侧基础面板 -->
+            <!-- 左侧基础面板 (宽度固定 420px) -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
-                <div class="char-portrait" style="height: 230px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative;"></div>
-                <div class="char-info-area" style="flex: 1; padding: 20px 25px; display: flex; flex-direction: column; overflow-y: auto;">
-                    <div class="char-name-level" style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;">
-                        <h2 id="ui-char-name" style="color: #f1c40f; font-size: 28px; margin:0;">战士</h2>
-                        <span id="ui-char-level" style="color: #2ecc71; font-weight: bold; font-size: 20px;">Lv. 1</span>
-                    </div>
-                    
-                    <!-- 经验条 -->
-                    <div class="exp-container" style="margin-bottom: 20px;">
-                        <div class="exp-text" id="ui-exp-text" style="font-size: 12px; color: #888; text-align: right; margin-bottom: 4px;">0 / 100</div>
-                        <div class="exp-bar-bg" style="width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden;"><div class="exp-bar-fill" id="ui-exp-fill" style="width: 0%; height: 100%; background: #3498db; transition: width 0.3s ease;"></div></div>
-                    </div>
-
-                    <!-- 6大装备槽 -->
-                    <div class="equip-slots-container" id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;"></div>
-
-                    <div class="free-points-hint" id="ui-free-points" style="color: #f1c40f; font-size: 16px; margin-bottom: 10px; font-weight: bold; text-align: center;">剩余点数: 0</div>
-                    <div class="stat-grid" id="ui-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 16px; margin-bottom: 20px;"></div>
-
-                    <div class="core-four" id="ui-core-four" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 16px; font-weight: bold;">
-                        <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">气血(HP)<b id="ui-hp" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">3000</b></div>
-                        <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">攻击(ATK)<b id="ui-atk" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">400</b></div>
-                        <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">防御(DEF)<b id="ui-def" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">200</b></div>
-                        <div style="background: #1e2028; padding: 12px; border-radius: 10px; border: 1px solid #333; text-align: center;">速度(SPD)<b id="ui-spd" style="display: block; color: #e74c3c; margin-top: 4px; font-size: 20px;">10</b></div>
-                    </div>
-                </div>
-                <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 95px; flex-shrink: 0;"></div>
+                
+                <!-- 🌟 立繪高度改為 600px，寬度 420px -->
+                <div class="char-portrait" style="height: 600px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative; flex-shrink: 0;"></div>
+                
+                <!-- 底部固定或可滾動的底部角色頭像切換列 -->
+                <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
+                
+                <!-- 小箭頭彈出詳細訊息按鈕保持不變 -->
                 <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 40%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
             </div>
 
             <!-- 右侧区域 -->
             <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
+                
+                <!-- 🌟 Tab 順序對調：預設左側為技能，右側為背包 -->
                 <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
-                    <div class="rt-tab active" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">🎒 背包</div>
-                    <div class="rt-tab" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">📖 技能</div>
+                    <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
+                    <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
                 </div>
 
-                <div id="inv-container" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <!-- 背包介面容器 -->
+                <div id="inv-container" style="flex: 1; display: none; flex-direction: column; overflow: hidden;">
                     <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
                         <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 8px 20px; background: #e67e22; border: 1px solid #e67e22; border-radius: 20px; cursor: pointer; font-size: 18px; color: #fff; font-weight: bold;">全部</div>
                         <div class="filter-btn" onclick="window.setFilter('equip', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">装备</div>
@@ -72,17 +56,18 @@
                     <div id="inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 15px; align-content: start; padding-bottom: 20px;"></div>
                 </div>
 
-                <div id="skill-container" style="flex: 1; display: none; flex-direction: column; overflow-y: auto; gap: 15px; padding-bottom: 20px;"></div>
+                <!-- 技能介面容器 -->
+                <div id="skill-container" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; padding-bottom: 20px;"></div>
             </div>
 
-            <!-- 弹窗：物品详情 -->
+            <!-- 彈窗：物品詳情 -->
             <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideTooltip()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <div id="tooltip-content"></div>
                 <button class="btn-action btn-equip" id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
             </div>
 
-            <!-- 弹窗：详细属性 -->
+            <!-- 彈窗：詳細屬性 (小箭頭點擊彈出) -->
             <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
@@ -111,13 +96,14 @@
             baseStats.guiMi += (gm.guiMi || 0) * (lv-1);
             baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
         }
-        baseStats.fengRui = Math.floor(baseStats.fengRui);
-        baseStats.hunHou = Math.floor(baseStats.hunHou);
-        baseStats.lingDong = Math.floor(baseStats.lingDong);
-        baseStats.jianRen = Math.floor(baseStats.jianRen);
-        baseStats.guiMi = Math.floor(baseStats.guiMi);
-        baseStats.jueQing = Math.floor(baseStats.jueQing);
-        return baseStats;
+        return {
+            fengRui: Math.floor(baseStats.fengRui),
+            hunHou: Math.floor(baseStats.hunHou),
+            lingDong: Math.floor(baseStats.lingDong),
+            jianRen: Math.floor(baseStats.jianRen),
+            guiMi: Math.floor(baseStats.guiMi),
+            jueQing: Math.floor(baseStats.jueQing)
+        };
     }
 
     function getExpNeeded(level) {
@@ -187,7 +173,6 @@
             btn.className = 'char-avatar-btn';
             btn.style.cssText = "width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s; overflow: hidden;";
             
-            // 🌟 優先讀取自定義小頭像，若無則完美回退顯示 emoji
             if (p.avatarUrl) {
                 btn.style.background = `url('${p.avatarUrl}') center/cover`;
                 btn.innerHTML = '';
@@ -216,61 +201,100 @@
         refreshRightPanel();
     }
 
+    // 🌟 核心：根據右側 Tab 動態渲染左側面板（技能頁顯示意境與四維，背包頁顯示裝備槽）
     function refreshLeftPanel() {
-        document.getElementById('ui-char-name').innerText = selectedChar.name;
-        document.getElementById('ui-char-level').innerText = `Lv. ${selectedChar.level || 1}`;
-        
-        // 🌟 动态更新左侧面板的大立绘背景
+        // 1. 動態更新大立繪背景
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
             portraitEl.style.background = `url('${bgImg}') center/cover`;
-        }
+            
+            // 讓 600px 高度的立繪內部可以直接疊加顯示名字、等級、經驗條
+            let infoOverlay = document.getElementById('portrait-info-overlay');
+            if (!infoOverlay) {
+                infoOverlay = document.createElement('div');
+                infoOverlay.id = 'portrait-info-overlay';
+                infoOverlay.style.cssText = "position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; background: linear-gradient(to top, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 60%, transparent 100%); display: flex; flex-direction: column; gap: 8px;";
+                portraitEl.appendChild(infoOverlay);
+            }
 
-        const cLv = selectedChar.level || 1;
-        const cExp = selectedChar.exp || 0;
-        const reqExp = getExpNeeded(cLv);
-        const pct = Math.min(100, (cExp / reqExp) * 100);
-        
-        document.getElementById('ui-exp-text').innerText = cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`;
-        document.getElementById('ui-exp-fill').style.width = `${pct}%`;
+            const cLv = selectedChar.level || 1;
+            const cExp = selectedChar.exp || 0;
+            const reqExp = getExpNeeded(cLv);
+            const pct = Math.min(100, (cExp / reqExp) * 100);
 
-        document.getElementById('ui-hp').innerText = currentUnit.maxHp;
-        document.getElementById('ui-atk').innerText = currentUnit.atk;
-        document.getElementById('ui-def').innerText = currentUnit.def;
-        document.getElementById('ui-spd').innerText = currentUnit.speed.toFixed(1);
-
-        const fp = selectedChar.freePoints || 0;
-        document.getElementById('ui-free-points').innerText = `剩余点数: ${fp}`;
-        
-        const stats = getFinalStatsForUI(selectedChar);
-        const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
-        
-        let statsHtml = '';
-        Object.keys(statNames).forEach(k => {
-            statsHtml += `
-                <div class="stat-item" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #333; padding-bottom: 6px;">
-                    <div><span style="color: #888;">${statNames[k]}</span> <b style="color: #fff; margin-right: 5px;">${stats[k] || 0}</b></div>
-                    <button class="add-point-btn" ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
+            infoOverlay.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <h2 style="color: #f1c40f; font-size: 26px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
+                    <span style="color: #2ecc71; font-weight: bold; font-size: 18px;">Lv. ${cLv}</span>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`}</div>
+                    <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;"><div style="width: ${pct}%; height: 100%; background: #3498db;"></div></div>
                 </div>
             `;
-        });
-        document.getElementById('ui-stats-grid').innerHTML = statsHtml;
+        }
 
-        renderEquipSlots();
+        // 2. 檢查舊的動態控制容器是否存在，若無則在 portraitEl 下方建立一個專門裝「動態切換內容」的容器
+        let dynamicBox = document.getElementById('left-dynamic-content');
+        if (!dynamicBox) {
+            dynamicBox = document.createElement('div');
+            dynamicBox.id = 'left-dynamic-content';
+            dynamicBox.style.cssText = "flex: 1; padding: 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 15px;";
+            // 插在立繪下方、頭像列表上方
+            const leftPanel = document.getElementById('left-panel');
+            const charListArea = document.getElementById('ui-char-list');
+            leftPanel.insertBefore(dynamicBox, charListArea);
+        }
 
+        // 3. 根據當前右側頁籤（currentTab）來決定左側顯示什麼內容
+        if (currentTab === 'skill') {
+            // 🌟 顯示：意境加點 + 四大基礎數值
+            const fp = selectedChar.freePoints || 0;
+            const stats = getFinalStatsForUI(selectedChar);
+            const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
+            
+            let statsHtml = `<div style="color: #f1c40f; font-size: 14px; font-weight: bold;">剩余点数: ${fp}</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+            Object.keys(statNames).forEach(k => {
+                statsHtml += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 6px; border: 1px solid #333;">
+                        <div><span style="color: #888; font-size: 13px;">${statNames[k]}</span><b style="color: #fff; margin-left: 5px; font-size: 14px;">${stats[k] || 0}</b></div>
+                        <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
+                    </div>
+                `;
+            });
+            statsHtml += `</div>`;
+
+            let coreFourHtml = `
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 5px;">
+                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.maxHp}</b></div>
+                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.atk}</b></div>
+                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.def}</b></div>
+                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.speed.toFixed(1)}</b></div>
+                </div>
+            `;
+
+            dynamicBox.innerHTML = statsHtml + coreFourHtml;
+
+        } else {
+            // 🌟 顯示：6個裝備欄位
+            dynamicBox.innerHTML = `<div style="color: #3498db; font-size: 14px; font-weight: bold; margin-bottom: 2px;">📦 装备槽位</div><div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;"></div>`;
+            renderEquipSlots();
+        }
+
+        // 4. 更新小箭頭彈出視窗的數值內容
         document.getElementById('detail-atk').innerHTML = `
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">命中率</span> <b style="color: #fff;">${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">命中率</span> <b style="color: #fff;">${(currentUnit.hitRate * 100).toFixed(1)}%</b></div>
         `;
         document.getElementById('detail-def').innerHTML = `
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">闪避率</span> <b style="color: #fff;">${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">韧性(抗暴)</span> <b style="color: #fff;">${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">闪避率</span> <b style="color: #fff;">${(currentUnit.dodgeRate * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">韧性(抗暴)</span> <b style="color: #fff;">${(currentUnit.critResist * 100).toFixed(1)}%</b></div>
         `;
         document.getElementById('detail-special').innerHTML = `
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">吸血</span> <b style="color: #fff;">${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
-            <div class="detail-item" style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">内力恢复</span> <b style="color: #fff;">+10% / 回合</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">吸血</span> <b style="color: #fff;">${(currentUnit.lifesteal * 100).toFixed(1)}%</b></div>
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">内力恢复</span> <b style="color: #fff;">+10% / 回合</b></div>
         `;
     }
 
@@ -307,17 +331,17 @@
 
             const div = document.createElement('div');
             div.className = 'equip-slot' + (inst ? '' : ' empty');
-            div.style.cssText = "height: 65px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            div.style.cssText = "height: 55px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
             
             if (inst && tpl) {
                 div.innerHTML = `
-                    <div class="eq-icon" style="font-size: 28px;">${tpl.icon || '📦'}</div>
-                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 13px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 4px;">${tpl.name}</div>
+                    <div class="eq-icon" style="font-size: 22px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 11px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;">${tpl.name}</div>
                 `;
                 div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
                 div.style.borderColor = qColors[inst.quality];
             } else {
-                div.innerHTML = `<span>${slot.name}</span>`;
+                div.innerHTML = `<span style="font-size:12px; color:#777;">${slot.name}</span>`;
             }
             container.appendChild(div);
         });
@@ -353,6 +377,9 @@
             document.getElementById('rt-btn-skill').style.background = '#3498db';
             document.getElementById('rt-btn-skill').style.color = '#fff';
         }
+        
+        // 🌟 每次切換 Tab 時，同步動態更新左側面板的顯示內容
+        refreshLeftPanel();
         refreshRightPanel();
     };
 
