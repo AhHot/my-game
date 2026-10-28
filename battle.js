@@ -253,25 +253,25 @@ const BattleLogic = {
   }
 };
 
-// 🌟 保證美觀且 100% 不會掛掉的頭像繪製函式：兼具微圓角框與文字/圖示降級容錯
+// 🌟 修正圖層順序：確保圖片載入後擁有最高層級，絕不被底色蓋住
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const half = size / 2;
   const radius = 10; // 微圓角
 
-  // 1. 底色矩形框
+  // 1. 底色矩形框（最底層）
   const elementColor = Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color;
   const rectBg = scene.add.rectangle(0, 0, size, size, elementColor);
   rectBg.setStrokeStyle(3, 0xffffff, 0.9);
   container.add(rectBg);
 
-  // 2. 若無 avatarUrl，直接以角色名稱首字作為高質感顯示，絕不變成純色方塊
+  // 2. 若無 avatarUrl，顯示名稱首字作為高質感備用
   if (!dataOrUnit.avatarUrl) {
     const fallbackText = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { fontSize: '28px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     container.add(fallbackText);
     return;
   }
 
-  // 3. 安全嘗試載入圖片
+  // 3. 載入圖片並強制覆蓋在底色上方
   const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Math.floor(Math.random() * 100000);
   if (scene.textures.exists(key)) {
     const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
@@ -279,9 +279,8 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
     maskShape.fillStyle(0xffffff);
     maskShape.fillRoundedRect(-half, -half, size, size, radius);
     avatarImg.setMask(maskShape.createGeometryMask());
-    container.add(avatarImg);
+    container.add(avatarImg); // 新增到容器最上層
   } else {
-    // 建立備用文字（在圖片載入成功前先顯示）
     const tempText = scene.add.text(0, 0, (dataOrUnit.name || '').substring(0, 1), { fontSize: '24px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     container.add(tempText);
 
@@ -298,12 +297,9 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
           maskShape.fillStyle(0xffffff);
           maskShape.fillRoundedRect(-half, -half, size, size, radius);
           avatarImg.setMask(maskShape.createGeometryMask());
-          container.add(avatarImg);
+          container.add(avatarImg); // 確保加到最上層
         }
       }
-    };
-    imgObj.onerror = () => {
-      // 圖片載入失敗時保留文字，保持畫面美觀
     };
   }
 }
@@ -379,7 +375,6 @@ class FormationScene extends Phaser.Scene {
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
     
-    // 👤 人物與背包按鈕（完美保留）
     const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
     teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
     
