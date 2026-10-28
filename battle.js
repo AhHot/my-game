@@ -366,9 +366,9 @@ class FormationScene extends Phaser.Scene {
             }
           }
         };
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+        c.add(this.add.text(0, 0, data.emoji || '', { fontSize: '48px' }).setOrigin(0.5));
       } else {
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+        c.add(this.add.text(0, 0, data.emoji || '', { fontSize: '48px' }).setOrigin(0.5));
       }
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
@@ -491,7 +491,7 @@ class BattleScene extends Phaser.Scene {
     // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
     if (unit.avatarUrl) {
       const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
-      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      const emojiText = this.add.text(0, 0, unit.emoji || '', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
       c.add(emojiText);
 
       const imgObj = new Image();
@@ -508,7 +508,7 @@ class BattleScene extends Phaser.Scene {
         }
       };
     } else {
-      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      const emoji = this.add.text(0, 0, unit.emoji || '', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
       c.add(emoji);
     }
 
