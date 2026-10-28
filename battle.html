@@ -23,7 +23,8 @@
         <div id="game"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <!-- ★ 改動 1：Phaser 升級到 3.70.0，才支援 DOM 元素加入 Container -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <script src="data.js"></script>
     <script src="battle.js"></script>
     <script src="character_system.js"></script>
@@ -61,6 +62,8 @@
                 width: 1280,
                 height: 720
             },
+            // ★ 改動 2：啟用 DOM 容器，讓 scene.add.dom 能正確渲染頭像
+            dom: { createContainer: true },
             scene: [FormationScene, BattleScene, ResultScene],
         });
 
