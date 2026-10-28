@@ -251,58 +251,18 @@ const BattleLogic = {
   }
 };
 
-// 🌟 絕對不出錯的修復版：確保圖片完全載入後，直接蓋在最上層，且拿掉會遮住圖片的純色方塊填滿
+// 🌟 使用 Phaser DOM 元素渲染真實 HTML <img> 標籤（完美解決非同步、閃爍與覆蓋問題）
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
-  const half = size / 2;
   const radius = 10; // 微圓角
+  const color = getElementInfo(dataOrUnit.element).color;
 
-  // 1. 只畫外框裝飾，不填滿色彩，避免把內部圖片遮住
-  const elementColor = Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color;
-  const borderRect = scene.add.rectangle(0, 0, size, size).setStrokeStyle(3, elementColor, 1);
-  container.add(borderRect);
+  const htmlContent = dataOrUnit.avatarUrl 
+    ? `<img src="${dataOrUnit.avatarUrl}" crossorigin="anonymous" style="width: ${size}px; height: ${size}px; border-radius: ${radius}px; object-fit: cover; border: 3px solid ${color}; display: block; box-sizing: border-box; background: ${color};" />`
+    : `<div style="width: ${size}px; height: ${size}px; border-radius: ${radius}px; background: ${color}; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #fff; text-shadow: 1px 1px 2px #000; box-sizing: border-box;">${(dataOrUnit.name || '角').substring(0, 1)}</div>`;
 
-  // 2. 如果沒有 avatarUrl，才顯示名字首字
-  if (!dataOrUnit.avatarUrl) {
-    const fallbackText = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { fontSize: '28px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-    container.add(fallbackText);
-    return;
-  }
-
-  // 3. 有圖片網址時，透過快取或非同步安全載入
-  const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Math.floor(Math.random() * 100000);
-  if (scene.textures.exists(key)) {
-    const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-    const maskShape = scene.make.graphics();
-    maskShape.fillStyle(0xffffff);
-    maskShape.fillRoundedRect(-half, -half, size, size, radius);
-    avatarImg.setMask(maskShape.createGeometryMask());
-    container.add(avatarImg);
-  } else {
-    // 預先放個空白佔位或文字
-    const tempText = scene.add.text(0, 0, (dataOrUnit.name || '').substring(0, 1), { fontSize: '20px', color: '#888' }).setOrigin(0.5);
-    container.add(tempText);
-
-    const imgObj = new Image();
-    imgObj.crossOrigin = 'anonymous';
-    imgObj.src = dataOrUnit.avatarUrl;
-    imgObj.onload = () => {
-      if (scene && scene.textures && !scene.textures.exists(key)) {
-        scene.textures.addImage(key, imgObj);
-        if (container && container.active) {
-          tempText.destroy(); // 成功載入後移除佔位文字
-          const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-          const maskShape = scene.make.graphics();
-          maskShape.fillStyle(0xffffff);
-          maskShape.fillRoundedRect(-half, -half, size, size, radius);
-          avatarImg.setMask(maskShape.createGeometryMask());
-          container.add(avatarImg); // 強制加到最前端
-        }
-      }
-    };
-    imgObj.onerror = () => {
-      // 載入失敗保留文字
-    };
-  }
+  const domElem = scene.add.dom(0, 0, 'div', '', htmlContent);
+  domElem.setOrigin(0.5, 0.5);
+  container.add(domElem);
 }
 
 function generateRandomInstance(templateId) {
@@ -812,6 +772,7 @@ if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
+    dom: { createContainer: true }, // 🌟 啟用 HTML DOM 容器，保證圖片完美載入不閃爍
     scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
   });
 }
