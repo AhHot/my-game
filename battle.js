@@ -313,6 +313,14 @@ class FormationScene extends Phaser.Scene {
     this.navBookId = (data && data.bookId) ? data.bookId : '';
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
+  preload() {
+    // 預先動態載入所有有上傳 avatarUrl 的圖片，防止直接渲染失敗
+    CHARACTERS.forEach(c => {
+      if (c.avatarUrl && !this.textures.exists('avatar_' + c.id)) {
+        this.load.image('avatar_' + c.id, c.avatarUrl);
+      }
+    });
+  }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -347,7 +355,22 @@ class FormationScene extends Phaser.Scene {
     CHARACTERS.filter(c => c.side === 'player').forEach(data => {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
-      c.add([this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9), this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5), this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5)]); 
+      
+      const circle = this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      c.add(circle);
+
+      // 🌟 布陣頭像判斷：若有上傳 avatarUrl 且紋理存在則用圖片遮罩/裁切，否則顯示 emoji
+      if (data.avatarUrl && this.textures.exists('avatar_' + data.id)) {
+        const avatarImg = this.add.image(0, 0, 'avatar_' + data.id).setDisplaySize(80, 80).setOrigin(0.5);
+        const maskShape = this.make.graphics().fillStyle(0xffffff).beginPath().arc(0, 0, 40, 0, Math.PI * 2).fillPath();
+        avatarImg.setMask(maskShape.createGeometryMask());
+        c.add(avatarImg);
+      } else {
+        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+      }
+
+      c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
+
       c.setSize(80, 80).setInteractive({ draggable: true }); this.input.setDraggable(c);
       c.unitData = data; c.isOnGrid = false; this.unitContainers.push(c);
       c.on('dragstart', () => { if (c.isOnGrid) { for (let y = data.gridY; y < data.gridY + data.sizeY; y++) for (let x = data.gridX; x < data.gridX + data.sizeX; x++) this.gridState[y][x] = null; } c.setDepth(100); });
@@ -384,6 +407,13 @@ class BattleScene extends Phaser.Scene {
   preload() {
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
+    
+    // 預先載入所有我方與敵方角色的 avatarUrl 圖片
+    CHARACTERS.forEach(c => {
+      if (c.avatarUrl && !this.textures.exists('avatar_' + c.id)) {
+        this.load.image('avatar_' + c.id, c.avatarUrl);
+      }
+    });
   }
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
@@ -459,14 +489,22 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     
-    const isEnemy = unit.side === 'enemy';
-    const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
-    const baseH = r * 0.8; const baseW = r * 2.2;
-    const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25).setStrokeStyle(2, baseColor, 0.8);
-    c.add(baseEllipse);
+    // 🌟 已完整刪除戰鬥角色光環底座（baseEllipse）
 
     const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+    c.add(circle);
+
+    // 🌟 戰鬥頭像判斷：若有上傳 avatarUrl 且紋理存在則用圖片顯示，否則回退顯示 emoji
+    if (unit.avatarUrl && this.textures.exists('avatar_' + unit.id)) {
+      const avatarImg = this.add.image(0, 0, 'avatar_' + unit.id).setDisplaySize(r * 2, r * 2).setOrigin(0.5);
+      const maskShape = this.make.graphics().fillStyle(0xffffff).beginPath().arc(0, 0, r, 0, Math.PI * 2).fillPath();
+      avatarImg.setMask(maskShape.createGeometryMask());
+      c.add(avatarImg);
+    } else {
+      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      c.add(emoji);
+    }
+
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
     const bw = Math.min(cell * scale * 0.85, 100); 
@@ -481,8 +519,8 @@ class BattleScene extends Phaser.Scene {
     const mpText = this.add.text(bw/2 + 5, r + 44, '', { fontSize: '9px', color: '#88ccff' }).setOrigin(0, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
-    c.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    this.unitViews.set(unit, { container: c, circle, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -609,7 +647,7 @@ class BattleScene extends Phaser.Scene {
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
     v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
-    if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
+    if (!u.isAlive()) { v.container.setAlpha(0.25); }
   }
 
   fastForward() {
@@ -689,7 +727,6 @@ class ResultScene extends Phaser.Scene {
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
 
-    // 處理經驗值與裝備掉落獎勵
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
       if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
@@ -710,16 +747,13 @@ class ResultScene extends Phaser.Scene {
       localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
     }
 
-    // 🌟 智慧導航按鈕判定
     if (this.resultType === 'victory') {
       if (this.navFrom === 'story') {
-        // 劇情戰鬥勝利：跳出「📖 繼續劇情」
         const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, '📖 繼續劇情', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
         b.on('pointerdown', () => {
           window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`;
         });
       } else {
-        // 日常戰鬥勝利：跳出「➡️ 下一關」或「返回選關」
         let label = '➡️ 进入下一关';
         let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
         if (this.currentLevelIndex >= LEVELS.length - 1) {
@@ -730,14 +764,13 @@ class ResultScene extends Phaser.Scene {
         b.on('pointerdown', action);
       }
     } else {
-      // 戰鬥失敗：提供「🔄 重新挑戰」與「🚪 放棄/返回」雙按鈕
       const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 140, CONFIG.HEIGHT / 2 + 200, '🔄 重新挑戰', { fontSize: '32px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
       retryBtn.on('pointerdown', () => {
         this.scene.start('FormationScene', { 
           levelIndex: this.currentLevelIndex,
           from: this.navFrom,
           bookId: this.navBookId,
-          nodeIndex: this.navNodeIndex - 1 // 重試當前戰鬥節點
+          nodeIndex: this.navNodeIndex - 1 
         });
       });
 
