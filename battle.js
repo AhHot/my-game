@@ -252,59 +252,99 @@ const BattleLogic = {
 };
 
 // ============================================================
-// ★★★ 角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
+// ★★★ 全新方案：純 Canvas 繪製圓角頭像，完美解決飛出畫面的問題 ★★★
 // ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const radius = 10;
-  const borderColor = '#444';
-  const bgColor = '#222';
+  const borderColor = 0x444444;
+  const bgColor = 0x222222;
+
+  const g = scene.add.graphics();
+  g.fillStyle(bgColor, 1);
+  g.fillRoundedRect(-size/2, -size/2, size, size, radius);
+  container.add(g);
+
+  function drawBorder() {
+    if (!container.active) return;
+    const borderG = scene.add.graphics();
+    borderG.lineStyle(2, borderColor, 1);
+    borderG.strokeRoundedRect(-size/2, -size/2, size, size, radius);
+    container.add(borderG);
+  }
+
+  function fallback() {
+    if (!container.active) return;
+    const txtStr = dataOrUnit.emoji || (dataOrUnit.name || '角').substring(0, 1);
+    const txt = scene.add.text(0, 0, txtStr, {
+      fontSize: Math.round(size * 0.55) + 'px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+      fontFamily: 'Microsoft YaHei, sans-serif'
+    }).setOrigin(0.5);
+    container.add(txt);
+    drawBorder();
+  }
+
   const imgSrc = dataOrUnit.avatarUrl || '';
-
-  let innerContent = '';
-  let bgStyle = `background-color: ${bgColor};`;
-
+  
   if (imgSrc) {
-    bgStyle = `background: ${bgColor} url('${imgSrc}') center/cover no-repeat;`;
+    const textureKey = `avatar_${dataOrUnit.id || 'unk'}_${size}`;
+    
+    if (scene.textures.exists(textureKey)) {
+      const img = scene.add.image(0, 0, textureKey);
+      container.add(img);
+      drawBorder();
+    } else {
+      const img = new Image();
+      // 去掉 crossOrigin 避免某些手機瀏覽器直接封鎖跨域圖片加載
+      img.src = imgSrc;
+      
+      img.onload = () => {
+        if (scene.textures.exists(textureKey)) {
+          if (!container.active) return;
+          const sprite = scene.add.image(0, 0, textureKey);
+          container.add(sprite);
+          drawBorder();
+          return;
+        }
+        
+        const cvs = scene.textures.createCanvas(textureKey, size, size);
+        if (!cvs) return;
+        const ctx = cvs.getContext();
+        
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(size - radius, 0);
+        ctx.quadraticCurveTo(size, 0, size, radius);
+        ctx.lineTo(size, size - radius);
+        ctx.quadraticCurveTo(size, size, size - radius, size);
+        ctx.lineTo(radius, size);
+        ctx.quadraticCurveTo(0, size, 0, size - radius);
+        ctx.lineTo(0, radius);
+        ctx.quadraticCurveTo(0, 0, radius, 0);
+        ctx.closePath();
+        ctx.clip();
+        
+        const scale = Math.max(size / img.width, size / img.height);
+        const drawW = img.width * scale;
+        const drawH = img.height * scale;
+        const offsetX = (size - drawW) / 2;
+        const offsetY = (size - drawH) / 2;
+        
+        ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+        cvs.refresh();
+        
+        if (!container.active) return;
+        const sprite = scene.add.image(0, 0, textureKey);
+        container.add(sprite);
+        drawBorder();
+      };
+      
+      img.onerror = () => { fallback(); };
+    }
   } else {
-    innerContent = dataOrUnit.emoji || (dataOrUnit.name || '角').substring(0, 1);
+    fallback();
   }
-
-  const htmlContent = `
-    <div style="
-      width: ${size}px;
-      height: ${size}px;
-      border-radius: ${radius}px;
-      border: 2px solid ${borderColor};
-      ${bgStyle}
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: ${Math.round(size * 0.55)}px;
-      box-sizing: border-box;
-      overflow: hidden;
-      color: #fff;
-      font-weight: bold;
-      pointer-events: none;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      -webkit-touch-callout: none;
-      font-family: 'Microsoft YaHei', sans-serif;
-    ">${innerContent}</div>
-  `;
-
-  const domElem = scene.add.dom(0, 0).createFromHTML(htmlContent);
-  domElem.setOrigin(0.5, 0.5);
-
-  if (domElem.node) {
-    domElem.node.style.pointerEvents = 'none';
-    domElem.node.style.touchAction = 'none';
-    domElem.node.style.userSelect = 'none';
-    domElem.node.style.webkitUserSelect = 'none';
-    domElem.node.style.webkitTouchCallout = 'none';
-  }
-
-  container.add(domElem);
 }
 
 function generateRandomInstance(templateId) {
@@ -359,12 +399,6 @@ class MainMenuScene extends Phaser.Scene {
   }
 }
 
-// ============================================================
-// ★★★ 核心修复：FormationScene（用透明 Rectangle 作拖拽代理） ★★★
-//   原因：Container 里有 DOMElement 时，getBounds() 会算错，导致 hitArea 错位。
-//   解法：在 Container 里额外放一个透明的 Rectangle 覆盖头像区域，
-//         把 setInteractive / setDraggable 绑在 Rectangle 上，彻底绕开 getBounds 计算。
-// ============================================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) {
@@ -380,7 +414,8 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
     const lv = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    this.add.text(20, 20, `v14.0 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
+    // ★★★ 確認版本號：如果你在手機上沒看到 v15.0，說明手機加載的還是舊文件！★★★
+    this.add.text(20, 20, `v15.0 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
     const editBtn = this.add.text(CONFIG.WIDTH - 180, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
@@ -413,12 +448,9 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
 
-      // 1. 視覺：頭像 + 名字
       createCharacterAvatarView(this, c, data, 84);
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
-      // 2. ★ 交互：額外放一個透明 Rectangle 覆蓋頭像區域（84×84）
-      //    把 setInteractive / setDraggable 都綁在它身上，避開 Container.getBounds() 對 DOM 計算出錯的問題
       const hitZone = this.add.rectangle(0, 0, 84, 84, 0x000000, 0.001);
       c.add(hitZone);
       hitZone.setInteractive({ draggable: true });
@@ -427,7 +459,6 @@ class FormationScene extends Phaser.Scene {
       c.unitData = data; c.isOnGrid = false; c.hitZone = hitZone;
       this.unitContainers.push(c);
 
-      // 3. 所有拖拽事件綁在 hitZone 上
       hitZone.on('dragstart', () => {
         if (c.isOnGrid) {
           for (let y = data.gridY; y < data.gridY + data.sizeY; y++)
@@ -437,7 +468,6 @@ class FormationScene extends Phaser.Scene {
         c.setDepth(100);
       });
       hitZone.on('drag', (p, dragX, dragY) => {
-        // dragX, dragY 是「拖拽目標的世界座標」，直接賦值給 Container 即可
         c.x = dragX;
         c.y = dragY;
       });
@@ -857,7 +887,6 @@ if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-    dom: { createContainer: true, pointerEvents: 'none' },
     input: {
       activePointers: 3,
       touch: { capture: true }
