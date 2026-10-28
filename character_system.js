@@ -152,7 +152,7 @@
         if (typeof CHARACTERS === 'undefined') return;
 
         try {
-            const gc = JSON.parse(localStorage.getItem('my_game_config'] || '{}');
+            const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
             globalExpTable = gc.expTable || [];
             window.GROWTH_MODELS = gc.growthModels || [];
         } catch(e) {}
