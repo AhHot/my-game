@@ -6,38 +6,27 @@
     <title>武俠 - 戰前布陣與戰鬥</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
-
-        /* ★ 手機觸控修復：禁用瀏覽器手勢接管，讓 Phaser 完整接收 touch 事件 */
         html, body {
             width: 100%; height: 100%; overflow: hidden;
             background-color: #0f0f1a;
             font-family: "Microsoft YaHei", sans-serif;
-            position: relative;
             touch-action: none;
             -webkit-touch-callout: none;
             -webkit-tap-highlight-color: transparent;
             overscroll-behavior: none;
         }
-
-        #game-scale-container {
-            position: absolute; top: 0; left: 0;
-            width: 1280px; height: 720px;
-            transform-origin: 0 0;
-            z-index: 10;
+        #game {
+            width: 100vw; height: 100vh;
+            touch-action: none;
         }
-        #game { width: 1280px; height: 720px; position: absolute; inset: 0; }
-
-        /* ★ canvas 與 Phaser DOM 容器都禁用 touch-action */
-        #game, #game canvas { touch-action: none; }
-
-        /* ★ 強制 Phaser 自動產生的 DOM 容器不攔截任何事件 */
-        #game > div { pointer-events: none !important; touch-action: none !important; }
+        #game canvas {
+            display: block;
+            touch-action: none !important;
+        }
     </style>
 </head>
 <body>
-    <div id="game-scale-container">
-        <div id="game"></div>
-    </div>
+    <div id="game"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <script src="data.js"></script>
@@ -46,41 +35,20 @@
     <script src="tab_char.js"></script>
 
     <script>
-        function resizeGameUI() {
-            const container = document.getElementById('game-scale-container');
-            const scaleX = window.innerWidth / 1280;
-            const scaleY = window.innerHeight / 720;
-            const scale = Math.min(scaleX, scaleY);
-            
-            container.style.transform = `scale(${scale})`;
-            const scaledWidth = 1280 * scale;
-            const scaledHeight = 720 * scale;
-            container.style.left = (window.innerWidth - scaledWidth) / 2 + 'px';
-            container.style.top = (window.innerHeight - scaledHeight) / 2 + 'px';
-        }
-
-        window.addEventListener('resize', resizeGameUI);
-
         const urlParams = new URLSearchParams(window.location.search);
         const targetLevelIndex = parseInt(urlParams.get('levelIndex') || '0');
         const navFrom = urlParams.get('from') || 'direct';
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
-        // ============================================================
-        // 初始化 Phaser 遊戲實例
-        // ★ 手機拖拽修復重點：
-        //   1. dom: { createContainer: true }  啟用 DOM 支援
-        //   2. dom: { pointerEvents: 'none' }  讓 Phaser 建立的 DOM 容器完全不攔截事件
-        //   3. input.touch.capture = true      強制捕獲 touch 事件
-        //   4. callbacks.postBoot              啟動後再保險地把 domContainer 的 pointerEvents 設成 none
-        // ============================================================
         window.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'game',
             backgroundColor: '#0f0f1a',
+            // ★ 核心改動：使用 Phaser.Scale.FIT 讓引擎自動處理縮放與座標映射
             scale: {
-                mode: Phaser.Scale.NONE,
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: 1280,
                 height: 720
             },
@@ -94,7 +62,6 @@
             },
             callbacks: {
                 postBoot: function (game) {
-                    // 雙重保險：直接修改 Phaser 建立的 domContainer
                     if (game.domContainer) {
                         game.domContainer.style.pointerEvents = 'none';
                         game.domContainer.style.touchAction = 'none';
@@ -105,7 +72,6 @@
         });
 
         window.addEventListener('load', () => {
-            resizeGameUI();
             if (window.game && window.game.scene) {
                 setTimeout(() => {
                     window.game.scene.start('FormationScene', { 
@@ -118,38 +84,24 @@
             }
         });
 
-        // 🌟 無縫接軌原生結算：當來自劇情時，靜默綁定點擊事件進行節點判斷
+        // 劇情無縫接軌邏輯保持不變
         let isSeamlessPatched = false;
         const patchInterval = setInterval(() => {
             if (typeof ResultScene !== 'undefined' && ResultScene.prototype && !isSeamlessPatched) {
                 isSeamlessPatched = true;
                 clearInterval(patchInterval);
-
                 const originalCreate = ResultScene.prototype.create;
                 ResultScene.prototype.create = function(data) {
-                    // 執行原本完美的 ResultScene 視覺渲染與動畫
                     if (originalCreate) originalCreate.call(this, data);
-
                     if (navFrom === 'story') {
-                        // 判斷當前戰鬥是否勝利
                         const sceneData = data || (this.sys && this.sys.settings && this.sys.settings.data) || {};
                         const isWin = sceneData.win !== false && sceneData.victory !== false && sceneData.result !== 'lose';
-
                         if (isWin) {
-                            // 計算並預先準備好下一個目標 URL
                             const nextActionUrl = getNextStoryTargetUrl();
-
-                            // 監聽畫面上任何點擊或按鈕觸發（覆蓋原有退回佈陣的行為）
-                            this.input.once('pointerdown', () => {
-                                window.location.href = nextActionUrl;
-                            });
-
-                            // 如果原本 ResultScene 內有具體的「確定/繼續」按鈕，也一併綁定
+                            this.input.once('pointerdown', () => { window.location.href = nextActionUrl; });
                             if (this.confirmBtn) {
-                                this.confirmBtn.off('pointerdown'); // 移除原有的重啟佈陣監聽
-                                this.confirmBtn.once('pointerdown', () => {
-                                    window.location.href = nextActionUrl;
-                                });
+                                this.confirmBtn.off('pointerdown');
+                                this.confirmBtn.once('pointerdown', () => { window.location.href = nextActionUrl; });
                             }
                         }
                     }
@@ -157,35 +109,25 @@
             }
         }, 50);
 
-        // 🌟 算式：判斷是否還有下一個事件節點，返回正確的跳轉位址
         function getNextStoryTargetUrl() {
             try {
                 let storyData = JSON.parse(localStorage.getItem('my_game_story_data')) || { books: [] };
-                
-                // 智慧相容新舊分類代號（如 main_01 等）
                 let book = storyData.books.find(b => b.id === navBookId);
                 if (!book && storyData.books.length > 0) {
                     book = storyData.books.find(b => b.id.includes(navBookId) || navBookId.includes(b.id)) || storyData.books[0];
                 }
-
                 const realBookId = book ? book.id : navBookId;
                 const nodes = book && book.nodes ? book.nodes : [];
                 const nextNodeIndex = navNodeIndex + 1;
-
-                // 更新該章節的關卡通關進度
                 let progressMap = JSON.parse(localStorage.getItem('my_game_chapter_progress')) || {};
                 let currentMax = progressMap[realBookId] !== undefined ? progressMap[realBookId] : 0;
                 if (nextNodeIndex > currentMax) {
                     progressMap[realBookId] = nextNodeIndex;
                     localStorage.setItem('my_game_chapter_progress', JSON.stringify(progressMap));
                 }
-
-                // 判斷後面是否還有事件節點
                 if (nextNodeIndex < nodes.length) {
-                    // 還有節點 -> 前往下一個劇情/事件
                     return `dialogue_player.html?bookId=${realBookId}&nodeIndex=${nextNodeIndex}`;
                 } else {
-                    // 這是最後一個節點 -> 返還章節地圖
                     return `chapter_map.html?chapterId=${realBookId}`;
                 }
             } catch(e) {
