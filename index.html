@@ -239,11 +239,12 @@
 
                 if (act === 'character' || key === 'character' || key === 'profile' || title.includes('角色') || title.includes('背包')) {
                     callback = () => {
+                        // 🌟 修正：直接調用 window.openCharacterUI，若未加載則安全提示，避免強制重新整理
                         if (typeof window.openCharacterUI === 'function') {
                             window.openCharacterUI();
                         } else {
-                            alert('正在為您開啟人物介面...');
-                            location.reload();
+                            console.error("character_system.js 尚未加載完成或 openCharacterUI 未定義");
+                            showToast('角色介面載入中，請稍候再試...', '#e67e22');
                         }
                     };
                 } else if (act === 'story' || key === 'story' || title.includes('劇本') || title.includes('江湖')) {
@@ -264,6 +265,7 @@
             btn.className = 'menu-btn';
             btn.innerHTML = `<span>${icon}</span> <span>${title}</span>`;
             btn.onclick = onClickCallback;
+            btn.style.cursor = 'pointer'; // 確保滑鼠游標為點擊手勢
             return btn;
         }
 
@@ -276,7 +278,7 @@
             setTimeout(() => { toast.style.display = 'none'; }, 2000);
         }
 
-        // 🌟 自動攔截劇情結束後的布陣請求，直接進入戰前布陣畫面
+        // 自動攔截劇情結束後的布陣請求，直接進入戰前布陣畫面
         window.addEventListener('DOMContentLoaded', () => {
             resizeGameUI();
             
