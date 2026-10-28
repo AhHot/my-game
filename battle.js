@@ -253,6 +253,66 @@ const BattleLogic = {
   }
 };
 
+// 🌟 核心防護繪製邏輯：百分百穩定的微圓角頭像繪製方法（零 Emoji，Canvas 硬剪切）
+function renderRoundedAvatar(scene, container, dataOrUnit, size) {
+  const half = size / 2;
+  const radius = size > 60 ? 12 : 8;
+
+  // 1. 繪製微圓角元素底色與外框
+  const rectBg = scene.add.graphics();
+  rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
+  rectBg.fillRoundedRect(-half, -half, size, size, radius);
+  rectBg.lineStyle(3, 0xffffff, 0.9);
+  rectBg.strokeRoundedRect(-half, -half, size, size, radius);
+  container.add(rectBg);
+
+  // 2. 如果有圖片，透過 HTML5 Canvas 裁切圓角轉 base64，穿透所有 Phaser 紋理問題
+  if (dataOrUnit.avatarUrl) {
+    const key = 'rounded_avatar_' + dataOrUnit.id + '_' + Math.floor(Math.random() * 10000);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = dataOrUnit.avatarUrl;
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        // 使用 Canvas 直接裁切圓角，避免 Phaser Mask 失效
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(size - radius, 0);
+        ctx.quadraticCurveTo(size, 0, size, radius);
+        ctx.lineTo(size, size - radius);
+        ctx.quadraticCurveTo(size, size, size - radius, size);
+        ctx.lineTo(radius, size);
+        ctx.quadraticCurveTo(0, size, 0, size - radius);
+        ctx.lineTo(0, radius);
+        ctx.quadraticCurveTo(0, 0, radius, 0);
+        ctx.closePath();
+        ctx.clip();
+
+        ctx.drawImage(img, 0, 0, size, size);
+
+        // 轉為 Base64 載入
+        const dataUrl = canvas.toDataURL('image/png');
+        scene.load.image(key, dataUrl);
+        scene.load.once('complete', () => {
+          if (scene && scene.textures && scene.textures.exists(key) && container && container.active) {
+            const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+            container.add(avatarImg);
+          }
+        });
+        scene.load.start();
+      } catch (e) {
+        console.error("Canvas draw error:", e);
+      }
+    };
+  }
+}
+
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   const dropRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
@@ -348,34 +408,8 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣頭像：改為微圓角外框（不顯示任何 Emoji）
-      const rectBg = this.add.graphics();
-      rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(data.element).color).color, 1);
-      rectBg.fillRoundedRect(-42, -42, 84, 84, 10);
-      rectBg.lineStyle(3, 0xffffff, 0.9);
-      rectBg.strokeRoundedRect(-42, -42, 84, 84, 10);
-      c.add(rectBg);
-      c.rectBg = rectBg;
-
-      if (data.avatarUrl) {
-        const key = 'dyn_avatar_' + data.id + '_' + Date.now();
-        const imgObj = new Image();
-        imgObj.crossOrigin = 'anonymous';
-        imgObj.src = data.avatarUrl;
-        imgObj.onload = () => {
-          if (this.textures && !this.textures.exists(key)) {
-            this.textures.addImage(key, imgObj);
-            if (c && c.active) {
-              const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
-              const maskShape = this.make.graphics();
-              maskShape.fillStyle(0xffffff);
-              maskShape.fillRoundedRect(-42, -42, 84, 84, 10);
-              avatarImg.setMask(maskShape.createGeometryMask());
-              c.addAt(avatarImg, 1);
-            }
-          }
-        };
-      }
+      // 🌟 使用獨立防護方法繪製微圓角頭像 (零 Emoji)
+      renderRoundedAvatar(this, c, data, 84);
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
@@ -490,35 +524,9 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
-    const cornerRadius = 10; // 與人物介面一致的微圓角大小
     
-    // 🌟 戰鬥頭像：改為微圓角框，完全移除 Emoji 相關邏輯
-    const rectBg = this.add.graphics();
-    rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(unit.element).color).color, 1);
-    rectBg.fillRoundedRect(-sideLen/2, -sideLen/2, sideLen, sideLen, cornerRadius);
-    rectBg.lineStyle(3, 0xffffff, 0.9);
-    rectBg.strokeRoundedRect(-sideLen/2, -sideLen/2, sideLen, sideLen, cornerRadius);
-    c.add(rectBg);
-
-    if (unit.avatarUrl) {
-      const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
-      const imgObj = new Image();
-      imgObj.crossOrigin = 'anonymous';
-      imgObj.src = unit.avatarUrl;
-      imgObj.onload = () => {
-        if (this.textures && !this.textures.exists(key)) {
-          this.textures.addImage(key, imgObj);
-          if (c && c.active) {
-            const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
-            const maskShape = this.make.graphics();
-            maskShape.fillStyle(0xffffff);
-            maskShape.fillRoundedRect(-sideLen/2, -sideLen/2, sideLen, sideLen, cornerRadius);
-            avatarImg.setMask(maskShape.createGeometryMask());
-            c.addAt(avatarImg, 1);
-          }
-        }
-      };
-    }
+    // 🌟 戰鬥頭像：使用圓角 Canvas 轉換畫法 (零 Emoji)
+    renderRoundedAvatar(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
@@ -535,7 +543,7 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
     c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, rectBg, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, rectBg: null, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
