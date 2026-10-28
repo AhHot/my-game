@@ -203,7 +203,9 @@ const BattleLogic = {
         } else {
           let pool = eff.targetSide === 'enemy'
             ? allUnits.filter(u => u.side !== actor.side && u.isAlive())
-            : allUnits.filter(u => u.side === actor.side && u.isAlive());
+            : eff.targetSide === 'player'
+              ? allUnits.filter(u => u.side === actor.side && u.isAlive())
+              : [actor];
           if (eff.targetRule === 'all') et = pool;
           else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
           else et = [pool[0]];
@@ -250,54 +252,6 @@ const BattleLogic = {
     }
   }
 };
-
-// 🌟 絕對穩定且完全移除 Emoji 的頭像建立方法 (使用 HTML Canvas 離屏轉換確保 100% 成功載入)
-function createAvatarHelper(scene, container, dataOrUnit, size) {
-  const half = size / 2;
-  const radius = size > 60 ? 12 : 8;
-
-  // 1. 繪製微圓角背景與外框
-  const rectBg = scene.add.graphics();
-  rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
-  rectBg.fillRoundedRect(-half, -half, size, size, radius);
-  rectBg.lineStyle(3, 0xffffff, 0.9);
-  rectBg.strokeRoundedRect(-half, -half, size, size, radius);
-  container.add(rectBg);
-
-  // 2. 如果有 avatarUrl，利用 HTML 5 Canvas 離屏轉換成 Base64 紋理載入，徹底解決跨域與 WebGL 載入失敗問題
-  if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_secure_' + dataOrUnit.id + '_' + size + '_' + Math.random();
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = dataOrUnit.avatarUrl;
-
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, size, size);
-        const dataUrl = canvas.toDataURL('image/png');
-
-        scene.load.image(key, dataUrl);
-        scene.load.once('complete', () => {
-          if (scene && scene.textures && scene.textures.exists(key) && container && container.active) {
-            const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-            const maskShape = scene.make.graphics();
-            maskShape.fillStyle(0xffffff);
-            maskShape.fillRoundedRect(-half, -half, size, size, radius);
-            avatarImg.setMask(maskShape.createGeometryMask());
-            container.add(avatarImg);
-          }
-        });
-        scene.load.start();
-      } catch (e) {
-        console.error("Canvas image conversion error:", e);
-      }
-    };
-  }
-}
 
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
@@ -394,7 +348,28 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      createAvatarHelper(this, c, data, 84);
+      const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      c.add(rectBg);
+
+      // 🌟 布陣頭像：利用 JavaScript Image 物件即時載入 base64 / 網址，完美與左下角小頭像一致
+      if (data.avatarUrl) {
+        const key = 'dyn_avatar_' + data.id + '_' + Date.now();
+        const imgObj = new Image();
+        imgObj.crossOrigin = 'anonymous';
+        imgObj.src = data.avatarUrl;
+        imgObj.onload = () => {
+          if (this.textures && !this.textures.exists(key)) {
+            this.textures.addImage(key, imgObj);
+            if (c && c.active) {
+              const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
+              c.addAt(avatarImg, 1);
+            }
+          }
+        };
+        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+      } else {
+        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+      }
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
@@ -510,7 +485,32 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    createAvatarHelper(this, c, unit, sideLen);
+    const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    c.add(rectBg);
+
+    // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
+    if (unit.avatarUrl) {
+      const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
+      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      c.add(emojiText);
+
+      const imgObj = new Image();
+      imgObj.crossOrigin = 'anonymous';
+      imgObj.src = unit.avatarUrl;
+      imgObj.onload = () => {
+        if (this.textures && !this.textures.exists(key)) {
+          this.textures.addImage(key, imgObj);
+          if (c && c.active) {
+            emojiText.destroy();
+            const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
+            c.addAt(avatarImg, 1);
+          }
+        }
+      };
+    } else {
+      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      c.add(emoji);
+    }
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
@@ -527,7 +527,7 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
     c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, rectBg: null, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, rectBg, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -579,6 +579,10 @@ class BattleScene extends Phaser.Scene {
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
             if (tv2) { 
+              tv2.rectBg.setFillStyle(0xffffff); 
+              this.time.delayedCall(100, () => { 
+                if (tv2.rectBg.active) tv2.rectBg.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); 
+              }); 
               this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
             }
           }
