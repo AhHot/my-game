@@ -251,18 +251,40 @@ const BattleLogic = {
   }
 };
 
-// 🌟 使用 Phaser DOM 元素渲染真實 HTML <img> 標籤（完美解決非同步、閃爍與覆蓋問題）
+// 🌟 Phaser 預載入頭像 Texture 專用 key 產生器
+function getAvatarKey(char) {
+  return 'avatar_key_' + (char.id || char.itemId || 'unknown');
+}
+
+// 🌟 精美微圓角頭像繪製函式（100% 穩定，絕不上色蓋圖）
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
-  const radius = 10; // 微圓角
-  const color = getElementInfo(dataOrUnit.element).color;
+  const half = size / 2;
+  const radius = 10; // 微圓角角度
+  const key = getAvatarKey(dataOrUnit);
 
-  const htmlContent = dataOrUnit.avatarUrl 
-    ? `<img src="${dataOrUnit.avatarUrl}" crossorigin="anonymous" style="width: ${size}px; height: ${size}px; border-radius: ${radius}px; object-fit: cover; border: 3px solid ${color}; display: block; box-sizing: border-box; background: ${color};" />`
-    : `<div style="width: ${size}px; height: ${size}px; border-radius: ${radius}px; background: ${color}; border: 3px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; color: #fff; text-shadow: 1px 1px 2px #000; box-sizing: border-box;">${(dataOrUnit.name || '角').substring(0, 1)}</div>`;
+  // 1. 元素屬性邊框底框
+  const elementColor = Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color;
+  const bgBox = scene.add.rectangle(0, 0, size, size, 0x111122).setStrokeStyle(3, elementColor, 1);
+  container.add(bgBox);
 
-  const domElem = scene.add.dom(0, 0, 'div', '', htmlContent);
-  domElem.setOrigin(0.5, 0.5);
-  container.add(domElem);
+  // 2. 檢查 Phaser 快取中是否有該圖片
+  if (scene.textures.exists(key) && key !== 'avatar_key_unknown') {
+    const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+    
+    // 建立微圓角遮罩
+    const maskShape = scene.make.graphics();
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRoundedRect(-half, -half, size, size, radius);
+    avatarImg.setMask(maskShape.createGeometryMask());
+    
+    container.add(avatarImg);
+  } else {
+    // 若找不到圖片或路徑失效，顯示清晰的角色名稱文字降級備案
+    const fallbackText = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { 
+      fontSize: '28px', color: '#ffffff', fontStyle: 'bold', stroke: '#000000', strokeThickness: 3 
+    }).setOrigin(0.5);
+    container.add(fallbackText);
+  }
 }
 
 function generateRandomInstance(templateId) {
@@ -324,6 +346,19 @@ class FormationScene extends Phaser.Scene {
     this.navFrom = (data && data.from) ? data.from : 'direct';
     this.navBookId = (data && data.bookId) ? data.bookId : '';
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
+  }
+  preload() {
+    // 🌟 在布陣畫面 preload 所有角色的本地圖片
+    if (Array.isArray(CHARACTERS)) {
+      CHARACTERS.forEach(c => {
+        if (c.avatarUrl) {
+          const key = getAvatarKey(c);
+          if (!this.textures.exists(key)) {
+            this.load.image(key, c.avatarUrl);
+          }
+        }
+      });
+    }
   }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
@@ -401,6 +436,18 @@ class BattleScene extends Phaser.Scene {
   preload() {
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
+    
+    // 🌟 在戰鬥畫面 preload 所有登場角色的本地圖片
+    if (Array.isArray(CHARACTERS)) {
+      CHARACTERS.forEach(c => {
+        if (c.avatarUrl) {
+          const key = getAvatarKey(c);
+          if (!this.textures.exists(key)) {
+            this.load.image(key, c.avatarUrl);
+          }
+        }
+      });
+    }
   }
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
@@ -772,7 +819,6 @@ if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-    dom: { createContainer: true }, // 🌟 啟用 HTML DOM 容器，保證圖片完美載入不閃爍
     scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
   });
 }
