@@ -25,8 +25,8 @@
             <!-- 左侧基础面板 (宽度固定 420px) -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
                 
-                <!-- 🌟 立繪高度改為 600px，寬度 420px -->
-                <div class="char-portrait" style="height: 600px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative; flex-shrink: 0;"></div>
+                <!-- 🌟 立繪高度改為 380px，寬度 420px -->
+                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative; flex-shrink: 0;"></div>
                 
                 <!-- 底部固定或可滾動的底部角色頭像切換列 -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
