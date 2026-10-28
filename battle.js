@@ -203,9 +203,7 @@ const BattleLogic = {
         } else {
           let pool = eff.targetSide === 'enemy'
             ? allUnits.filter(u => u.side !== actor.side && u.isAlive())
-            : eff.targetSide === 'player'
-              ? allUnits.filter(u => u.side === actor.side && u.isAlive())
-              : [actor];
+            : allUnits.filter(u => u.side === actor.side && u.isAlive());
           if (eff.targetRule === 'all') et = pool;
           else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
           else et = [pool[0]];
@@ -348,10 +346,19 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      // 🌟 布陣外框改為四角微圓角方形 (84x84, 圓角半徑 12)
+      const rectBg = this.add.graphics();
+      rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(data.element).color).color, 1);
+      rectBg.fillRoundedRect(-42, -42, 84, 84, 12);
+      rectBg.lineStyle(3, 0xffffff, 0.9);
+      rectBg.strokeRoundedRect(-42, -42, 84, 84, 12);
       c.add(rectBg);
 
-      // 🌟 布陣頭像：利用 JavaScript Image 物件即時載入 base64 / 網址，完美與左下角小頭像一致
+      // 🌟 Emoji 回退預備
+      const emojiText = this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5);
+      c.add(emojiText);
+
+      // 🌟 異步載入圖片，成功後自動銷毀 Emoji 並套用微圓角遮罩
       if (data.avatarUrl) {
         const key = 'dyn_avatar_' + data.id + '_' + Date.now();
         const imgObj = new Image();
@@ -361,14 +368,14 @@ class FormationScene extends Phaser.Scene {
           if (this.textures && !this.textures.exists(key)) {
             this.textures.addImage(key, imgObj);
             if (c && c.active) {
+              emojiText.destroy();
               const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
+              const maskShape = this.make.graphics().fillStyle(0xffffff).fillRoundedRect(-42, -42, 84, 84, 12);
+              avatarImg.setMask(maskShape.createGeometryMask());
               c.addAt(avatarImg, 1);
             }
           }
         };
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
-      } else {
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
       }
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
@@ -485,15 +492,19 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    // 🌟 戰鬥介面外框改為四角微圓角方形 (圓角比例配合尺寸)
+    const rectBg = this.add.graphics();
+    rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(unit.element).color).color, 1);
+    rectBg.fillRoundedRect(-r, -r, sideLen, sideLen, 10);
+    rectBg.lineStyle(3, 0xffffff, 0.9);
+    rectBg.strokeRoundedRect(-r, -r, sideLen, sideLen, 10);
     c.add(rectBg);
 
-    // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
+    const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+    c.add(emojiText);
+
     if (unit.avatarUrl) {
       const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
-      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-      c.add(emojiText);
-
       const imgObj = new Image();
       imgObj.crossOrigin = 'anonymous';
       imgObj.src = unit.avatarUrl;
@@ -503,13 +514,12 @@ class BattleScene extends Phaser.Scene {
           if (c && c.active) {
             emojiText.destroy();
             const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
+            const maskShape = this.make.graphics().fillStyle(0xffffff).fillRoundedRect(-r, -r, sideLen, sideLen, 10);
+            avatarImg.setMask(maskShape.createGeometryMask());
             c.addAt(avatarImg, 1);
           }
         }
       };
-    } else {
-      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-      c.add(emoji);
     }
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
@@ -579,10 +589,6 @@ class BattleScene extends Phaser.Scene {
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
             if (tv2) { 
-              tv2.rectBg.setFillStyle(0xffffff); 
-              this.time.delayedCall(100, () => { 
-                if (tv2.rectBg.active) tv2.rectBg.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); 
-              }); 
               this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
             }
           }
