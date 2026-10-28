@@ -252,12 +252,7 @@ const BattleLogic = {
 };
 
 // ============================================================
-// ★★★ 核心函式：角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
-//   手機端修復關鍵：
-//   1. 用 createFromHTML（不是把 HTML 塞成純文字）
-//   2. domElem.node.style.pointerEvents = 'none' （Phaser 的外層包裝）
-//   3. 內層 div 也設 pointer-events: none + touch-action: none
-//   這樣 canvas 才能接收到手機的 touch 事件，拖拽才會生效。
+// ★★★ 角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
 // ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const radius = 10;
@@ -301,8 +296,6 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const domElem = scene.add.dom(0, 0).createFromHTML(htmlContent);
   domElem.setOrigin(0.5, 0.5);
 
-  // ★ 手機端關鍵修復：Phaser 自己會在外層包一層 div，必須把它也設為 pointer-events: none，
-  //   否則手機的 touch 事件會被它吃掉，導致無法拖拽角色！
   if (domElem.node) {
     domElem.node.style.pointerEvents = 'none';
     domElem.node.style.touchAction = 'none';
@@ -366,6 +359,12 @@ class MainMenuScene extends Phaser.Scene {
   }
 }
 
+// ============================================================
+// ★★★ 核心修复：FormationScene（用透明 Rectangle 作拖拽代理） ★★★
+//   原因：Container 里有 DOMElement 时，getBounds() 会算错，导致 hitArea 错位。
+//   解法：在 Container 里额外放一个透明的 Rectangle 覆盖头像区域，
+//         把 setInteractive / setDraggable 绑在 Rectangle 上，彻底绕开 getBounds 计算。
+// ============================================================
 class FormationScene extends Phaser.Scene {
   constructor() { super('FormationScene'); }
   init(data) {
@@ -375,7 +374,6 @@ class FormationScene extends Phaser.Scene {
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   create() {
-    // ★ 手機觸控拖拽優化：手指需移動一定距離才觸發拖拽（避免誤判為點擊）
     this.input.dragDistanceThreshold = 10;
 
     this.cameras.main.setBackgroundColor('#1a1a2e');
@@ -410,26 +408,61 @@ class FormationScene extends Phaser.Scene {
 
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
     this.unitContainers = [];
+
     CHARACTERS.filter(c => c.side === 'player').forEach(data => {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
-      
-      createCharacterAvatarView(this, c, data, 84);
-      c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5)); 
 
-      c.setSize(80, 80).setInteractive({ draggable: true }); this.input.setDraggable(c);
-      c.unitData = data; c.isOnGrid = false; this.unitContainers.push(c);
-      c.on('dragstart', () => { if (c.isOnGrid) { for (let y = data.gridY; y < data.gridY + data.sizeY; y++) for (let x = data.gridX; x < data.gridX + data.sizeX; x++) this.gridState[y][x] = null; } c.setDepth(100); });
-      c.on('drag', (p, dx, dy) => { c.x = dx; c.y = dy; });
-      c.on('dragend', () => {
-        c.setDepth(0); let col = Math.floor((c.x - gridLeft) / cell), row = Math.floor((c.y - gridTop) / cell); let ok = true;
+      // 1. 視覺：頭像 + 名字
+      createCharacterAvatarView(this, c, data, 84);
+      c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
+
+      // 2. ★ 交互：額外放一個透明 Rectangle 覆蓋頭像區域（84×84）
+      //    把 setInteractive / setDraggable 都綁在它身上，避開 Container.getBounds() 對 DOM 計算出錯的問題
+      const hitZone = this.add.rectangle(0, 0, 84, 84, 0x000000, 0.001);
+      c.add(hitZone);
+      hitZone.setInteractive({ draggable: true });
+      this.input.setDraggable(hitZone);
+
+      c.unitData = data; c.isOnGrid = false; c.hitZone = hitZone;
+      this.unitContainers.push(c);
+
+      // 3. 所有拖拽事件綁在 hitZone 上
+      hitZone.on('dragstart', () => {
+        if (c.isOnGrid) {
+          for (let y = data.gridY; y < data.gridY + data.sizeY; y++)
+            for (let x = data.gridX; x < data.gridX + data.sizeX; x++)
+              this.gridState[y][x] = null;
+        }
+        c.setDepth(100);
+      });
+      hitZone.on('drag', (p, dragX, dragY) => {
+        // dragX, dragY 是「拖拽目標的世界座標」，直接賦值給 Container 即可
+        c.x = dragX;
+        c.y = dragY;
+      });
+      hitZone.on('dragend', () => {
+        c.setDepth(0);
+        let col = Math.floor((c.x - gridLeft) / cell), row = Math.floor((c.y - gridTop) / cell);
+        let ok = true;
         if (col < 0 || col + data.sizeX > CONFIG.GRID_SIZE || row < 0 || row + data.sizeY > CONFIG.GRID_SIZE) ok = false;
-        if (ok) { for (let y = row; y < row + data.sizeY; y++) for (let x = col; x < col + data.sizeX; x++) if (this.gridState[y][x]) ok = false; }
         if (ok) {
-          for (let y = row; y < row + data.sizeY; y++) for (let x = col; x < col + data.sizeX; x++) this.gridState[y][x] = data;
-          data.gridX = col; data.gridY = row; c.isOnGrid = true; const s = Math.max(data.sizeX, data.sizeY);
-          c.setScale(1 + (s - 1) * 0.15); c.x = gridLeft + col * cell + (cell * data.sizeX) / 2; c.y = gridTop + row * cell + (cell * data.sizeY) / 2;
-        } else { data.gridX = -1; data.gridY = -1; c.isOnGrid = false; c.setScale(1); }
+          for (let y = row; y < row + data.sizeY; y++)
+            for (let x = col; x < col + data.sizeX; x++)
+              if (this.gridState[y][x]) ok = false;
+        }
+        if (ok) {
+          for (let y = row; y < row + data.sizeY; y++)
+            for (let x = col; x < col + data.sizeX; x++)
+              this.gridState[y][x] = data;
+          data.gridX = col; data.gridY = row; c.isOnGrid = true;
+          const s = Math.max(data.sizeX, data.sizeY);
+          c.setScale(1 + (s - 1) * 0.15);
+          c.x = gridLeft + col * cell + (cell * data.sizeX) / 2;
+          c.y = gridTop + row * cell + (cell * data.sizeY) / 2;
+        } else {
+          data.gridX = -1; data.gridY = -1; c.isOnGrid = false; c.setScale(1);
+        }
         this.layoutStandby(standbyLeft);
       });
     });
@@ -824,7 +857,7 @@ if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-    dom: { createContainer: true },
+    dom: { createContainer: true, pointerEvents: 'none' },
     input: {
       activePointers: 3,
       touch: { capture: true }
