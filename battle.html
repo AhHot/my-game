@@ -24,36 +24,43 @@
             touch-action: none !important;
         }
 
-        /* ★ 美化：左下角人物與背包按鈕 */
+        /* ★ 美化：完全仿照圖二的深色暗黑風格按鈕 */
         #btn-pack {
             position: absolute;
-            bottom: 30px;
-            left: 30px;
-            padding: 12px 28px;
-            background: linear-gradient(135deg, #8E44AD, #9B59B6);
-            color: #fff;
-            font-size: 20px;
-            font-weight: bold;
-            border: 2px solid #D2B4DE;
-            border-radius: 30px;
-            box-shadow: 0 6px 20px rgba(155, 89, 182, 0.5);
+            /* 定位會由 JS 動態計算，確保貼齊遊戲畫面的左下角 */
+            padding: 8px 16px;
+            background: rgba(26, 28, 41, 0.85); /* #1a1c29 帶透明度 */
+            color: #ddd;
+            font-size: 16px;
+            border: 1px solid #3a3d4d;
+            border-radius: 6px;
             cursor: pointer;
             z-index: 100;
             font-family: "Microsoft YaHei", sans-serif;
-            transition: transform 0.1s, box-shadow 0.1s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s, border-color 0.2s;
             touch-action: manipulation;
+            transform-origin: top left; /* 配合 JS 的縮放 */
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
         }
         #btn-pack:active {
-            transform: scale(0.92);
-            box-shadow: 0 2px 10px rgba(155, 89, 182, 0.5);
+            background: rgba(40, 44, 60, 0.95);
+            border-color: #555;
+        }
+        #btn-pack span {
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
     <div id="game"></div>
     
-    <!-- ★ 替換原本的 Phaser 文字，改用 HTML 按鈕 -->
-    <button id="btn-pack" onclick="window.openCharacterUI()">🎒 人物与背包</button>
+    <!-- 按鈕：完全照著圖二設計 -->
+    <button id="btn-pack" onclick="window.openCharacterUI()">
+        <span>👤</span> 角色与背包
+    </button>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <script src="data.js?v=15"></script>
@@ -89,7 +96,34 @@
             scene: [FormationScene, BattleScene, ResultScene],
         });
 
+        // ★★★ 核心修復：動態計算按鈕位置，確保它完美貼合遊戲畫面的左下角 ★★★
+        function updateButtonPosition() {
+            const btn = document.getElementById('btn-pack');
+            if (!btn) return;
+
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            
+            // 計算 Phaser Scale.FIT 的縮放比例與邊距
+            const scale = Math.min(winW / 1280, winH / 720);
+            const scaledW = 1280 * scale;
+            const scaledH = 720 * scale;
+            const offsetX = (winW - scaledW) / 2;
+            const offsetY = (winH - scaledH) / 2;
+
+            // 將按鈕定位在畫布範圍內的左下角（距左 20px，距下 20px）
+            btn.style.left = `${offsetX + 20 * scale}px`;
+            btn.style.top = `${offsetY + scaledH - 55 * scale}px`; // 根據按鈕高度微調
+            
+            // 讓按鈕大小跟著遊戲畫面一起縮放，保持比例一致
+            btn.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', updateButtonPosition);
+
         window.addEventListener('load', () => {
+            updateButtonPosition(); // 初始定位
+
             if (window.game && window.game.scene) {
                 setTimeout(() => {
                     window.game.scene.start('FormationScene', { 
@@ -101,7 +135,7 @@
                 }, 100);
             }
 
-            // ★★★ 核心修復：包裹原本的背包方法，使其完美適應手機屏幕並防卡死 ★★★
+            // 包裹原本的背包方法，使其完美適應手機屏幕並防卡死
             if (window.openCharacterUI) {
                 const originalOpen = window.openCharacterUI;
                 window.openCharacterUI = function() {
@@ -109,7 +143,6 @@
                         originalOpen();
                         const ui = document.getElementById('fullscreen-ui');
                         if (ui) {
-                            // 強制讓背包 UI 使用和 Phaser Canvas 相同的縮放比例
                             const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
                             ui.style.position = 'fixed';
                             ui.style.transformOrigin = 'top left';
@@ -120,7 +153,6 @@
                         }
                     } catch(e) {
                         console.error("打開背包UI報錯：", e);
-                        // 如果報錯導致 UI 打不開，強制恢復遊戲輸入，防止畫面卡死
                         if (window.game && window.game.scene) {
                             window.game.scene.getScenes(true).forEach(s => { if(s.input) s.input.enabled = true; });
                         }
