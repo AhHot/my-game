@@ -314,7 +314,6 @@ class FormationScene extends Phaser.Scene {
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   preload() {
-    // 預先動態載入所有有上傳 avatarUrl 的圖片，防止直接渲染失敗
     CHARACTERS.forEach(c => {
       if (c.avatarUrl && !this.textures.exists('avatar_' + c.id)) {
         this.load.image('avatar_' + c.id, c.avatarUrl);
@@ -356,13 +355,14 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      const circle = this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-      c.add(circle);
+      // 🌟 布陣頭像外框改為方形 (84x84)
+      const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      c.add(rectBg);
 
-      // 🌟 布陣頭像判斷：若有上傳 avatarUrl 且紋理存在則用圖片遮罩/裁切，否則顯示 emoji
+      // 🌟 布陣頭像圖片改為方形裁切 (84x84)
       if (data.avatarUrl && this.textures.exists('avatar_' + data.id)) {
-        const avatarImg = this.add.image(0, 0, 'avatar_' + data.id).setDisplaySize(80, 80).setOrigin(0.5);
-        const maskShape = this.make.graphics().fillStyle(0xffffff).beginPath().arc(0, 0, 40, 0, Math.PI * 2).fillPath();
+        const avatarImg = this.add.image(0, 0, 'avatar_' + data.id).setDisplaySize(84, 84).setOrigin(0.5);
+        const maskShape = this.make.graphics().fillStyle(0xffffff).fillRect(-42, -42, 84, 84);
         avatarImg.setMask(maskShape.createGeometryMask());
         c.add(avatarImg);
       } else {
@@ -408,7 +408,6 @@ class BattleScene extends Phaser.Scene {
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
     
-    // 預先載入所有我方與敵方角色的 avatarUrl 圖片
     CHARACTERS.forEach(c => {
       if (c.avatarUrl && !this.textures.exists('avatar_' + c.id)) {
         this.load.image('avatar_' + c.id, c.avatarUrl);
@@ -488,16 +487,16 @@ class BattleScene extends Phaser.Scene {
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
+    const sideLen = r * 2;
     
-    // 🌟 已完整刪除戰鬥角色光環底座（baseEllipse）
+    // 🌟 戰鬥中角色頭像改為方形外框
+    const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    c.add(rectBg);
 
-    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-    c.add(circle);
-
-    // 🌟 戰鬥頭像判斷：若有上傳 avatarUrl 且紋理存在則用圖片顯示，否則回退顯示 emoji
+    // 🌟 戰鬥中角色頭像圖片改為方形裁切
     if (unit.avatarUrl && this.textures.exists('avatar_' + unit.id)) {
-      const avatarImg = this.add.image(0, 0, 'avatar_' + unit.id).setDisplaySize(r * 2, r * 2).setOrigin(0.5);
-      const maskShape = this.make.graphics().fillStyle(0xffffff).beginPath().arc(0, 0, r, 0, Math.PI * 2).fillPath();
+      const avatarImg = this.add.image(0, 0, 'avatar_' + unit.id).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
+      const maskShape = this.make.graphics().fillStyle(0xffffff).fillRect(-r, -r, sideLen, sideLen);
       avatarImg.setMask(maskShape.createGeometryMask());
       c.add(avatarImg);
     } else {
@@ -520,7 +519,7 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
     c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, circle, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, rectBg, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -571,7 +570,13 @@ class BattleScene extends Phaser.Scene {
             t.takeDamage(r.damage); if (r.lifestealAmount > 0) heal += r.lifestealAmount;
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
-            if (tv2) { tv2.circle.setFillStyle(0xffffff); this.time.delayedCall(100, () => { if (tv2.circle.active) tv2.circle.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); }); this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); }
+            if (tv2) { 
+              tv2.rectBg.setFillStyle(0xffffff); 
+              this.time.delayedCall(100, () => { 
+                if (tv2.rectBg.active) tv2.rectBg.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); 
+              }); 
+              this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
+            }
           }
         }
         this.updateUnitView(t);
