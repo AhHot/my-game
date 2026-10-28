@@ -1,11 +1,11 @@
 // ============================================================
 // 模組：完整人物與背包系統 (character_system.js)
-// 完美支援：立繪高度600px、預設技能頁籤、左右聯動動態顯示
+// 完美支援：立繪高度380px、預設技能頁籤、左右聯動動態顯示、重置意境功能
 // ============================================================
 (function() {
     let selectedChar = null;
     let currentUnit = null;
-    let currentTab = 'skill'; // 🌟 預設預設為技能介面
+    let currentTab = 'skill';
     let currentFilter = 'all';
     let globalExpTable = [];
 
@@ -28,7 +28,7 @@
                 <!-- 🌟 立繪高度改為 380px，寬度 420px -->
                 <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative; flex-shrink: 0;"></div>
                 
-                <!-- 底部固定或可滾動的底部角色頭像切換列 -->
+                <!-- 底部頭像切換列 -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
                 
                 <!-- 小箭頭彈出詳細訊息按鈕保持不變 -->
@@ -38,7 +38,7 @@
             <!-- 右侧区域 -->
             <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
                 
-                <!-- 🌟 Tab 順序對調：預設左側為技能，右側為背包 -->
+                <!-- Tab 順序：預設左側為技能，右側為背包 -->
                 <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
                     <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
                     <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
@@ -201,20 +201,19 @@
         refreshRightPanel();
     }
 
-    // 🌟 核心：根據右側 Tab 動態渲染左側面板（技能頁顯示意境與四維，背包頁顯示裝備槽）
     function refreshLeftPanel() {
-        // 1. 動態更新大立繪背景
+        // 1. 動態更新大立繪背景 (高度改為 380px)
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
+            portraitEl.style.height = '380px';
             portraitEl.style.background = `url('${bgImg}') center/cover`;
             
-            // 讓 600px 高度的立繪內部可以直接疊加顯示名字、等級、經驗條
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
                 infoOverlay = document.createElement('div');
                 infoOverlay.id = 'portrait-info-overlay';
-                infoOverlay.style.cssText = "position: absolute; bottom: 0; left: 0; right: 0; padding: 20px; background: linear-gradient(to top, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 60%, transparent 100%); display: flex; flex-direction: column; gap: 8px;";
+                infoOverlay.style.cssText = "position: absolute; bottom: 0; left: 0; right: 0; padding: 15px 20px; background: linear-gradient(to top, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 60%, transparent 100%); display: flex; flex-direction: column; gap: 6px;";
                 portraitEl.appendChild(infoOverlay);
             }
 
@@ -225,64 +224,68 @@
 
             infoOverlay.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <h2 style="color: #f1c40f; font-size: 26px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
-                    <span style="color: #2ecc71; font-weight: bold; font-size: 18px;">Lv. ${cLv}</span>
+                    <h2 style="color: #f1c40f; font-size: 24px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
+                    <span style="color: #2ecc71; font-weight: bold; font-size: 16px;">Lv. ${cLv}</span>
                 </div>
                 <div>
-                    <div style="font-size: 11px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`}</div>
-                    <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;"><div style="width: ${pct}%; height: 100%; background: #3498db;"></div></div>
+                    <div style="font-size: 10px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 ? '已满级' : `${cExp} / ${reqExp}`}</div>
+                    <div style="width: 100%; height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;"><div style="width: ${pct}%; height: 100%; background: #3498db;"></div></div>
                 </div>
             `;
         }
 
-        // 2. 檢查舊的動態控制容器是否存在，若無則在 portraitEl 下方建立一個專門裝「動態切換內容」的容器
+        // 2. 動態控制容器
         let dynamicBox = document.getElementById('left-dynamic-content');
         if (!dynamicBox) {
             dynamicBox = document.createElement('div');
             dynamicBox.id = 'left-dynamic-content';
-            dynamicBox.style.cssText = "flex: 1; padding: 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 15px;";
-            // 插在立繪下方、頭像列表上方
+            dynamicBox.style.cssText = "flex: 1; padding: 12px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 10px;";
             const leftPanel = document.getElementById('left-panel');
             const charListArea = document.getElementById('ui-char-list');
             leftPanel.insertBefore(dynamicBox, charListArea);
         }
 
-        // 3. 根據當前右側頁籤（currentTab）來決定左側顯示什麼內容
+        // 3. 根據右側 Tab 動態切換左側內容
         if (currentTab === 'skill') {
-            // 🌟 顯示：意境加點 + 四大基礎數值
             const fp = selectedChar.freePoints || 0;
             const stats = getFinalStatsForUI(selectedChar);
             const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
             
-            let statsHtml = `<div style="color: #f1c40f; font-size: 14px; font-weight: bold;">剩余点数: ${fp}</div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">`;
+            // 🌟 剩餘點數欄位右側增加「重置意境」按鈕
+            let statsHtml = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <div style="color: #f1c40f; font-size: 13px; font-weight: bold;">剩余点数: ${fp}</div>
+                    <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-weight: bold;">重置意境</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            `;
             Object.keys(statNames).forEach(k => {
                 statsHtml += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 6px 10px; border-radius: 6px; border: 1px solid #333;">
-                        <div><span style="color: #888; font-size: 13px;">${statNames[k]}</span><b style="color: #fff; margin-left: 5px; font-size: 14px;">${stats[k] || 0}</b></div>
-                        <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 22px; height: 22px; font-weight: bold; cursor: pointer; line-height: 1;">+</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 5px 8px; border-radius: 6px; border: 1px solid #333;">
+                        <div><span style="color: #888; font-size: 12px;">${statNames[k]}</span><b style="color: #fff; margin-left: 4px; font-size: 13px;">${stats[k] || 0}</b></div>
+                        <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 20px; height: 20px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 12px;">+</button>
                     </div>
                 `;
             });
             statsHtml += `</div>`;
 
             let coreFourHtml = `
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 5px;">
-                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.maxHp}</b></div>
-                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.atk}</b></div>
-                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.def}</b></div>
-                    <div style="background: #1a1c29; padding: 8px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 14px; margin-top:2px;">${currentUnit.speed.toFixed(1)}</b></div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 2px;">
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.maxHp}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.atk}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.def}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:10px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top:2px;">${currentUnit.speed.toFixed(1)}</b></div>
                 </div>
             `;
 
             dynamicBox.innerHTML = statsHtml + coreFourHtml;
 
         } else {
-            // 🌟 顯示：6個裝備欄位
-            dynamicBox.innerHTML = `<div style="color: #3498db; font-size: 14px; font-weight: bold; margin-bottom: 2px;">📦 装备槽位</div><div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;"></div>`;
+            dynamicBox.innerHTML = `<div style="color: #3498db; font-size: 13px; font-weight: bold; margin-bottom: 2px;">📦 装备槽位</div><div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;"></div>`;
             renderEquipSlots();
         }
 
-        // 4. 更新小箭頭彈出視窗的數值內容
+        // 4. 更新詳細屬性大卡片數據
         document.getElementById('detail-atk').innerHTML = `
             <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
@@ -309,6 +312,27 @@
         selectCharacter(selectedChar);
     };
 
+    // 🌟 新增：重置意境點數功能（將已分配的意境點數全部返還為自由點數）
+    window.resetCharacterStats = function() {
+        if (!selectedChar) return;
+        if (!selectedChar.stats) return;
+
+        let totalAllocated = 0;
+        Object.keys(selectedChar.stats).forEach(k => {
+            totalAllocated += (selectedChar.stats[k] || 0);
+            selectedChar.stats[k] = 0;
+        });
+
+        if (totalAllocated > 0) {
+            selectedChar.freePoints = (selectedChar.freePoints || 0) + totalAllocated;
+            saveGameData();
+            selectCharacter(selectedChar);
+            window.showToast('已成功重置意境，点数已全部返还！', '#e67e22');
+        } else {
+            window.showToast('当前没有已分配的意境点数', '#888');
+        }
+    };
+
     function renderEquipSlots() {
         const container = document.getElementById('ui-equip-slots');
         if(!container) return;
@@ -331,17 +355,17 @@
 
             const div = document.createElement('div');
             div.className = 'equip-slot' + (inst ? '' : ' empty');
-            div.style.cssText = "height: 55px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            div.style.cssText = "height: 50px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
             
             if (inst && tpl) {
                 div.innerHTML = `
-                    <div class="eq-icon" style="font-size: 22px;">${tpl.icon || '📦'}</div>
-                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 11px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;">${tpl.name}</div>
+                    <div class="eq-icon" style="font-size: 20px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 10px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;">${tpl.name}</div>
                 `;
                 div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
                 div.style.borderColor = qColors[inst.quality];
             } else {
-                div.innerHTML = `<span style="font-size:12px; color:#777;">${slot.name}</span>`;
+                div.innerHTML = `<span style="font-size:11px; color:#777;">${slot.name}</span>`;
             }
             container.appendChild(div);
         });
@@ -378,7 +402,6 @@
             document.getElementById('rt-btn-skill').style.color = '#fff';
         }
         
-        // 🌟 每次切換 Tab 時，同步動態更新左側面板的顯示內容
         refreshLeftPanel();
         refreshRightPanel();
     };
