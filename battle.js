@@ -313,13 +313,6 @@ class FormationScene extends Phaser.Scene {
     this.navBookId = (data && data.bookId) ? data.bookId : '';
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
-  preload() {
-    CHARACTERS.forEach(c => {
-      if (c.avatarUrl && !this.textures.exists('avatar_' + c.id)) {
-        this.load.image('avatar_' + c.id, c.avatarUrl);
-      }
-    });
-  }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -355,16 +348,25 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣頭像外框改為方形 (84x84)
       const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
       c.add(rectBg);
 
-      // 🌟 布陣頭像圖片改為方形裁切 (84x84)
-      if (data.avatarUrl && this.textures.exists('avatar_' + data.id)) {
-        const avatarImg = this.add.image(0, 0, 'avatar_' + data.id).setDisplaySize(84, 84).setOrigin(0.5);
-        const maskShape = this.make.graphics().fillStyle(0xffffff).fillRect(-42, -42, 84, 84);
-        avatarImg.setMask(maskShape.createGeometryMask());
-        c.add(avatarImg);
+      // 🌟 布陣頭像：利用 JavaScript Image 物件即時載入 base64 / 網址，完美與左下角小頭像一致
+      if (data.avatarUrl) {
+        const key = 'dyn_avatar_' + data.id + '_' + Date.now();
+        const imgObj = new Image();
+        imgObj.crossOrigin = 'anonymous';
+        imgObj.src = data.avatarUrl;
+        imgObj.onload = () => {
+          if (this.textures && !this.textures.exists(key)) {
+            this.textures.addImage(key, imgObj);
+            if (c && c.active) {
+              const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
+              c.addAt(avatarImg, 1);
+            }
+          }
+        };
+        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
       } else {
         c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
       }
@@ -407,12 +409,6 @@ class BattleScene extends Phaser.Scene {
   preload() {
     const art = window.ART_CONFIG || {};
     if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
-    
-    CHARACTERS.forEach(c => {
-      if (c.avatarUrl && !this.textures.exists('avatar_' + c.id)) {
-        this.load.image('avatar_' + c.id, c.avatarUrl);
-      }
-    });
   }
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
@@ -489,16 +485,28 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 戰鬥中角色頭像改為方形外框
     const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
     c.add(rectBg);
 
-    // 🌟 戰鬥中角色頭像圖片改為方形裁切
-    if (unit.avatarUrl && this.textures.exists('avatar_' + unit.id)) {
-      const avatarImg = this.add.image(0, 0, 'avatar_' + unit.id).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
-      const maskShape = this.make.graphics().fillStyle(0xffffff).fillRect(-r, -r, sideLen, sideLen);
-      avatarImg.setMask(maskShape.createGeometryMask());
-      c.add(avatarImg);
+    // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
+    if (unit.avatarUrl) {
+      const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
+      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      c.add(emojiText);
+
+      const imgObj = new Image();
+      imgObj.crossOrigin = 'anonymous';
+      imgObj.src = unit.avatarUrl;
+      imgObj.onload = () => {
+        if (this.textures && !this.textures.exists(key)) {
+          this.textures.addImage(key, imgObj);
+          if (c && c.active) {
+            emojiText.destroy();
+            const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
+            c.addAt(avatarImg, 1);
+          }
+        }
+      };
     } else {
       const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
       c.add(emoji);
