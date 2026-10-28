@@ -240,7 +240,7 @@ const BattleLogic = {
         if (used < (SKILLS[fid].maxTriggers || 1)) {
           u.followupCounts[fid] = used + 1;
           const sk = SKILLS[fid];
-          u.mp = Math.max(0, actor.mp - (sk.mpCost || 0)); // Note: kept original logic
+          u.mp = Math.max(0, u.mp - (sk.mpCost || 0));
           const targets = this.selectTargets(u, sk, allUnits);
           targets.forEach(t => {
             const res = this.computeDamage(u, t, sk);
@@ -252,42 +252,6 @@ const BattleLogic = {
     }
   }
 };
-
-// 🌟 100% 穩定的頭像渲染函數：使用原本成功的 textures.addImage，並用 Phaser 原生遮罩做出微圓角（絕不觸發跨域 Canvas 汙染錯誤）
-function renderAvatarWithoutEmoji(scene, container, dataOrUnit, size) {
-  const half = size / 2;
-  const radius = size > 60 ? 10 : 6;
-
-  // 1. 繪製元素底色框
-  const rectBg = scene.add.rectangle(0, 0, size, size, Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color);
-  rectBg.setStrokeStyle(3, 0xffffff, 0.9);
-  container.add(rectBg);
-
-  // 2. 如果有圖片，使用原本最安全、不經由 Canvas 轉碼的 textures.addImage 載入
-  if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_native_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Math.random();
-    const imgObj = new Image();
-    imgObj.crossOrigin = 'anonymous';
-    imgObj.src = dataOrUnit.avatarUrl;
-
-    imgObj.onload = () => {
-      if (scene && scene.textures && !scene.textures.exists(key)) {
-        scene.textures.addImage(key, imgObj);
-      }
-      if (container && container.active && scene.textures.exists(key)) {
-        const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-
-        // 使用 Phaser 原生遮罩 (Geometry Mask) 切出微圓角，完美避開 CORS 錯誤
-        const maskShape = scene.make.graphics();
-        maskShape.fillStyle(0xffffff);
-        maskShape.fillRoundedRect(-half, -half, size, size, radius);
-        avatarImg.setMask(maskShape.createGeometryMask());
-
-        container.add(avatarImg);
-      }
-    };
-  }
-}
 
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
@@ -384,8 +348,28 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣頭像：調用安全繪製函數 (無 Emoji，圓角 + 穩定圖片)
-      renderAvatarWithoutEmoji(this, c, data, 84);
+      const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      c.add(rectBg);
+
+      // 🌟 布陣頭像：利用 JavaScript Image 物件即時載入 base64 / 網址，完美與左下角小頭像一致
+      if (data.avatarUrl) {
+        const key = 'dyn_avatar_' + data.id + '_' + Date.now();
+        const imgObj = new Image();
+        imgObj.crossOrigin = 'anonymous';
+        imgObj.src = data.avatarUrl;
+        imgObj.onload = () => {
+          if (this.textures && !this.textures.exists(key)) {
+            this.textures.addImage(key, imgObj);
+            if (c && c.active) {
+              const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
+              c.addAt(avatarImg, 1);
+            }
+          }
+        };
+        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+      } else {
+        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
+      }
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
@@ -501,8 +485,32 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 戰鬥頭像：調用安全繪製函數 (無 Emoji，圓角 + 穩定圖片)
-    renderAvatarWithoutEmoji(this, c, unit, sideLen);
+    const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    c.add(rectBg);
+
+    // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
+    if (unit.avatarUrl) {
+      const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
+      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      c.add(emojiText);
+
+      const imgObj = new Image();
+      imgObj.crossOrigin = 'anonymous';
+      imgObj.src = unit.avatarUrl;
+      imgObj.onload = () => {
+        if (this.textures && !this.textures.exists(key)) {
+          this.textures.addImage(key, imgObj);
+          if (c && c.active) {
+            emojiText.destroy();
+            const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
+            c.addAt(avatarImg, 1);
+          }
+        }
+      };
+    } else {
+      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+      c.add(emoji);
+    }
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
@@ -519,7 +527,7 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
     c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, rectBg: null, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, rectBg, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -571,6 +579,10 @@ class BattleScene extends Phaser.Scene {
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
             if (tv2) { 
+              tv2.rectBg.setFillStyle(0xffffff); 
+              this.time.delayedCall(100, () => { 
+                if (tv2.rectBg.active) tv2.rectBg.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); 
+              }); 
               this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
             }
           }
