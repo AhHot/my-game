@@ -346,7 +346,6 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣外框改為四角微圓角方形 (84x84, 圓角半徑 12)
       const rectBg = this.add.graphics();
       rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(data.element).color).color, 1);
       rectBg.fillRoundedRect(-42, -42, 84, 84, 12);
@@ -354,28 +353,38 @@ class FormationScene extends Phaser.Scene {
       rectBg.strokeRoundedRect(-42, -42, 84, 84, 12);
       c.add(rectBg);
 
-      // 🌟 Emoji 回退預備
       const emojiText = this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5);
       c.add(emojiText);
 
-      // 🌟 異步載入圖片，成功後自動銷毀 Emoji 並套用微圓角遮罩
+      // 🌟 同步/即時紋理載入方式：利用原生 Canvas 建立 Image，並確保紋理註冊成功後立即替換
       if (data.avatarUrl) {
         const key = 'dyn_avatar_' + data.id + '_' + Date.now();
         const imgObj = new Image();
         imgObj.crossOrigin = 'anonymous';
         imgObj.src = data.avatarUrl;
-        imgObj.onload = () => {
-          if (this.textures && !this.textures.exists(key)) {
-            this.textures.addImage(key, imgObj);
-            if (c && c.active) {
-              emojiText.destroy();
+        
+        const applyTexture = () => {
+          try {
+            if (!this.textures.exists(key)) {
+              this.textures.addImage(key, imgObj);
+            }
+            if (c && c.active && this.textures.exists(key)) {
+              emojiText.setVisible(false);
               const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
-              const maskShape = this.make.graphics().fillStyle(0xffffff).fillRoundedRect(-42, -42, 84, 84, 12);
+              const maskShape = this.make.graphics();
+              maskShape.fillStyle(0xffffff);
+              maskShape.fillRoundedRect(-42, -42, 84, 84, 12);
               avatarImg.setMask(maskShape.createGeometryMask());
               c.addAt(avatarImg, 1);
             }
-          }
+          } catch(err) { console.error("Avatar load error:", err); }
         };
+
+        if (imgObj.complete) {
+          applyTexture();
+        } else {
+          imgObj.onload = applyTexture;
+        }
       }
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
@@ -492,7 +501,6 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 戰鬥介面外框改為四角微圓角方形 (圓角比例配合尺寸)
     const rectBg = this.add.graphics();
     rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(unit.element).color).color, 1);
     rectBg.fillRoundedRect(-r, -r, sideLen, sideLen, 10);
@@ -508,18 +516,29 @@ class BattleScene extends Phaser.Scene {
       const imgObj = new Image();
       imgObj.crossOrigin = 'anonymous';
       imgObj.src = unit.avatarUrl;
-      imgObj.onload = () => {
-        if (this.textures && !this.textures.exists(key)) {
-          this.textures.addImage(key, imgObj);
-          if (c && c.active) {
-            emojiText.destroy();
+      
+      const applyTexture = () => {
+        try {
+          if (!this.textures.exists(key)) {
+            this.textures.addImage(key, imgObj);
+          }
+          if (c && c.active && this.textures.exists(key)) {
+            emojiText.setVisible(false);
             const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
-            const maskShape = this.make.graphics().fillStyle(0xffffff).fillRoundedRect(-r, -r, sideLen, sideLen, 10);
+            const maskShape = this.make.graphics();
+            maskShape.fillStyle(0xffffff);
+            maskShape.fillRoundedRect(-r, -r, sideLen, sideLen, 10);
             avatarImg.setMask(maskShape.createGeometryMask());
             c.addAt(avatarImg, 1);
           }
-        }
+        } catch(err) { console.error("Avatar load error:", err); }
       };
+
+      if (imgObj.complete) {
+        applyTexture();
+      } else {
+        imgObj.onload = applyTexture;
+      }
     }
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
