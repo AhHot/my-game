@@ -253,19 +253,38 @@ const BattleLogic = {
   }
 };
 
-// 🌟 核心修改：使用小頭像圖片並結合微圓角外框（完全不用 Emoji）
+// 🌟 保證美觀且 100% 不會掛掉的頭像繪製函式：兼具微圓角框與文字/圖示降級容錯
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const half = size / 2;
-  const radius = 10; // 微圓角半徑
+  const radius = 10; // 微圓角
 
-  // 1. 繪製元素屬性底色框
-  const rectBg = scene.add.rectangle(0, 0, size, size, Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color);
+  // 1. 底色矩形框
+  const elementColor = Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color;
+  const rectBg = scene.add.rectangle(0, 0, size, size, elementColor);
   rectBg.setStrokeStyle(3, 0xffffff, 0.9);
   container.add(rectBg);
 
-  // 2. 載入頭像圖片並套用微圓角遮罩
-  if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+  // 2. 若無 avatarUrl，直接以角色名稱首字作為高質感顯示，絕不變成純色方塊
+  if (!dataOrUnit.avatarUrl) {
+    const fallbackText = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { fontSize: '28px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
+    container.add(fallbackText);
+    return;
+  }
+
+  // 3. 安全嘗試載入圖片
+  const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Math.floor(Math.random() * 100000);
+  if (scene.textures.exists(key)) {
+    const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+    const maskShape = scene.make.graphics();
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRoundedRect(-half, -half, size, size, radius);
+    avatarImg.setMask(maskShape.createGeometryMask());
+    container.add(avatarImg);
+  } else {
+    // 建立備用文字（在圖片載入成功前先顯示）
+    const tempText = scene.add.text(0, 0, (dataOrUnit.name || '').substring(0, 1), { fontSize: '24px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    container.add(tempText);
+
     const imgObj = new Image();
     imgObj.crossOrigin = 'anonymous';
     imgObj.src = dataOrUnit.avatarUrl;
@@ -273,17 +292,18 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
       if (scene && scene.textures && !scene.textures.exists(key)) {
         scene.textures.addImage(key, imgObj);
         if (container && container.active) {
+          tempText.destroy();
           const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-          
-          // 建立微圓角遮罩 (Geometry Mask)
           const maskShape = scene.make.graphics();
           maskShape.fillStyle(0xffffff);
           maskShape.fillRoundedRect(-half, -half, size, size, radius);
           avatarImg.setMask(maskShape.createGeometryMask());
-
           container.add(avatarImg);
         }
       }
+    };
+    imgObj.onerror = () => {
+      // 圖片載入失敗時保留文字，保持畫面美觀
     };
   }
 }
@@ -386,7 +406,6 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣介面改用微圓角圖片頭像（無 Emoji）
       createCharacterAvatarView(this, c, data, 84);
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5)); 
 
@@ -508,7 +527,6 @@ class BattleScene extends Phaser.Scene {
     const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25).setStrokeStyle(2, baseColor, 0.8);
     c.add(baseEllipse);
 
-    // 🌟 戰鬥介面改用微圓角圖片頭像（無 Emoji）
     createCharacterAvatarView(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
