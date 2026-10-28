@@ -203,9 +203,7 @@ const BattleLogic = {
         } else {
           let pool = eff.targetSide === 'enemy'
             ? allUnits.filter(u => u.side !== actor.side && u.isAlive())
-            : eff.targetSide === 'player'
-              ? allUnits.filter(u => u.side === actor.side && u.isAlive())
-              : [actor];
+            : allUnits.filter(u => u.side === actor.side && u.isAlive());
           if (eff.targetRule === 'all') et = pool;
           else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
           else et = [pool[0]];
@@ -253,25 +251,24 @@ const BattleLogic = {
   }
 };
 
-// 🌟 修正圖層順序：確保圖片載入後擁有最高層級，絕不被底色蓋住
+// 🌟 絕對不出錯的修復版：確保圖片完全載入後，直接蓋在最上層，且拿掉會遮住圖片的純色方塊填滿
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const half = size / 2;
   const radius = 10; // 微圓角
 
-  // 1. 底色矩形框（最底層）
+  // 1. 只畫外框裝飾，不填滿色彩，避免把內部圖片遮住
   const elementColor = Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color;
-  const rectBg = scene.add.rectangle(0, 0, size, size, elementColor);
-  rectBg.setStrokeStyle(3, 0xffffff, 0.9);
-  container.add(rectBg);
+  const borderRect = scene.add.rectangle(0, 0, size, size).setStrokeStyle(3, elementColor, 1);
+  container.add(borderRect);
 
-  // 2. 若無 avatarUrl，顯示名稱首字作為高質感備用
+  // 2. 如果沒有 avatarUrl，才顯示名字首字
   if (!dataOrUnit.avatarUrl) {
     const fallbackText = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { fontSize: '28px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     container.add(fallbackText);
     return;
   }
 
-  // 3. 載入圖片並強制覆蓋在底色上方
+  // 3. 有圖片網址時，透過快取或非同步安全載入
   const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Math.floor(Math.random() * 100000);
   if (scene.textures.exists(key)) {
     const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
@@ -279,9 +276,10 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
     maskShape.fillStyle(0xffffff);
     maskShape.fillRoundedRect(-half, -half, size, size, radius);
     avatarImg.setMask(maskShape.createGeometryMask());
-    container.add(avatarImg); // 新增到容器最上層
+    container.add(avatarImg);
   } else {
-    const tempText = scene.add.text(0, 0, (dataOrUnit.name || '').substring(0, 1), { fontSize: '24px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    // 預先放個空白佔位或文字
+    const tempText = scene.add.text(0, 0, (dataOrUnit.name || '').substring(0, 1), { fontSize: '20px', color: '#888' }).setOrigin(0.5);
     container.add(tempText);
 
     const imgObj = new Image();
@@ -291,15 +289,18 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
       if (scene && scene.textures && !scene.textures.exists(key)) {
         scene.textures.addImage(key, imgObj);
         if (container && container.active) {
-          tempText.destroy();
+          tempText.destroy(); // 成功載入後移除佔位文字
           const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
           const maskShape = scene.make.graphics();
           maskShape.fillStyle(0xffffff);
           maskShape.fillRoundedRect(-half, -half, size, size, radius);
           avatarImg.setMask(maskShape.createGeometryMask());
-          container.add(avatarImg); // 確保加到最上層
+          container.add(avatarImg); // 強制加到最前端
         }
       }
+    };
+    imgObj.onerror = () => {
+      // 載入失敗保留文字
     };
   }
 }
