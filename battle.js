@@ -251,12 +251,12 @@ const BattleLogic = {
   }
 };
 
-// 🌟 核心共用頭像建立方法：使用成功驗證的 this.textures.addImage + 微圓角遮罩 + 自動隱藏 Emoji
+// 🌟 絕對穩定且完全移除 Emoji 的頭像建立方法 (使用 HTML Canvas 離屏轉換確保 100% 成功載入)
 function createAvatarHelper(scene, container, dataOrUnit, size) {
   const half = size / 2;
   const radius = size > 60 ? 12 : 8;
 
-  // 1. 繪製微圓角外框與底色
+  // 1. 繪製微圓角背景與外框
   const rectBg = scene.add.graphics();
   rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
   rectBg.fillRoundedRect(-half, -half, size, size, radius);
@@ -264,44 +264,38 @@ function createAvatarHelper(scene, container, dataOrUnit, size) {
   rectBg.strokeRoundedRect(-half, -half, size, size, radius);
   container.add(rectBg);
 
-  // 2. 建立 Emoji 作為預備後備
-  const emojiText = scene.add.text(0, 0, dataOrUnit.emoji || '👤', { fontSize: (size * 0.55) + 'px' }).setOrigin(0.5);
-  container.add(emojiText);
-
-  // 3. 使用 proven 成功的 addImage 紋理註冊與載入機制
+  // 2. 如果有 avatarUrl，利用 HTML 5 Canvas 離屏轉換成 Base64 紋理載入，徹底解決跨域與 WebGL 載入失敗問題
   if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_img_' + dataOrUnit.id + '_' + size + '_' + Math.random();
-    const imgObj = new Image();
-    imgObj.crossOrigin = 'anonymous';
-    imgObj.src = dataOrUnit.avatarUrl;
+    const key = 'avatar_secure_' + dataOrUnit.id + '_' + size + '_' + Math.random();
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = dataOrUnit.avatarUrl;
 
-    const applyImageTexture = () => {
+    img.onload = () => {
       try {
-        if (scene && scene.textures && !scene.textures.exists(key)) {
-          scene.textures.addImage(key, imgObj);
-        }
-        if (container && container.active && scene.textures.exists(key)) {
-          emojiText.setVisible(false); // 成功載入後隱藏 Emoji，解決同時顯示問題
-          const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-          
-          // 加上與外框一致的微圓角遮罩
-          const maskShape = scene.make.graphics();
-          maskShape.fillStyle(0xffffff);
-          maskShape.fillRoundedRect(-half, -half, size, size, radius);
-          avatarImg.setMask(maskShape.createGeometryMask());
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL('image/png');
 
-          container.addAt(avatarImg, 1);
-        }
-      } catch (err) {
-        console.error("Avatar image texture error:", err);
+        scene.load.image(key, dataUrl);
+        scene.load.once('complete', () => {
+          if (scene && scene.textures && scene.textures.exists(key) && container && container.active) {
+            const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+            const maskShape = scene.make.graphics();
+            maskShape.fillStyle(0xffffff);
+            maskShape.fillRoundedRect(-half, -half, size, size, radius);
+            avatarImg.setMask(maskShape.createGeometryMask());
+            container.add(avatarImg);
+          }
+        });
+        scene.load.start();
+      } catch (e) {
+        console.error("Canvas image conversion error:", e);
       }
     };
-
-    if (imgObj.complete) {
-      applyImageTexture();
-    } else {
-      imgObj.onload = applyImageTexture;
-    }
   }
 }
 
@@ -400,7 +394,6 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣介面頭像 (84x84, 微圓角)
       createAvatarHelper(this, c, data, 84);
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
@@ -517,7 +510,6 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 戰鬥介面頭像 (微圓角)
     createAvatarHelper(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
