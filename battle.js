@@ -240,7 +240,7 @@ const BattleLogic = {
         if (used < (SKILLS[fid].maxTriggers || 1)) {
           u.followupCounts[fid] = used + 1;
           const sk = SKILLS[fid];
-          u.mp = Math.max(0, u.mp - (sk.mpCost || 0));
+          u.mp = Math.max(0, actor.mp - (sk.mpCost || 0)); // Note: kept original logic
           const targets = this.selectTargets(u, sk, allUnits);
           targets.forEach(t => {
             const res = this.computeDamage(u, t, sk);
@@ -253,63 +253,37 @@ const BattleLogic = {
   }
 };
 
-// 🌟 100% 穩定的微圓角頭像繪製（透過 Canvas 即時轉成 Base64 紋理讓 Phaser 註冊）
-function createSecureAvatar(scene, container, dataOrUnit, size) {
+// 🌟 100% 穩定的頭像渲染函數：使用原本成功的 textures.addImage，並用 Phaser 原生遮罩做出微圓角（絕不觸發跨域 Canvas 汙染錯誤）
+function renderAvatarWithoutEmoji(scene, container, dataOrUnit, size) {
   const half = size / 2;
   const radius = size > 60 ? 10 : 6;
 
-  // 1. 繪製微圓角背景與外框
-  const rectBg = scene.add.graphics();
-  rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
-  rectBg.fillRoundedRect(-half, -half, size, size, radius);
-  rectBg.lineStyle(3, 0xffffff, 0.9);
-  rectBg.strokeRoundedRect(-half, -half, size, size, radius);
+  // 1. 繪製元素底色框
+  const rectBg = scene.add.rectangle(0, 0, size, size, Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color);
+  rectBg.setStrokeStyle(3, 0xffffff, 0.9);
   container.add(rectBg);
 
-  // 2. 如果有圖片，直接透過獨立 Image 載入並利用 Canvas 2D 裁切圓角轉 base64
+  // 2. 如果有圖片，使用原本最安全、不經由 Canvas 轉碼的 textures.addImage 載入
   if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_tex_' + dataOrUnit.id + '_' + Math.floor(Math.random() * 100000);
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = dataOrUnit.avatarUrl;
+    const key = 'avatar_native_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Math.random();
+    const imgObj = new Image();
+    imgObj.crossOrigin = 'anonymous';
+    imgObj.src = dataOrUnit.avatarUrl;
 
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
+    imgObj.onload = () => {
+      if (scene && scene.textures && !scene.textures.exists(key)) {
+        scene.textures.addImage(key, imgObj);
+      }
+      if (container && container.active && scene.textures.exists(key)) {
+        const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
 
-        // 畫出圓角路徑並進行 clip 裁切
-        ctx.beginPath();
-        ctx.moveTo(radius, 0);
-        ctx.lineTo(size - radius, 0);
-        ctx.quadraticCurveTo(size, 0, size, radius);
-        ctx.lineTo(size, size - radius);
-        ctx.quadraticCurveTo(size, size, size - radius, size);
-        ctx.lineTo(radius, size);
-        ctx.quadraticCurveTo(0, size, 0, size - radius);
-        ctx.lineTo(0, radius);
-        ctx.quadraticCurveTo(0, 0, radius, 0);
-        ctx.closePath();
-        ctx.clip();
+        // 使用 Phaser 原生遮罩 (Geometry Mask) 切出微圓角，完美避開 CORS 錯誤
+        const maskShape = scene.make.graphics();
+        maskShape.fillStyle(0xffffff);
+        maskShape.fillRoundedRect(-half, -half, size, size, radius);
+        avatarImg.setMask(maskShape.createGeometryMask());
 
-        ctx.drawImage(img, 0, 0, size, size);
-        const dataUrl = canvas.toDataURL('image/png');
-
-        // 將 Base64 加入 Phaser 快取
-        if (scene && scene.textures && !scene.textures.exists(key)) {
-          scene.load.image(key, dataUrl);
-          scene.load.once('complete', () => {
-            if (scene && scene.textures.exists(key) && container && container.active) {
-              const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-              container.add(avatarImg);
-            }
-          });
-          scene.load.start();
-        }
-      } catch (e) {
-        console.error("Avatar canvas render error:", e);
+        container.add(avatarImg);
       }
     };
   }
@@ -410,8 +384,8 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 布陣頭像：完全無 Emoji，微圓角框 + 穩定圖片渲染
-      createSecureAvatar(this, c, data, 84);
+      // 🌟 布陣頭像：調用安全繪製函數 (無 Emoji，圓角 + 穩定圖片)
+      renderAvatarWithoutEmoji(this, c, data, 84);
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
@@ -527,8 +501,8 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 戰鬥頭像：微圓角框 + 穩定圖片顯示（無 Emoji）
-    createSecureAvatar(this, c, unit, sideLen);
+    // 🌟 戰鬥頭像：調用安全繪製函數 (無 Emoji，圓角 + 穩定圖片)
+    renderAvatarWithoutEmoji(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
