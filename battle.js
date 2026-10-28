@@ -251,62 +251,31 @@ const BattleLogic = {
   }
 };
 
-// 🌟 完美穩定版：使用原生 JavaScript Image 动态載入並即時轉為 Phaser 紋理，支援圓角與屬性外框
+// 🌟 100% 穩定支援 iOS 與網頁端的 HTML 圖片覆蓋層頭像渲染函式
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
-  const half = size / 2;
   const radius = 10; // 微圓角
   const elementColorHex = getElementInfo(dataOrUnit.element).color;
-  const elementColorNum = Phaser.Display.Color.HexStringToColor(elementColorHex).color;
+  
+  if (dataOrUnit.avatarUrl) {
+    let imgSrc = dataOrUnit.avatarUrl;
+    if (!imgSrc.startsWith('http') && !imgSrc.startsWith('data:') && !imgSrc.startsWith('./') && !imgSrc.startsWith('/')) {
+      imgSrc = './' + imgSrc;
+    }
 
-  // 1. 建立底框與外框
-  const bgBox = scene.add.rectangle(0, 0, size, size, 0x111122).setStrokeStyle(3, elementColorNum, 1);
-  container.add(bgBox);
+    const htmlContent = `
+      <div style="width: ${size}px; height: ${size}px; border-radius: ${radius}px; border: 3px solid ${elementColorHex}; background: #111122; box-sizing: border-box; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+        <img src="${imgSrc}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+        <span style="display: none; color: #fff; font-size: 24px; font-weight: bold;">${(dataOrUnit.name || '角').substring(0, 1)}</span>
+      </div>
+    `;
 
-  if (!dataOrUnit.avatarUrl) {
-    const fallbackText = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { 
-      fontSize: '28px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 
-    }).setOrigin(0.5);
-    container.add(fallbackText);
-    return;
-  }
-
-  // 2. 建立專屬紋理 Key
-  const textureKey = 'dyn_avatar_' + (dataOrUnit.id || dataOrUnit.itemId || Math.random());
-
-  if (scene.textures.exists(textureKey)) {
-    // 若紋理已存在，直接建立 Image 並加上圓角遮罩
-    const avatarImg = scene.add.image(0, 0, textureKey).setDisplaySize(size, size).setOrigin(0.5);
-    const maskShape = scene.make.graphics();
-    maskShape.fillStyle(0xffffff);
-    maskShape.fillRoundedRect(-half, -half, size, size, radius);
-    avatarImg.setMask(maskShape.createGeometryMask());
-    container.add(avatarImg);
+    const domElem = scene.add.dom(0, 0, 'div', '', htmlContent);
+    domElem.setOrigin(0.5, 0.5);
+    container.add(domElem);
   } else {
-    // 預先顯示首字作為載入中的過渡
-    const tempText = scene.add.text(0, 0, (dataOrUnit.name || '').substring(0, 1), { fontSize: '20px', color: '#888' }).setOrigin(0.5);
-    container.add(tempText);
-
-    // 3. 使用原生 JavaScript Image 非同步加載（完美支援 Base64、本地路徑、遠端 URL）
-    const imgObj = new Image();
-    imgObj.crossOrigin = 'anonymous';
-    imgObj.src = dataOrUnit.avatarUrl;
-    imgObj.onload = () => {
-      if (scene && scene.textures && !scene.textures.exists(textureKey)) {
-        scene.textures.addImage(textureKey, imgObj);
-        if (container && container.active) {
-          tempText.destroy();
-          const avatarImg = scene.add.image(0, 0, textureKey).setDisplaySize(size, size).setOrigin(0.5);
-          const maskShape = scene.make.graphics();
-          maskShape.fillStyle(0xffffff);
-          maskShape.fillRoundedRect(-half, -half, size, size, radius);
-          avatarImg.setMask(maskShape.createGeometryMask());
-          container.add(avatarImg);
-        }
-      }
-    };
-    imgObj.onerror = () => {
-      // 載入失敗時保留文字備案
-    };
+    const bgBox = scene.add.rectangle(0, 0, size, size, 0x111122).setStrokeStyle(3, Phaser.Display.Color.HexStringToColor(elementColorHex).color, 1);
+    const txt = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { fontSize: '28px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+    container.add([bgBox, txt]);
   }
 }
 
@@ -817,6 +786,7 @@ if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
+    dom: { createContainer: true }, // 🌟 啟動 DOM 容器支援，保證 HTML 圖片能順利呈現
     scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
   });
 }
