@@ -1,6 +1,6 @@
 // ============================================================
 // 模組：完整人物與背包系統 (character_system.js)
-// 完美支援：立繪高度380px、預設技能頁籤、左右聯動動態顯示、重置意境功能
+// 完整支援：立繪 top center 置頂對齊、精準重置手動加點邏輯
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -25,20 +25,20 @@
             <!-- 左侧基础面板 (宽度固定 420px) -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
                 
-                <!-- 🌟 立繪高度改為 380px，寬度 420px -->
-                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center/cover; position: relative; flex-shrink: 0;"></div>
+                <!-- 🌟 立繪高度 380px，對齊改為 top center（上方貼邊、左右置中） -->
+                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
                 
-                <!-- 底部頭像切換列 -->
+                <!-- 底部头像切换列 -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
                 
-                <!-- 小箭頭彈出詳細訊息按鈕保持不變 -->
+                <!-- 小箭头弹出详细信息按鈕保持不变 -->
                 <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 40%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
             </div>
 
             <!-- 右侧区域 -->
             <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
                 
-                <!-- Tab 順序：預設左側為技能，右側為背包 -->
+                <!-- Tab 顺序 -->
                 <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
                     <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
                     <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
@@ -67,7 +67,7 @@
                 <button class="btn-action btn-equip" id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
             </div>
 
-            <!-- 彈窗：詳細屬性 (小箭頭點擊彈出) -->
+            <!-- 彈窗：詳細屬性 -->
             <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">详细属性</h2>
@@ -88,6 +88,7 @@
         let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
         let lv = char.level || 1;
         
+        // 1. 加上成長模型隨等級增加的數值
         if (gm && lv > 1) {
             baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
             baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
@@ -96,6 +97,16 @@
             baseStats.guiMi += (gm.guiMi || 0) * (lv-1);
             baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
         }
+
+        // 2. 🌟 加上玩家手動自由加點的數值 (allocatedStats)
+        if (!char.allocatedStats) char.allocatedStats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+        baseStats.fengRui += char.allocatedStats.fengRui || 0;
+        baseStats.hunHou += char.allocatedStats.hunHou || 0;
+        baseStats.lingDong += char.allocatedStats.lingDong || 0;
+        baseStats.jianRen += char.allocatedStats.jianRen || 0;
+        baseStats.guiMi += char.allocatedStats.guiMi || 0;
+        baseStats.jueQing += char.allocatedStats.jueQing || 0;
+
         return {
             fengRui: Math.floor(baseStats.fengRui),
             hunHou: Math.floor(baseStats.hunHou),
@@ -141,7 +152,7 @@
         if (typeof CHARACTERS === 'undefined') return;
 
         try {
-            const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
+            const gc = JSON.parse(localStorage.getItem('my_game_config'] || '{}');
             globalExpTable = gc.expTable || [];
             window.GROWTH_MODELS = gc.growthModels || [];
         } catch(e) {}
@@ -202,12 +213,12 @@
     }
 
     function refreshLeftPanel() {
-        // 1. 動態更新大立繪背景 (高度改為 380px)
+        // 1. 動態更新大立繪背景：設定高度 380px，對齊改為 top center（上方貼邊、左右置中）
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
             portraitEl.style.height = '380px';
-            portraitEl.style.background = `url('${bgImg}') center/cover`;
+            portraitEl.style.background = `url('${bgImg}') top center/cover`;
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
@@ -251,7 +262,6 @@
             const stats = getFinalStatsForUI(selectedChar);
             const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
             
-            // 🌟 剩餘點數欄位右側增加「重置意境」按鈕
             let statsHtml = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <div style="color: #f1c40f; font-size: 13px; font-weight: bold;">剩余点数: ${fp}</div>
@@ -305,31 +315,33 @@
         if (!selectedChar.freePoints || selectedChar.freePoints <= 0) return;
         
         selectedChar.freePoints--;
-        if(!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
-        selectedChar.stats[statKey] = (selectedChar.stats[statKey] || 0) + 1;
+        
+        // 🌟 記錄到專門的手動分配欄位中
+        if (!selectedChar.allocatedStats) selectedChar.allocatedStats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+        selectedChar.allocatedStats[statKey] = (selectedChar.allocatedStats[statKey] || 0) + 1;
         
         saveGameData();
         selectCharacter(selectedChar);
     };
 
-    // 🌟 新增：重置意境點數功能（將已分配的意境點數全部返還為自由點數）
+    // 🌟 核心修正：只重置手動加點（allocatedStats），保留初始底子與等級成長數值
     window.resetCharacterStats = function() {
         if (!selectedChar) return;
-        if (!selectedChar.stats) return;
+        if (!selectedChar.allocatedStats) return;
 
         let totalAllocated = 0;
-        Object.keys(selectedChar.stats).forEach(k => {
-            totalAllocated += (selectedChar.stats[k] || 0);
-            selectedChar.stats[k] = 0;
+        Object.keys(selectedChar.allocatedStats).forEach(k => {
+            totalAllocated += (selectedChar.allocatedStats[k] || 0);
+            selectedChar.allocatedStats[k] = 0;
         });
 
         if (totalAllocated > 0) {
             selectedChar.freePoints = (selectedChar.freePoints || 0) + totalAllocated;
             saveGameData();
             selectCharacter(selectedChar);
-            window.showToast('已成功重置意境，点数已全部返还！', '#e67e22');
+            window.showToast('已成功重置意境加点，点数已全部返还！', '#e67e22');
         } else {
-            window.showToast('当前没有已分配的意境点数', '#888');
+            window.showToast('当前没有手动分配的意境点数', '#888');
         }
     };
 
