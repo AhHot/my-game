@@ -252,9 +252,12 @@ const BattleLogic = {
 };
 
 // ============================================================
-// ★★★ 核心修改：角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
-//   關鍵點：DOM 元素包裝層必須設 pointer-events: none，
-//   否則手機端的 touch 事件會被 DOM 攔截，canvas 收不到拖拽事件！
+// ★★★ 核心函式：角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
+//   手機端修復關鍵：
+//   1. 用 createFromHTML（不是把 HTML 塞成純文字）
+//   2. domElem.node.style.pointerEvents = 'none' （Phaser 的外層包裝）
+//   3. 內層 div 也設 pointer-events: none + touch-action: none
+//   這樣 canvas 才能接收到手機的 touch 事件，拖拽才會生效。
 // ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const radius = 10;
@@ -290,6 +293,7 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-touch-callout: none;
       font-family: 'Microsoft YaHei', sans-serif;
     ">${innerContent}</div>
   `;
@@ -297,13 +301,14 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const domElem = scene.add.dom(0, 0).createFromHTML(htmlContent);
   domElem.setOrigin(0.5, 0.5);
 
-  // ★ 關鍵修復：Phaser 自己會在外層包一層 <div>，必須把它也設為 pointer-events: none，
-  //   否則手機的 touch 事件會全部被它吃掉，導致無法拖拽！
+  // ★ 手機端關鍵修復：Phaser 自己會在外層包一層 div，必須把它也設為 pointer-events: none，
+  //   否則手機的 touch 事件會被它吃掉，導致無法拖拽角色！
   if (domElem.node) {
     domElem.node.style.pointerEvents = 'none';
     domElem.node.style.touchAction = 'none';
     domElem.node.style.userSelect = 'none';
     domElem.node.style.webkitUserSelect = 'none';
+    domElem.node.style.webkitTouchCallout = 'none';
   }
 
   container.add(domElem);
@@ -370,6 +375,9 @@ class FormationScene extends Phaser.Scene {
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   create() {
+    // ★ 手機觸控拖拽優化：手指需移動一定距離才觸發拖拽（避免誤判為點擊）
+    this.input.dragDistanceThreshold = 10;
+
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
@@ -817,6 +825,10 @@ if (document.getElementById('game') && !window.game) {
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
     dom: { createContainer: true },
+    input: {
+      activePointers: 3,
+      touch: { capture: true }
+    },
     scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
   });
 }
