@@ -41,32 +41,20 @@
         const navBookId = urlParams.get('bookId') || 'book_01';
         const navNodeIndex = parseInt(urlParams.get('nodeIndex') || '0');
 
+        // ★ 核心改動：完全移除 dom 配置，使用純 Canvas 渲染！
         window.game = new Phaser.Game({
             type: Phaser.AUTO,
             parent: 'game',
             backgroundColor: '#0f0f1a',
-            // ★ 核心改動：使用 Phaser.Scale.FIT 讓引擎自動處理縮放與座標映射
             scale: {
                 mode: Phaser.Scale.FIT,
                 autoCenter: Phaser.Scale.CENTER_BOTH,
                 width: 1280,
                 height: 720
             },
-            dom: {
-                createContainer: true,
-                pointerEvents: 'none'
-            },
             input: {
                 activePointers: 3,
                 touch: { capture: true }
-            },
-            callbacks: {
-                postBoot: function (game) {
-                    if (game.domContainer) {
-                        game.domContainer.style.pointerEvents = 'none';
-                        game.domContainer.style.touchAction = 'none';
-                    }
-                }
             },
             scene: [FormationScene, BattleScene, ResultScene],
         });
