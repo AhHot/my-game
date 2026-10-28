@@ -253,6 +253,41 @@ const BattleLogic = {
   }
 };
 
+// 🌟 核心修改：使用小頭像圖片並結合微圓角外框（完全不用 Emoji）
+function createCharacterAvatarView(scene, container, dataOrUnit, size) {
+  const half = size / 2;
+  const radius = 10; // 微圓角半徑
+
+  // 1. 繪製元素屬性底色框
+  const rectBg = scene.add.rectangle(0, 0, size, size, Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color);
+  rectBg.setStrokeStyle(3, 0xffffff, 0.9);
+  container.add(rectBg);
+
+  // 2. 載入頭像圖片並套用微圓角遮罩
+  if (dataOrUnit.avatarUrl) {
+    const key = 'avatar_battle_' + (dataOrUnit.id || dataOrUnit.itemId) + '_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const imgObj = new Image();
+    imgObj.crossOrigin = 'anonymous';
+    imgObj.src = dataOrUnit.avatarUrl;
+    imgObj.onload = () => {
+      if (scene && scene.textures && !scene.textures.exists(key)) {
+        scene.textures.addImage(key, imgObj);
+        if (container && container.active) {
+          const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+          
+          // 建立微圓角遮罩 (Geometry Mask)
+          const maskShape = scene.make.graphics();
+          maskShape.fillStyle(0xffffff);
+          maskShape.fillRoundedRect(-half, -half, size, size, radius);
+          avatarImg.setMask(maskShape.createGeometryMask());
+
+          container.add(avatarImg);
+        }
+      }
+    };
+  }
+}
+
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   const dropRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
@@ -324,7 +359,7 @@ class FormationScene extends Phaser.Scene {
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
     
-    // 👤 人物與背包按鈕（完美保留與其他模組聯動）
+    // 👤 人物與背包按鈕（完美保留）
     const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
     teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
     
@@ -350,7 +385,11 @@ class FormationScene extends Phaser.Scene {
     CHARACTERS.filter(c => c.side === 'player').forEach(data => {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
-      c.add([this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9), this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5), this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5)]); 
+      
+      // 🌟 布陣介面改用微圓角圖片頭像（無 Emoji）
+      createCharacterAvatarView(this, c, data, 84);
+      c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5)); 
+
       c.setSize(80, 80).setInteractive({ draggable: true }); this.input.setDraggable(c);
       c.unitData = data; c.isOnGrid = false; this.unitContainers.push(c);
       c.on('dragstart', () => { if (c.isOnGrid) { for (let y = data.gridY; y < data.gridY + data.sizeY; y++) for (let x = data.gridX; x < data.gridX + data.sizeX; x++) this.gridState[y][x] = null; } c.setDepth(100); });
@@ -461,6 +500,7 @@ class BattleScene extends Phaser.Scene {
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
+    const sideLen = r * 2;
     
     const isEnemy = unit.side === 'enemy';
     const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
@@ -468,8 +508,9 @@ class BattleScene extends Phaser.Scene {
     const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25).setStrokeStyle(2, baseColor, 0.8);
     c.add(baseEllipse);
 
-    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
+    // 🌟 戰鬥介面改用微圓角圖片頭像（無 Emoji）
+    createCharacterAvatarView(this, c, unit, sideLen);
+
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
     const bw = Math.min(cell * scale * 0.85, 100); 
@@ -484,8 +525,8 @@ class BattleScene extends Phaser.Scene {
     const mpText = this.add.text(bw/2 + 5, r + 44, '', { fontSize: '9px', color: '#88ccff' }).setOrigin(0, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
-    c.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    this.unitViews.set(unit, { container: c, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -536,7 +577,7 @@ class BattleScene extends Phaser.Scene {
             t.takeDamage(r.damage); if (r.lifestealAmount > 0) heal += r.lifestealAmount;
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
-            if (tv2) { tv2.circle.setFillStyle(0xffffff); this.time.delayedCall(100, () => { if (tv2.circle.active) tv2.circle.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); }); this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); }
+            if (tv2) { this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); }
           }
         }
         this.updateUnitView(t);
@@ -612,7 +653,7 @@ class BattleScene extends Phaser.Scene {
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
     v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
-    if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
+    if (!u.isAlive()) { v.container.setAlpha(0.25); }
   }
 
   fastForward() {
