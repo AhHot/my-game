@@ -253,17 +253,15 @@ const BattleLogic = {
 
 // ============================================================
 // ★★★ 核心修改：角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
-//   使用 Phaser 3.60+ 的 createFromHTML 才不會把 HTML 當成純文字，
-//   且在 3.70 環境下 DOM 元素可正確加入 Container 並跟隨拖動縮放。
+//   關鍵點：DOM 元素包裝層必須設 pointer-events: none，
+//   否則手機端的 touch 事件會被 DOM 攔截，canvas 收不到拖拽事件！
 // ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
-  const radius = 10;                       // 圓角，與 character_system.js 一致
-  const borderColor = '#444';              // 邊框顏色，與 character_system.js 一致
-  const bgColor = '#222';                  // 背景色，與 character_system.js 一致
+  const radius = 10;
+  const borderColor = '#444';
+  const bgColor = '#222';
   const imgSrc = dataOrUnit.avatarUrl || '';
 
-  // 有頭像 -> 用 background-image（跟人物背包一樣 center/cover）
-  // 無頭像 -> 顯示 emoji 或名字首字
   let innerContent = '';
   let bgStyle = `background-color: ${bgColor};`;
 
@@ -289,14 +287,25 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
       color: #fff;
       font-weight: bold;
       pointer-events: none;
+      touch-action: none;
       user-select: none;
+      -webkit-user-select: none;
       font-family: 'Microsoft YaHei', sans-serif;
     ">${innerContent}</div>
   `;
 
-  // ★ 重點：用 createFromHTML，HTML 才會被解析成 DOM 而不是當純文字塞進 innerText
   const domElem = scene.add.dom(0, 0).createFromHTML(htmlContent);
   domElem.setOrigin(0.5, 0.5);
+
+  // ★ 關鍵修復：Phaser 自己會在外層包一層 <div>，必須把它也設為 pointer-events: none，
+  //   否則手機的 touch 事件會全部被它吃掉，導致無法拖拽！
+  if (domElem.node) {
+    domElem.node.style.pointerEvents = 'none';
+    domElem.node.style.touchAction = 'none';
+    domElem.node.style.userSelect = 'none';
+    domElem.node.style.webkitUserSelect = 'none';
+  }
+
   container.add(domElem);
 }
 
