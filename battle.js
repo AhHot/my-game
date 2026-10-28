@@ -251,32 +251,53 @@ const BattleLogic = {
   }
 };
 
-// 🌟 100% 穩定支援 iOS 與網頁端的 HTML 圖片覆蓋層頭像渲染函式
+// ============================================================
+// ★★★ 核心修改：角色頭像渲染（與人物背包左下小頭像完全一致） ★★★
+//   使用 Phaser 3.60+ 的 createFromHTML 才不會把 HTML 當成純文字，
+//   且在 3.70 環境下 DOM 元素可正確加入 Container 並跟隨拖動縮放。
+// ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
-  const radius = 10; // 微圓角
-  const elementColorHex = getElementInfo(dataOrUnit.element).color;
-  
-  if (dataOrUnit.avatarUrl) {
-    let imgSrc = dataOrUnit.avatarUrl;
-    if (!imgSrc.startsWith('http') && !imgSrc.startsWith('data:') && !imgSrc.startsWith('./') && !imgSrc.startsWith('/')) {
-      imgSrc = './' + imgSrc;
-    }
+  const radius = 10;                       // 圓角，與 character_system.js 一致
+  const borderColor = '#444';              // 邊框顏色，與 character_system.js 一致
+  const bgColor = '#222';                  // 背景色，與 character_system.js 一致
+  const imgSrc = dataOrUnit.avatarUrl || '';
 
-    const htmlContent = `
-      <div style="width: ${size}px; height: ${size}px; border-radius: ${radius}px; border: 3px solid ${elementColorHex}; background: #111122; box-sizing: border-box; overflow: hidden; display: flex; align-items: center; justify-content: center;">
-        <img src="${imgSrc}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-        <span style="display: none; color: #fff; font-size: 24px; font-weight: bold;">${(dataOrUnit.name || '角').substring(0, 1)}</span>
-      </div>
-    `;
+  // 有頭像 -> 用 background-image（跟人物背包一樣 center/cover）
+  // 無頭像 -> 顯示 emoji 或名字首字
+  let innerContent = '';
+  let bgStyle = `background-color: ${bgColor};`;
 
-    const domElem = scene.add.dom(0, 0, 'div', '', htmlContent);
-    domElem.setOrigin(0.5, 0.5);
-    container.add(domElem);
+  if (imgSrc) {
+    bgStyle = `background: ${bgColor} url('${imgSrc}') center/cover no-repeat;`;
   } else {
-    const bgBox = scene.add.rectangle(0, 0, size, size, 0x111122).setStrokeStyle(3, Phaser.Display.Color.HexStringToColor(elementColorHex).color, 1);
-    const txt = scene.add.text(0, 0, (dataOrUnit.name || '角').substring(0, 1), { fontSize: '28px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-    container.add([bgBox, txt]);
+    innerContent = dataOrUnit.emoji || (dataOrUnit.name || '角').substring(0, 1);
   }
+
+  const htmlContent = `
+    <div style="
+      width: ${size}px;
+      height: ${size}px;
+      border-radius: ${radius}px;
+      border: 2px solid ${borderColor};
+      ${bgStyle}
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: ${Math.round(size * 0.55)}px;
+      box-sizing: border-box;
+      overflow: hidden;
+      color: #fff;
+      font-weight: bold;
+      pointer-events: none;
+      user-select: none;
+      font-family: 'Microsoft YaHei', sans-serif;
+    ">${innerContent}</div>
+  `;
+
+  // ★ 重點：用 createFromHTML，HTML 才會被解析成 DOM 而不是當純文字塞進 innerText
+  const domElem = scene.add.dom(0, 0).createFromHTML(htmlContent);
+  domElem.setOrigin(0.5, 0.5);
+  container.add(domElem);
 }
 
 function generateRandomInstance(templateId) {
@@ -786,7 +807,7 @@ if (document.getElementById('game') && !window.game) {
   window.game = new Phaser.Game({
     type: Phaser.AUTO, parent: 'game', backgroundColor: '#0f0f1a',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: CONFIG.WIDTH, height: CONFIG.HEIGHT },
-    dom: { createContainer: true }, // 🌟 啟動 DOM 容器支援，保證 HTML 圖片能順利呈現
+    dom: { createContainer: true },
     scene: [MainMenuScene, FormationScene, BattleScene, ResultScene],
   });
 }
