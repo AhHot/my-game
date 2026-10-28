@@ -347,32 +347,7 @@ class FormationScene extends Phaser.Scene {
     CHARACTERS.filter(c => c.side === 'player').forEach(data => {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
-      
-      const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-      c.add(rectBg);
-
-      // 🌟 布陣頭像：利用 JavaScript Image 物件即時載入 base64 / 網址，完美與左下角小頭像一致
-      if (data.avatarUrl) {
-        const key = 'dyn_avatar_' + data.id + '_' + Date.now();
-        const imgObj = new Image();
-        imgObj.crossOrigin = 'anonymous';
-        imgObj.src = data.avatarUrl;
-        imgObj.onload = () => {
-          if (this.textures && !this.textures.exists(key)) {
-            this.textures.addImage(key, imgObj);
-            if (c && c.active) {
-              const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
-              c.addAt(avatarImg, 1);
-            }
-          }
-        };
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
-      } else {
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
-      }
-
-      c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
-
+      c.add([this.add.circle(0, 0, 42, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9), this.add.text(0, 0, data.emoji, { fontSize: '48px' }).setOrigin(0.5), this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5)]); 
       c.setSize(80, 80).setInteractive({ draggable: true }); this.input.setDraggable(c);
       c.unitData = data; c.isOnGrid = false; this.unitContainers.push(c);
       c.on('dragstart', () => { if (c.isOnGrid) { for (let y = data.gridY; y < data.gridY + data.sizeY; y++) for (let x = data.gridX; x < data.gridX + data.sizeX; x++) this.gridState[y][x] = null; } c.setDepth(100); });
@@ -483,35 +458,15 @@ class BattleScene extends Phaser.Scene {
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
-    const sideLen = r * 2;
     
-    const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
-    c.add(rectBg);
+    const isEnemy = unit.side === 'enemy';
+    const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
+    const baseH = r * 0.8; const baseW = r * 2.2;
+    const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25).setStrokeStyle(2, baseColor, 0.8);
+    c.add(baseEllipse);
 
-    // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
-    if (unit.avatarUrl) {
-      const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
-      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-      c.add(emojiText);
-
-      const imgObj = new Image();
-      imgObj.crossOrigin = 'anonymous';
-      imgObj.src = unit.avatarUrl;
-      imgObj.onload = () => {
-        if (this.textures && !this.textures.exists(key)) {
-          this.textures.addImage(key, imgObj);
-          if (c && c.active) {
-            emojiText.destroy();
-            const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
-            c.addAt(avatarImg, 1);
-          }
-        }
-      };
-    } else {
-      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-      c.add(emoji);
-    }
-
+    const circle = this.add.circle(0, 0, r, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    const emoji = this.add.text(0, 0, unit.emoji, { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
     const bw = Math.min(cell * scale * 0.85, 100); 
@@ -526,8 +481,8 @@ class BattleScene extends Phaser.Scene {
     const mpText = this.add.text(bw/2 + 5, r + 44, '', { fontSize: '9px', color: '#88ccff' }).setOrigin(0, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
-    c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, rectBg, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    c.add([circle, emoji, nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
+    this.unitViews.set(unit, { container: c, circle, emoji, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
@@ -578,13 +533,7 @@ class BattleScene extends Phaser.Scene {
             t.takeDamage(r.damage); if (r.lifestealAmount > 0) heal += r.lifestealAmount;
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
-            if (tv2) { 
-              tv2.rectBg.setFillStyle(0xffffff); 
-              this.time.delayedCall(100, () => { 
-                if (tv2.rectBg.active) tv2.rectBg.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); 
-              }); 
-              this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
-            }
+            if (tv2) { tv2.circle.setFillStyle(0xffffff); this.time.delayedCall(100, () => { if (tv2.circle.active) tv2.circle.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); }); this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); }
           }
         }
         this.updateUnitView(t);
@@ -660,7 +609,7 @@ class BattleScene extends Phaser.Scene {
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
     v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
-    if (!u.isAlive()) { v.container.setAlpha(0.25); }
+    if (!u.isAlive()) { v.emoji.setAlpha(0.25); v.circle.setAlpha(0.25); }
   }
 
   fastForward() {
@@ -740,6 +689,7 @@ class ResultScene extends Phaser.Scene {
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
 
+    // 處理經驗值與裝備掉落獎勵
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
       if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
@@ -760,13 +710,16 @@ class ResultScene extends Phaser.Scene {
       localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
     }
 
+    // 🌟 智慧導航按鈕判定
     if (this.resultType === 'victory') {
       if (this.navFrom === 'story') {
+        // 劇情戰鬥勝利：跳出「📖 繼續劇情」
         const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, '📖 繼續劇情', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
         b.on('pointerdown', () => {
           window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`;
         });
       } else {
+        // 日常戰鬥勝利：跳出「➡️ 下一關」或「返回選關」
         let label = '➡️ 进入下一关';
         let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
         if (this.currentLevelIndex >= LEVELS.length - 1) {
@@ -777,13 +730,14 @@ class ResultScene extends Phaser.Scene {
         b.on('pointerdown', action);
       }
     } else {
+      // 戰鬥失敗：提供「🔄 重新挑戰」與「🚪 放棄/返回」雙按鈕
       const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 140, CONFIG.HEIGHT / 2 + 200, '🔄 重新挑戰', { fontSize: '32px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
       retryBtn.on('pointerdown', () => {
         this.scene.start('FormationScene', { 
           levelIndex: this.currentLevelIndex,
           from: this.navFrom,
           bookId: this.navBookId,
-          nodeIndex: this.navNodeIndex - 1 
+          nodeIndex: this.navNodeIndex - 1 // 重試當前戰鬥節點
         });
       });
 
