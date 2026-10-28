@@ -348,10 +348,15 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      const rectBg = this.add.rectangle(0, 0, 84, 84, getElementInfo(data.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+      // 🌟 布陣頭像：改為微圓角外框（不顯示任何 Emoji）
+      const rectBg = this.add.graphics();
+      rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(data.element).color).color, 1);
+      rectBg.fillRoundedRect(-42, -42, 84, 84, 10);
+      rectBg.lineStyle(3, 0xffffff, 0.9);
+      rectBg.strokeRoundedRect(-42, -42, 84, 84, 10);
       c.add(rectBg);
+      c.rectBg = rectBg;
 
-      // 🌟 布陣頭像：利用 JavaScript Image 物件即時載入 base64 / 網址，完美與左下角小頭像一致
       if (data.avatarUrl) {
         const key = 'dyn_avatar_' + data.id + '_' + Date.now();
         const imgObj = new Image();
@@ -362,13 +367,14 @@ class FormationScene extends Phaser.Scene {
             this.textures.addImage(key, imgObj);
             if (c && c.active) {
               const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
+              const maskShape = this.make.graphics();
+              maskShape.fillStyle(0xffffff);
+              maskShape.fillRoundedRect(-42, -42, 84, 84, 10);
+              avatarImg.setMask(maskShape.createGeometryMask());
               c.addAt(avatarImg, 1);
             }
           }
         };
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
-      } else {
-        c.add(this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5));
       }
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
@@ -484,16 +490,18 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
+    const cornerRadius = 10; // 與人物介面一致的微圓角大小
     
-    const rectBg = this.add.rectangle(0, 0, sideLen, sideLen, getElementInfo(unit.element).color).setStrokeStyle(3, 0xffffff, 0.9);
+    // 🌟 戰鬥頭像：改為微圓角框，完全移除 Emoji 相關邏輯
+    const rectBg = this.add.graphics();
+    rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(unit.element).color).color, 1);
+    rectBg.fillRoundedRect(-sideLen/2, -sideLen/2, sideLen, sideLen, cornerRadius);
+    rectBg.lineStyle(3, 0xffffff, 0.9);
+    rectBg.strokeRoundedRect(-sideLen/2, -sideLen/2, sideLen, sideLen, cornerRadius);
     c.add(rectBg);
 
-    // 🌟 戰鬥頭像：透過動態建立 HTML Image 載入 Base64 或網址，完美對齊左下角小頭像並呈現方形外框
     if (unit.avatarUrl) {
       const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
-      const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-      c.add(emojiText);
-
       const imgObj = new Image();
       imgObj.crossOrigin = 'anonymous';
       imgObj.src = unit.avatarUrl;
@@ -501,15 +509,15 @@ class BattleScene extends Phaser.Scene {
         if (this.textures && !this.textures.exists(key)) {
           this.textures.addImage(key, imgObj);
           if (c && c.active) {
-            emojiText.destroy();
             const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
+            const maskShape = this.make.graphics();
+            maskShape.fillStyle(0xffffff);
+            maskShape.fillRoundedRect(-sideLen/2, -sideLen/2, sideLen, sideLen, cornerRadius);
+            avatarImg.setMask(maskShape.createGeometryMask());
             c.addAt(avatarImg, 1);
           }
         }
       };
-    } else {
-      const emoji = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-      c.add(emoji);
     }
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
@@ -579,10 +587,6 @@ class BattleScene extends Phaser.Scene {
             this.showDamage(t, r); this.addLog(`${actor.name} 对 ${t.name} 造成 ${r.damage} ${r.isCrit ? '暴击' : ''}伤害`, '#ff5555');
             const tv2 = this.unitViews.get(t);
             if (tv2) { 
-              tv2.rectBg.setFillStyle(0xffffff); 
-              this.time.delayedCall(100, () => { 
-                if (tv2.rectBg.active) tv2.rectBg.setFillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(t.element).color).color); 
-              }); 
               this.cameras.main.shake(100 / this.speedMultiplier, 0.005 * (r.isCrit ? 2 : 1)); 
             }
           }
