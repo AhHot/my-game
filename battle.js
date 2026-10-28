@@ -251,9 +251,6 @@ const BattleLogic = {
   }
 };
 
-// ============================================================
-// ★★★ 純 Canvas 繪製圓角頭像 ★★★
-// ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const radius = 10;
   const borderColor = 0x444444;
@@ -393,8 +390,6 @@ class MainMenuScene extends Phaser.Scene {
     b.on('pointerdown', () => this.scene.start('FormationScene', { levelIndex: 0 }));
     const e = this.add.text(CONFIG.WIDTH - 20, 20, '⚙️ 编辑器', { fontSize: '20px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     e.on('pointerdown', () => { window.location.href = 'editor.html'; });
-    const invBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
-    invBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
   }
 }
 
@@ -420,9 +415,8 @@ class FormationScene extends Phaser.Scene {
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
     
-    const teamBtn = this.add.text(30, CONFIG.HEIGHT - 40, '👤 人物与背包', { fontSize: '20px', color: '#fff', backgroundColor: '#9b59b6', padding: { x: 15, y: 10 } }).setOrigin(0, 1).setInteractive();
-    teamBtn.on('pointerdown', () => { if (window.openCharacterUI) window.openCharacterUI(); });
-    
+    // ★ 原本這裡有 teamBtn，現在已經由 HTML 取代，故刪除。
+
     this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
@@ -594,8 +588,6 @@ class BattleScene extends Phaser.Scene {
     const scale = Math.max(unit.sizeX, unit.sizeY);
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
-    
-    // ★ 這裡原本是繪製底盤光圈（baseEllipse）的代碼，已經被移除 ★
     
     createCharacterAvatarView(this, c, unit, sideLen);
 
