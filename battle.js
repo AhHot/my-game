@@ -252,7 +252,7 @@ const BattleLogic = {
 };
 
 // ============================================================
-// ★★★ 全新方案：純 Canvas 繪製圓角頭像，完美解決飛出畫面的問題 ★★★
+// ★★★ 純 Canvas 繪製圓角頭像 ★★★
 // ============================================================
 function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   const radius = 10;
@@ -458,7 +458,6 @@ class FormationScene extends Phaser.Scene {
       c.unitData = data; c.isOnGrid = false; c.hitZone = hitZone;
       this.unitContainers.push(c);
 
-      // ★★★ 核心修改：解決拖拽亂飛的問題 ★★★
       hitZone.on('dragstart', (pointer) => {
         if (c.isOnGrid) {
           for (let y = data.gridY; y < data.gridY + data.sizeY; y++)
@@ -466,18 +465,14 @@ class FormationScene extends Phaser.Scene {
               this.gridState[y][x] = null;
         }
         c.setDepth(100);
-        
-        // 記錄點擊時，手指位置與容器中心的偏移量
         c.dragOffsetX = c.x - pointer.x;
         c.dragOffsetY = c.y - pointer.y;
       });
       
       hitZone.on('drag', (pointer) => {
-        // 使用手指當前位置 + 偏移量，實現完美貼合跟隨
         c.x = pointer.x + c.dragOffsetX;
         c.y = pointer.y + c.dragOffsetY;
       });
-      // ★★★ 修改結束 ★★★
 
       hitZone.on('dragend', () => {
         c.setDepth(0);
@@ -600,12 +595,8 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    const isEnemy = unit.side === 'enemy';
-    const baseColor = isEnemy ? 0xCC99FF : 0xFF8888;
-    const baseH = r * 0.8; const baseW = r * 2.2;
-    const baseEllipse = this.add.ellipse(0, r*0.3, baseW, baseH, baseColor, 0.25).setStrokeStyle(2, baseColor, 0.8);
-    c.add(baseEllipse);
-
+    // ★ 這裡原本是繪製底盤光圈（baseEllipse）的代碼，已經被移除 ★
+    
     createCharacterAvatarView(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
