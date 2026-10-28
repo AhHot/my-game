@@ -296,7 +296,6 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
       drawBorder();
     } else {
       const img = new Image();
-      // 去掉 crossOrigin 避免某些手機瀏覽器直接封鎖跨域圖片加載
       img.src = imgSrc;
       
       img.onload = () => {
@@ -414,7 +413,7 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
     const lv = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    // ★★★ 確認版本號：如果你在手機上沒看到 v15.0，說明手機加載的還是舊文件！★★★
+    
     this.add.text(20, 20, `v15.0 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
     const editBtn = this.add.text(CONFIG.WIDTH - 180, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
@@ -459,18 +458,27 @@ class FormationScene extends Phaser.Scene {
       c.unitData = data; c.isOnGrid = false; c.hitZone = hitZone;
       this.unitContainers.push(c);
 
-      hitZone.on('dragstart', () => {
+      // ★★★ 核心修改：解決拖拽亂飛的問題 ★★★
+      hitZone.on('dragstart', (pointer) => {
         if (c.isOnGrid) {
           for (let y = data.gridY; y < data.gridY + data.sizeY; y++)
             for (let x = data.gridX; x < data.gridX + data.sizeX; x++)
               this.gridState[y][x] = null;
         }
         c.setDepth(100);
+        
+        // 記錄點擊時，手指位置與容器中心的偏移量
+        c.dragOffsetX = c.x - pointer.x;
+        c.dragOffsetY = c.y - pointer.y;
       });
-      hitZone.on('drag', (p, dragX, dragY) => {
-        c.x = dragX;
-        c.y = dragY;
+      
+      hitZone.on('drag', (pointer) => {
+        // 使用手指當前位置 + 偏移量，實現完美貼合跟隨
+        c.x = pointer.x + c.dragOffsetX;
+        c.y = pointer.y + c.dragOffsetY;
       });
+      // ★★★ 修改結束 ★★★
+
       hitZone.on('dragend', () => {
         c.setDepth(0);
         let col = Math.floor((c.x - gridLeft) / cell), row = Math.floor((c.y - gridTop) / cell);
