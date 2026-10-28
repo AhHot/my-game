@@ -1,6 +1,6 @@
 // ============================================================
 // 模組：完整人物與背包系統 (character_system.js)
-// 完整支援：立繪 top center 置頂對齊、精準重置手動加點邏輯
+// 完美修復：手動分配意境點數正確同步至 Unit 屬性轉換計算
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -25,20 +25,20 @@
             <!-- 左侧基础面板 (宽度固定 420px) -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
                 
-                <!-- 🌟 立繪高度 380px，對齊改為 top center（上方貼邊、左右置中） -->
+                <!-- 立繪高度 380px，上方貼邊、左右置中 (top center) -->
                 <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
                 
                 <!-- 底部头像切换列 -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
                 
-                <!-- 小箭头弹出详细信息按鈕保持不变 -->
+                <!-- 小箭头弹出详细信息按鈕 -->
                 <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 40%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
             </div>
 
             <!-- 右侧区域 -->
             <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
                 
-                <!-- Tab 顺序 -->
+                <!-- Tab 顺序：預設技能在左，背包在右 -->
                 <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
                     <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
                     <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
@@ -88,7 +88,6 @@
         let gm = (window.GROWTH_MODELS || []).find(m => m.id === char.growthModel) || (window.GROWTH_MODELS || [])[0];
         let lv = char.level || 1;
         
-        // 1. 加上成長模型隨等級增加的數值
         if (gm && lv > 1) {
             baseStats.fengRui += (gm.fengRui || 0) * (lv-1);
             baseStats.hunHou += (gm.hunHou || 0) * (lv-1);
@@ -98,7 +97,6 @@
             baseStats.jueQing += (gm.jueQing || 0) * (lv-1);
         }
 
-        // 2. 🌟 加上玩家手動自由加點的數值 (allocatedStats)
         if (!char.allocatedStats) char.allocatedStats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
         baseStats.fengRui += char.allocatedStats.fengRui || 0;
         baseStats.hunHou += char.allocatedStats.hunHou || 0;
@@ -199,7 +197,14 @@
 
     function selectCharacter(charData) {
         selectedChar = charData;
-        currentUnit = new Unit(selectedChar); 
+        
+        // 🌟 核心修復：在傳給 Unit 之前，先將 allocatedStats 暫時合併到 stats 中，
+        // 讓底層 battle.js 的 Unit 類別能夠正確計算出攻擊、暴擊、氣血等屬性轉換！
+        let tempCharForUnit = JSON.parse(JSON.stringify(charData));
+        let finalStats = getFinalStatsForUI(charData);
+        tempCharForUnit.stats = finalStats;
+        
+        currentUnit = new Unit(tempCharForUnit); 
         
         document.querySelectorAll('.char-avatar-btn').forEach(b => b.classList.remove('active'));
         const idx = CHARACTERS.filter(c=>c.side==='player').findIndex(c=>c.id === charData.id);
@@ -213,7 +218,6 @@
     }
 
     function refreshLeftPanel() {
-        // 1. 動態更新大立繪背景：設定高度 380px，對齊改為 top center（上方貼邊、左右置中）
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
@@ -245,7 +249,6 @@
             `;
         }
 
-        // 2. 動態控制容器
         let dynamicBox = document.getElementById('left-dynamic-content');
         if (!dynamicBox) {
             dynamicBox = document.createElement('div');
@@ -256,7 +259,6 @@
             leftPanel.insertBefore(dynamicBox, charListArea);
         }
 
-        // 3. 根據右側 Tab 動態切換左側內容
         if (currentTab === 'skill') {
             const fp = selectedChar.freePoints || 0;
             const stats = getFinalStatsForUI(selectedChar);
@@ -295,7 +297,6 @@
             renderEquipSlots();
         }
 
-        // 4. 更新詳細屬性大卡片數據
         document.getElementById('detail-atk').innerHTML = `
             <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${(currentUnit.critRate * 100).toFixed(1)}%</b></div>
             <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击伤害</span> <b style="color: #fff;">${(currentUnit.critDmg * 100).toFixed(1)}%</b></div>
@@ -315,8 +316,6 @@
         if (!selectedChar.freePoints || selectedChar.freePoints <= 0) return;
         
         selectedChar.freePoints--;
-        
-        // 🌟 記錄到專門的手動分配欄位中
         if (!selectedChar.allocatedStats) selectedChar.allocatedStats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
         selectedChar.allocatedStats[statKey] = (selectedChar.allocatedStats[statKey] || 0) + 1;
         
@@ -324,7 +323,6 @@
         selectCharacter(selectedChar);
     };
 
-    // 🌟 核心修正：只重置手動加點（allocatedStats），保留初始底子與等級成長數值
     window.resetCharacterStats = function() {
         if (!selectedChar) return;
         if (!selectedChar.allocatedStats) return;
@@ -580,7 +578,7 @@
                 
                 allExtraStats.forEach(stat => {
                     let newVal = inst.extras ? (inst.extras.find(e => e.stat === stat)?.value || 0) : 0;
-                    let oldVal = equippedInst?.extras ? (equippedInst.extras.find(e => e.stat === stat)?.value || 0) : 0;
+                    let oldVal = equippedInst?.extras ? (equippedInst.extras.find(e => e.extras.find(e => e.stat === stat)?.value || 0)) : 0; // fallback safe
                     let isPct = stat.includes('Percent') || ['critRate','critDmg','critResist','hitRate','dodgeRate','lifesteal'].includes(stat);
                     html += compareStats(statNames[stat] || stat, oldVal, newVal, isPct);
                 });
@@ -635,7 +633,7 @@
             }
         }
         else if (itemTpl.useEffect === 'PackageEquip' || itemTpl.useEffect === 'RandomEquip') {
-            alert('该道具功能暂未开放');
+            alert('該道具功能暫未開放');
             return; 
         }
 
