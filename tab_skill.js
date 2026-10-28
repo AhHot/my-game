@@ -13,7 +13,27 @@ window.switchSkillSubTab = function(sub) {
 
 window.renderTabSkill = function(container) {
   const skillTypes = [{ val: 'normal', label: '普攻' }, { val: 'skill', label: '招式' }, { val: 'ultimate', label: '绝技' }, { val: 'followup', label: '追打' }, { val: 'passive', label: '被动' }];
-  const targetRules = [{ val: 'frontRow', label: '前排' }, { val: 'lowestHp', label: '血量最低' }, { val: 'highestHp', label: '血量最高' }, { val: 'random', label: '随机目标' }, { val: 'all', label: '群体(全体)' }];
+  
+  // ★★★ 核心修改：大幅擴充目標選取規則 ★★★
+  const targetRules = [
+    { val: 'frontRow', label: '前排整排' }, 
+    { val: 'backRow', label: '後排整排' }, 
+    { val: 'frontRowSingle', label: '前方單體' }, 
+    { val: 'backRowSingle', label: '後排單體' }, 
+    { val: 'lowestHp', label: '血量最低' }, 
+    { val: 'highestHp', label: '血量最高' }, 
+    { val: 'highestAtk', label: '攻擊力最高' },
+    { val: 'lowestAtk', label: '攻擊力最低' },
+    { val: 'highestDef', label: '防禦力最高' },
+    { val: 'lowestDef', label: '防禦力最低' },
+    { val: 'random', label: '隨機目標' }, 
+    { val: 'all', label: '群體(全體)' },
+    { val: 'splash1', label: '濺射(主目標周圍1格)' },
+    { val: 'splash2', label: '轟炸(主目標周圍2格)' },
+    { val: 'line', label: '直線貫穿(面前整列)' },
+    { val: 'pierce', label: '穿透(主目標+背後1人)' }
+  ];
+  
   const passiveTypes = [{ val: 'atkAdd', label: '攻击力(%)' }, { val: 'hpAdd', label: '生命值(%)' }, { val: 'defAdd', label: '防御力(%)' }, { val: 'speedAdd', label: '速度(%)' }];
 
   container.innerHTML = `
