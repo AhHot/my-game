@@ -131,11 +131,104 @@ const BattleLogic = {
     if (skill.targetSide === 'player') pool = allUnits.filter(u => u.side === actor.side && u.isAlive());
     else pool = allUnits.filter(u => u.side !== actor.side && u.isAlive());
     if (pool.length === 0) return [];
+
+    const isEnemyTarget = pool[0].side === 'enemy';
+    
+    // 輔助函數：找最前排與最後排的 X 座標
+    const getFrontX = () => isEnemyTarget ? Math.max(...pool.map(u=>u.gridX)) : Math.min(...pool.map(u=>u.gridX));
+    const getBackX = () => isEnemyTarget ? Math.min(...pool.map(u=>u.gridX)) : Math.max(...pool.map(u=>u.gridX));
+
+    // ===== 新目標選取規則 =====
     if (skill.targetRule === 'all') return pool;
-    if (skill.targetRule === 'frontRow') { const xs = pool.map(u => u.gridX); const m = pool[0].side === 'enemy' ? Math.max(...xs) : Math.min(...xs); return pool.filter(u => u.gridX === m); }
+    
+    if (skill.targetRule === 'frontRow') { 
+        const m = getFrontX(); 
+        return pool.filter(u => u.gridX === m); 
+    }
+    
+    if (skill.targetRule === 'backRow') {
+        const m = getBackX();
+        return pool.filter(u => u.gridX === m);
+    }
+
+    if (skill.targetRule === 'frontRowSingle') {
+        const m = getFrontX();
+        const frontPool = pool.filter(u => u.gridX === m);
+        // 從最前排挑選「血量最低」的作為前方單體
+        const target = frontPool.reduce((a, b) => a.hp < b.hp ? a : b, frontPool[0]);
+        return [target];
+    }
+
+    if (skill.targetRule === 'backRowSingle') {
+        const m = getBackX();
+        const backPool = pool.filter(u => u.gridX === m);
+        const target = backPool.reduce((a, b) => a.hp < b.hp ? a : b, backPool[0]);
+        return [target];
+    }
+
     if (skill.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); return pool.filter(u => u.hp === m); }
     if (skill.targetRule === 'highestHp') { const m = Math.max(...pool.map(u => u.hp)); return pool.filter(u => u.hp === m); }
+    
+    if (skill.targetRule === 'highestAtk') { const m = Math.max(...pool.map(u => u.atk)); return pool.filter(u => u.atk === m); }
+    if (skill.targetRule === 'lowestAtk') { const m = Math.min(...pool.map(u => u.atk)); return pool.filter(u => u.atk === m); }
+    
+    if (skill.targetRule === 'highestDef') { const m = Math.max(...pool.map(u => u.def)); return pool.filter(u => u.def === m); }
+    if (skill.targetRule === 'lowestDef') { const m = Math.min(...pool.map(u => u.def)); return pool.filter(u => u.def === m); }
+
     if (skill.targetRule === 'random') return [pool[Math.floor(Math.random() * pool.length)]];
+
+    // ===== 濺射 / 轟炸 / 穿透 / 貫穿 =====
+    let mainTarget = null;
+    
+    // 為了方便，先選定最前排「血量最低」的作為主目標
+    if (['splash1', 'splash2', 'pierce'].includes(skill.targetRule)) {
+        const m = getFrontX();
+        const frontPool = pool.filter(u => u.gridX === m);
+        mainTarget = frontPool.reduce((a, b) => a.hp < b.hp ? a : b, frontPool[0]);
+    }
+
+    if (skill.targetRule === 'splash1') {
+        const result = [mainTarget];
+        pool.forEach(u => {
+            if (u !== mainTarget && Math.abs(u.gridX - mainTarget.gridX) <= 1 && Math.abs(u.gridY - mainTarget.gridY) <= 1) {
+                result.push(u);
+            }
+        });
+        return result;
+    }
+
+    if (skill.targetRule === 'splash2') {
+        const result = [mainTarget];
+        pool.forEach(u => {
+            if (u !== mainTarget && Math.abs(u.gridX - mainTarget.gridX) <= 2 && Math.abs(u.gridY - mainTarget.gridY) <= 2) {
+                result.push(u);
+            }
+        });
+        return result;
+    }
+
+    if (skill.targetRule === 'line') {
+        // 直線貫穿：優先打擊與施法者同一橫列的敵人
+        const lineTargets = pool.filter(u => u.gridY === actor.gridY);
+        if (lineTargets.length > 0) return lineTargets;
+        // 若該行沒人，則打擊最靠前的一整列
+        return pool.filter(u => u.gridX === getFrontX());
+    }
+
+    if (skill.targetRule === 'pierce') {
+        const result = [mainTarget];
+        let behindUnit = null;
+        if (isEnemyTarget) {
+            const behindPool = pool.filter(u => u.gridY === mainTarget.gridY && u.gridX < mainTarget.gridX).sort((a,b) => b.gridX - a.gridX);
+            if (behindPool.length > 0) behindUnit = behindPool[0];
+        } else {
+            const behindPool = pool.filter(u => u.gridY === mainTarget.gridY && u.gridX > mainTarget.gridX).sort((a,b) => a.gridX - b.gridX);
+            if (behindPool.length > 0) behindUnit = behindPool[0];
+        }
+        if (behindUnit) result.push(behindUnit);
+        return result;
+    }
+
     return [pool[0]];
   },
   computeDamage(actor, target, skill) {
@@ -229,7 +322,16 @@ const BattleLogic = {
 
   simulateFollowup(tag, original, allUnits) {
     let cand = allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
-    cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
+    
+    // ★★★ 核心修改：修正追打排序（我方從左上到右下，敵方從右上到左下） ★★★
+    cand.sort((a, b) => {
+        if (original.side === 'player') {
+            return a.gridX !== b.gridX ? a.gridX - b.gridX : a.gridY - b.gridY;
+        } else {
+            return a.gridX !== b.gridX ? b.gridX - a.gridX : a.gridY - b.gridY;
+        }
+    });
+
     for (let u of cand) {
       const fid = u.skillSlots.followup;
       if (!fid || !SKILLS[fid]) continue;
@@ -415,8 +517,6 @@ class FormationScene extends Phaser.Scene {
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
     
-    // ★ 原本這裡有 teamBtn，現在已經由 HTML 取代，故刪除。
-
     this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
@@ -688,7 +788,17 @@ class BattleScene extends Phaser.Scene {
   }
 
   checkFollowup(tag, original) {
-    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original); cand.sort((a, b) => a.gridY !== b.gridY ? a.gridY - b.gridY : a.gridX - b.gridX);
+    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original); 
+    
+    // ★★★ 核心修改：修正追打排序（我方從左上到右下，敵方從右上到左下） ★★★
+    cand.sort((a, b) => {
+        if (original.side === 'player') {
+            return a.gridX !== b.gridX ? a.gridX - b.gridX : a.gridY - b.gridY;
+        } else {
+            return a.gridX !== b.gridX ? b.gridX - a.gridX : a.gridY - b.gridY;
+        }
+    });
+
     for (let u of cand) {
       const fid = u.skillSlots.followup; if (!fid || !SKILLS[fid]) continue;
       if (SKILLS[fid].comboTagIn === tag) {
