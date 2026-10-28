@@ -251,6 +251,64 @@ const BattleLogic = {
   }
 };
 
+// 🌟 核心通用：透過 CanvasTexture 穩定建立帶有微圓角的頭像
+function createAvatarHelper(scene, container, dataOrUnit, size) {
+  const half = size / 2;
+  const radius = size > 60 ? 12 : 8;
+
+  // 1. 底色與外框 (微圓角方形)
+  const rectBg = scene.add.graphics();
+  rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
+  rectBg.fillRoundedRect(-half, -half, size, size, radius);
+  rectBg.lineStyle(3, 0xffffff, 0.9);
+  rectBg.strokeRoundedRect(-half, -half, size, size, radius);
+  container.add(rectBg);
+
+  // 2. 預備 Emoji 後備文字
+  const emojiText = scene.add.text(0, 0, dataOrUnit.emoji || '👤', { fontSize: (size * 0.55) + 'px' }).setOrigin(0.5);
+  container.add(emojiText);
+
+  // 3. 載入圖片並轉為 CanvasTexture
+  if (dataOrUnit.avatarUrl) {
+    const key = 'avatar_cvs_' + dataOrUnit.id + '_' + size;
+    
+    const applyImageTexture = () => {
+      try {
+        if (!scene.textures.exists(key)) {
+          const canvasTex = scene.textures.createCanvas(key, size, size);
+          if (canvasTex) {
+            const ctx = canvasTex.getContext();
+            ctx.clearRect(0, 0, size, size);
+            ctx.drawImage(imgObj, 0, 0, size, size);
+            canvasTex.refresh();
+          }
+        }
+        if (container && container.active && scene.textures.exists(key)) {
+          emojiText.setVisible(false);
+          const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+          const maskShape = scene.make.graphics();
+          maskShape.fillStyle(0xffffff);
+          maskShape.fillRoundedRect(-half, -half, size, size, radius);
+          avatarImg.setMask(maskShape.createGeometryMask());
+          container.addAt(avatarImg, 1);
+        }
+      } catch (err) {
+        console.error("Avatar canvas texture error:", err);
+      }
+    };
+
+    const imgObj = new Image();
+    imgObj.crossOrigin = 'anonymous';
+    imgObj.src = dataOrUnit.avatarUrl;
+
+    if (imgObj.complete) {
+      applyImageTexture();
+    } else {
+      imgObj.onload = applyImageTexture;
+    }
+  }
+}
+
 function generateRandomInstance(templateId) {
   const t = ITEMS[templateId]; if (!t) return null;
   const dropRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
@@ -346,46 +404,8 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      const rectBg = this.add.graphics();
-      rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(data.element).color).color, 1);
-      rectBg.fillRoundedRect(-42, -42, 84, 84, 12);
-      rectBg.lineStyle(3, 0xffffff, 0.9);
-      rectBg.strokeRoundedRect(-42, -42, 84, 84, 12);
-      c.add(rectBg);
-
-      const emojiText = this.add.text(0, 0, data.emoji || '👤', { fontSize: '48px' }).setOrigin(0.5);
-      c.add(emojiText);
-
-      // 🌟 同步/即時紋理載入方式：利用原生 Canvas 建立 Image，並確保紋理註冊成功後立即替換
-      if (data.avatarUrl) {
-        const key = 'dyn_avatar_' + data.id + '_' + Date.now();
-        const imgObj = new Image();
-        imgObj.crossOrigin = 'anonymous';
-        imgObj.src = data.avatarUrl;
-        
-        const applyTexture = () => {
-          try {
-            if (!this.textures.exists(key)) {
-              this.textures.addImage(key, imgObj);
-            }
-            if (c && c.active && this.textures.exists(key)) {
-              emojiText.setVisible(false);
-              const avatarImg = this.add.image(0, 0, key).setDisplaySize(84, 84).setOrigin(0.5);
-              const maskShape = this.make.graphics();
-              maskShape.fillStyle(0xffffff);
-              maskShape.fillRoundedRect(-42, -42, 84, 84, 12);
-              avatarImg.setMask(maskShape.createGeometryMask());
-              c.addAt(avatarImg, 1);
-            }
-          } catch(err) { console.error("Avatar load error:", err); }
-        };
-
-        if (imgObj.complete) {
-          applyTexture();
-        } else {
-          imgObj.onload = applyTexture;
-        }
-      }
+      // 🌟 呼叫共用頭像建立方法 (尺寸 84x84)
+      createAvatarHelper(this, c, data, 84);
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
@@ -501,45 +521,8 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    const rectBg = this.add.graphics();
-    rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(unit.element).color).color, 1);
-    rectBg.fillRoundedRect(-r, -r, sideLen, sideLen, 10);
-    rectBg.lineStyle(3, 0xffffff, 0.9);
-    rectBg.strokeRoundedRect(-r, -r, sideLen, sideLen, 10);
-    c.add(rectBg);
-
-    const emojiText = this.add.text(0, 0, unit.emoji || '👤', { fontSize: (r * 1.3) + 'px' }).setOrigin(0.5);
-    c.add(emojiText);
-
-    if (unit.avatarUrl) {
-      const key = 'dyn_avatar_' + unit.id + '_' + Date.now();
-      const imgObj = new Image();
-      imgObj.crossOrigin = 'anonymous';
-      imgObj.src = unit.avatarUrl;
-      
-      const applyTexture = () => {
-        try {
-          if (!this.textures.exists(key)) {
-            this.textures.addImage(key, imgObj);
-          }
-          if (c && c.active && this.textures.exists(key)) {
-            emojiText.setVisible(false);
-            const avatarImg = this.add.image(0, 0, key).setDisplaySize(sideLen, sideLen).setOrigin(0.5);
-            const maskShape = this.make.graphics();
-            maskShape.fillStyle(0xffffff);
-            maskShape.fillRoundedRect(-r, -r, sideLen, sideLen, 10);
-            avatarImg.setMask(maskShape.createGeometryMask());
-            c.addAt(avatarImg, 1);
-          }
-        } catch(err) { console.error("Avatar load error:", err); }
-      };
-
-      if (imgObj.complete) {
-        applyTexture();
-      } else {
-        imgObj.onload = applyTexture;
-      }
-    }
+    // 🌟 呼叫共用頭像建立方法
+    createAvatarHelper(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
@@ -556,7 +539,7 @@ class BattleScene extends Phaser.Scene {
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
     
     c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
-    this.unitViews.set(unit, { container: c, rectBg, hpBar, mpBar, statusText, hpText, shieldText, mpText });
+    this.unitViews.set(unit, { container: c, rectBg: null, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
   }
 
