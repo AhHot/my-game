@@ -251,12 +251,12 @@ const BattleLogic = {
   }
 };
 
-// 🌟 核心通用：透過 CanvasTexture 穩定建立帶有微圓角的頭像
+// 🌟 核心共用頭像建立方法：使用成功驗證的 this.textures.addImage + 微圓角遮罩 + 自動隱藏 Emoji
 function createAvatarHelper(scene, container, dataOrUnit, size) {
   const half = size / 2;
   const radius = size > 60 ? 12 : 8;
 
-  // 1. 底色與外框 (微圓角方形)
+  // 1. 繪製微圓角外框與底色
   const rectBg = scene.add.graphics();
   rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
   rectBg.fillRoundedRect(-half, -half, size, size, radius);
@@ -264,42 +264,38 @@ function createAvatarHelper(scene, container, dataOrUnit, size) {
   rectBg.strokeRoundedRect(-half, -half, size, size, radius);
   container.add(rectBg);
 
-  // 2. 預備 Emoji 後備文字
+  // 2. 建立 Emoji 作為預備後備
   const emojiText = scene.add.text(0, 0, dataOrUnit.emoji || '👤', { fontSize: (size * 0.55) + 'px' }).setOrigin(0.5);
   container.add(emojiText);
 
-  // 3. 載入圖片並轉為 CanvasTexture
+  // 3. 使用 proven 成功的 addImage 紋理註冊與載入機制
   if (dataOrUnit.avatarUrl) {
-    const key = 'avatar_cvs_' + dataOrUnit.id + '_' + size;
-    
+    const key = 'avatar_img_' + dataOrUnit.id + '_' + size + '_' + Math.random();
+    const imgObj = new Image();
+    imgObj.crossOrigin = 'anonymous';
+    imgObj.src = dataOrUnit.avatarUrl;
+
     const applyImageTexture = () => {
       try {
-        if (!scene.textures.exists(key)) {
-          const canvasTex = scene.textures.createCanvas(key, size, size);
-          if (canvasTex) {
-            const ctx = canvasTex.getContext();
-            ctx.clearRect(0, 0, size, size);
-            ctx.drawImage(imgObj, 0, 0, size, size);
-            canvasTex.refresh();
-          }
+        if (scene && scene.textures && !scene.textures.exists(key)) {
+          scene.textures.addImage(key, imgObj);
         }
         if (container && container.active && scene.textures.exists(key)) {
-          emojiText.setVisible(false);
+          emojiText.setVisible(false); // 成功載入後隱藏 Emoji，解決同時顯示問題
           const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+          
+          // 加上與外框一致的微圓角遮罩
           const maskShape = scene.make.graphics();
           maskShape.fillStyle(0xffffff);
           maskShape.fillRoundedRect(-half, -half, size, size, radius);
           avatarImg.setMask(maskShape.createGeometryMask());
+
           container.addAt(avatarImg, 1);
         }
       } catch (err) {
-        console.error("Avatar canvas texture error:", err);
+        console.error("Avatar image texture error:", err);
       }
     };
-
-    const imgObj = new Image();
-    imgObj.crossOrigin = 'anonymous';
-    imgObj.src = dataOrUnit.avatarUrl;
 
     if (imgObj.complete) {
       applyImageTexture();
@@ -404,7 +400,7 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 呼叫共用頭像建立方法 (尺寸 84x84)
+      // 🌟 布陣介面頭像 (84x84, 微圓角)
       createAvatarHelper(this, c, data, 84);
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
@@ -521,7 +517,7 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 呼叫共用頭像建立方法
+    // 🌟 戰鬥介面頭像 (微圓角)
     createAvatarHelper(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
