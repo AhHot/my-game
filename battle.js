@@ -253,12 +253,12 @@ const BattleLogic = {
   }
 };
 
-// 🌟 核心防護繪製邏輯：百分百穩定的微圓角頭像繪製方法（零 Emoji，Canvas 硬剪切）
-function renderRoundedAvatar(scene, container, dataOrUnit, size) {
+// 🌟 100% 穩定的微圓角頭像繪製（透過 Canvas 即時轉成 Base64 紋理讓 Phaser 註冊）
+function createSecureAvatar(scene, container, dataOrUnit, size) {
   const half = size / 2;
-  const radius = size > 60 ? 12 : 8;
+  const radius = size > 60 ? 10 : 6;
 
-  // 1. 繪製微圓角元素底色與外框
+  // 1. 繪製微圓角背景與外框
   const rectBg = scene.add.graphics();
   rectBg.fillStyle(Phaser.Display.Color.HexStringToColor(getElementInfo(dataOrUnit.element).color).color, 1);
   rectBg.fillRoundedRect(-half, -half, size, size, radius);
@@ -266,9 +266,9 @@ function renderRoundedAvatar(scene, container, dataOrUnit, size) {
   rectBg.strokeRoundedRect(-half, -half, size, size, radius);
   container.add(rectBg);
 
-  // 2. 如果有圖片，透過 HTML5 Canvas 裁切圓角轉 base64，穿透所有 Phaser 紋理問題
+  // 2. 如果有圖片，直接透過獨立 Image 載入並利用 Canvas 2D 裁切圓角轉 base64
   if (dataOrUnit.avatarUrl) {
-    const key = 'rounded_avatar_' + dataOrUnit.id + '_' + Math.floor(Math.random() * 10000);
+    const key = 'avatar_tex_' + dataOrUnit.id + '_' + Math.floor(Math.random() * 100000);
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = dataOrUnit.avatarUrl;
@@ -280,7 +280,7 @@ function renderRoundedAvatar(scene, container, dataOrUnit, size) {
         canvas.height = size;
         const ctx = canvas.getContext('2d');
 
-        // 使用 Canvas 直接裁切圓角，避免 Phaser Mask 失效
+        // 畫出圓角路徑並進行 clip 裁切
         ctx.beginPath();
         ctx.moveTo(radius, 0);
         ctx.lineTo(size - radius, 0);
@@ -295,19 +295,21 @@ function renderRoundedAvatar(scene, container, dataOrUnit, size) {
         ctx.clip();
 
         ctx.drawImage(img, 0, 0, size, size);
-
-        // 轉為 Base64 載入
         const dataUrl = canvas.toDataURL('image/png');
-        scene.load.image(key, dataUrl);
-        scene.load.once('complete', () => {
-          if (scene && scene.textures && scene.textures.exists(key) && container && container.active) {
-            const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
-            container.add(avatarImg);
-          }
-        });
-        scene.load.start();
+
+        // 將 Base64 加入 Phaser 快取
+        if (scene && scene.textures && !scene.textures.exists(key)) {
+          scene.load.image(key, dataUrl);
+          scene.load.once('complete', () => {
+            if (scene && scene.textures.exists(key) && container && container.active) {
+              const avatarImg = scene.add.image(0, 0, key).setDisplaySize(size, size).setOrigin(0.5);
+              container.add(avatarImg);
+            }
+          });
+          scene.load.start();
+        }
       } catch (e) {
-        console.error("Canvas draw error:", e);
+        console.error("Avatar canvas render error:", e);
       }
     };
   }
@@ -408,8 +410,8 @@ class FormationScene extends Phaser.Scene {
       data.gridX = -1; data.gridY = -1;
       const c = this.add.container(0, 0);
       
-      // 🌟 使用獨立防護方法繪製微圓角頭像 (零 Emoji)
-      renderRoundedAvatar(this, c, data, 84);
+      // 🌟 布陣頭像：完全無 Emoji，微圓角框 + 穩定圖片渲染
+      createSecureAvatar(this, c, data, 84);
 
       c.add(this.add.text(0, 50, data.name, { fontSize: '18px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5));
 
@@ -525,8 +527,8 @@ class BattleScene extends Phaser.Scene {
     const r = Math.min((cell / 2) * 0.85 * scale, 50); 
     const sideLen = r * 2;
     
-    // 🌟 戰鬥頭像：使用圓角 Canvas 轉換畫法 (零 Emoji)
-    renderRoundedAvatar(this, c, unit, sideLen);
+    // 🌟 戰鬥頭像：微圓角框 + 穩定圖片顯示（無 Emoji）
+    createSecureAvatar(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
