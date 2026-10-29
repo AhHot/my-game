@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>游戏配置中心 (模块化版)</title>
+  <title>配置中心 (模块化版)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
     body { background: #1a1a2e; color: #fff; padding: 15px; padding-bottom: 120px; }
     h1 { font-size: 24px; text-align: center; margin-bottom: 20px; color: #f1c40f; }
     .tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 15px; }
-    .tab { flex: 1; min-width: 15%; padding: 10px; text-align: center; background: #16213e; border-radius: 6px; cursor: pointer; border: 1px solid #0f3460; font-size: 13px;}
+    .tab { flex: 1; min-width: 12%; padding: 10px; text-align: center; background: #16213e; border-radius: 6px; cursor: pointer; border: 1px solid #0f3460; font-size: 13px;}
     .tab.active { background: #3498db; border-color: #3498db; font-weight: bold; }
     .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
     .search-bar input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #0f0f1a; color: #fff; font-size: 14px; }
@@ -72,7 +72,6 @@
     <button class="btn" style="background:#3498db;" onclick="testLevelUpAll(10)">🔼 全员 +10级</button>
     <button class="btn" style="background:#e74c3c;" onclick="testResetLevel()">🔄 重置 Lv.1</button>
     
-    <!-- 新增的匯出與導入按鈕 -->
     <button class="btn" style="background:#27ae60;" onclick="exportGameData()">📤 導出全部數據</button>
     <button class="btn" style="background:#f39c12;" onclick="document.getElementById('import-file-input').click()">📥 導入全部數據</button>
     <input type="file" id="import-file-input" style="display:none" accept=".json" onchange="importGameData(event)">
@@ -83,12 +82,12 @@
     <div class="tab" data-tab="skill" onclick="switchTab('skill')">⚔️ 技能</div>
     <div class="tab" data-tab="status" onclick="switchTab('status')">🌊 状态</div>
     <div class="tab" data-tab="item" onclick="switchTab('item')">🎒 物品</div>
+    <div class="tab" data-tab="shop" onclick="switchTab('shop')">🛒 商店</div>
     <div class="tab" data-tab="stage" onclick="switchTab('stage')">🗺️ 关卡</div>
     <div class="tab" data-tab="story" onclick="switchTab('story')">📖 劇本</div>
     <div class="tab" data-tab="growth" onclick="switchTab('growth')">📈 成长与经验</div>
     <div class="tab" data-tab="global" onclick="switchTab('global')">⚙️ 全局设置</div>
     <div class="tab" data-tab="main_ui" onclick="switchTab('main_ui')">🖼️ 主頁UI</div>
-    <!-- 🌟 新增：劇本 UI 可視化佈局編輯按鈕 -->
     <div class="tab" data-tab="ui_editor" onclick="switchTab('ui_editor')">🎨 劇本UI佈局</div>
     <div class="tab" data-tab="chapter_map" onclick="switchTab('chapter_map')">🎨 章節UI佈局</div>
   </div>
@@ -106,11 +105,11 @@
   <script src="tab_skill.js"></script>
   <script src="tab_status.js"></script>
   <script src="tab_item.js"></script>
+  <script src="tab_shop.js"></script>
   <script src="tab_stage.js"></script>
   <script src="tab_global.js"></script>
   <script src="tab_story.js"></script>
   <script src="tab_main_ui.js"></script>
-  <!-- 🌟 新增：引入劇本 UI 佈局編輯模組 -->
   <script src="tab_ui_editor.js"></script>
   <script src="tab_chapter_map.js"></script>
 
@@ -131,16 +130,15 @@
       else if (tab === 'skill' && window.renderTabSkill) window.renderTabSkill(container);
       else if (tab === 'status' && window.renderTabStatus) window.renderTabStatus(container);
       else if (tab === 'item' && window.renderTabItem) window.renderTabItem(container);
+      else if (tab === 'shop' && window.renderTabShop) window.renderTabShop(container);
       else if (tab === 'stage' && window.renderTabStage) window.renderTabStage(container);
       else if (tab === 'global' && window.renderTabGlobal) window.renderTabGlobal(container);
       else if (tab === 'story' && window.renderTabStory) window.renderTabStory(container);
       else if (tab === 'main_ui' && window.renderTabMainUI) window.renderTabMainUI(container);
-      // 🌟 新增：載入可視化 UI 佈局編輯器
       else if (tab === 'ui_editor' && window.renderTabUIEditor) window.renderTabUIEditor(container);
       else if (tab === 'chapter_map' && window.renderTabChapterMap) window.renderTabChapterMap(container);
     }
 
-    // 📤 導出全部數據功能 (修復 iOS / 手機無法下載問題)
     window.exportGameData = function() {
       const dataToExport = {};
       const keysToExport = [
@@ -154,11 +152,7 @@
       keysToExport.forEach(key => {
         const val = localStorage.getItem(key);
         if (val) {
-          try {
-            dataToExport[key] = JSON.parse(val);
-          } catch(e) {
-            dataToExport[key] = val;
-          }
+          try { dataToExport[key] = JSON.parse(val); } catch(e) { dataToExport[key] = val; }
         }
       });
 
@@ -173,14 +167,9 @@
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
 
-      setTimeout(() => {
-        downloadAnchor.remove();
-        URL.revokeObjectURL(blobUrl);
-      }, 1000);
+      setTimeout(() => { downloadAnchor.remove(); URL.revokeObjectURL(blobUrl); }, 1000);
     };
 
-
-    // 📥 導入全部數據功能
     window.importGameData = function(event) {
       const file = event.target.files[0];
       if (!file) return;
@@ -192,18 +181,14 @@
           if (confirm('⚠️ 確定要導入數據嗎？這將會覆蓋當前編輯器的所有進度！')) {
             Object.keys(importedData).forEach(key => {
               const val = importedData[key];
-              if (typeof val === 'object') {
-                localStorage.setItem(key, JSON.stringify(val));
-              } else {
-                localStorage.setItem(key, val);
-              }
+              if (typeof val === 'object') { localStorage.setItem(key, JSON.stringify(val)); } 
+              else { localStorage.setItem(key, val); }
             });
             alert('✅ 數據導入成功，即將重新載入頁面！');
             location.reload();
           }
         } catch(err) {
           alert('❌ 導入失敗：檔案格式不正確或不是有效的 JSON 檔案！');
-          console.error(err);
         }
       };
       reader.readAsText(file);
