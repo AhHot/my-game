@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 獨立穩定修復版
+// 模組：坊市與商店系統 (tab_shop.js) - 裝備數值與詞條完整實裝版
 // ==========================================
 
 window.renderTabShop = function(container) {
@@ -306,6 +306,7 @@ window.updateBuyTotalPrice = function() {
   document.getElementById('modal-total-price').innerText = totalPrice;
 };
 
+// 🌟 執行批次購買，並正確呼叫 generateRandomInstance 實裝數值與隨機詞條
 window.executeBatchBuy = function(shop, shopItem, qty) {
   let tpl = (window.ITEMS || {})[shopItem.itemId];
   if (!tpl) return;
@@ -334,7 +335,20 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   if (isEquip) {
     for (let i = 0; i < qty; i++) {
-      let inst = typeof generateRandomInstance === 'function' ? generateRandomInstance(shopItem.itemId) : { uid: 'inst_' + Date.now() + Math.random(), itemId: shopItem.itemId, quality: 'white', count: 1, equippedBy: '' };
+      // 優先使用你的遊戲內隨機實例生成函數，確保基礎數值與隨機詞條完美掛載
+      let inst = typeof generateRandomInstance === 'function' 
+        ? generateRandomInstance(shopItem.itemId) 
+        : { 
+            uid: 'inst_' + Date.now() + Math.random(), 
+            itemId: shopItem.itemId, 
+            quality: 'white', 
+            count: 1, 
+            equippedBy: '',
+            baseAtk: tpl.baseAtk || 50,
+            baseDef: tpl.baseDef || 20,
+            baseHp: tpl.baseHp || 100,
+            extras: []
+          };
       if (inst) window.INVENTORY.push(inst);
     }
   } else {
@@ -352,7 +366,7 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
     }
   }
 
-  saveData();
+  if (typeof saveData === 'function') saveData();
   window.closeBuyQuantityModal();
   alert(`🎉 成功購買 ${tpl.name} x${qty}！`);
   window.openShopUI(shop.id);
