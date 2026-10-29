@@ -1,8 +1,7 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 支援自訂購買數量與總價計算版
+// 模組：坊市與商店系統 (tab_shop.js) - 獨立修復版
 // ==========================================
 
-// 1. 後台配置中心介面
 window.renderTabShop = function(container) {
   if (!window.globalData.shops) {
     window.globalData.shops = [
@@ -13,7 +12,7 @@ window.renderTabShop = function(container) {
   let html = `
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🛒 坊市與商店系統管理</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理遊戲中的各個坊市商店（如日常坊市、活動坊市等）、背景圖、上架商品及價格庫存。</p>
+      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理遊戲中的各個坊市商店、背景圖、上架商品及價格庫存。</p>
       <div id="shop-editor-list" style="display:flex; flex-direction:column; gap:20px;"></div>
       <button class="btn" style="background:#3498db; width:100%; margin-top:15px;" onclick="window.addNewShop()">➕ 新增坊市商店</button>
     </div>
@@ -75,7 +74,7 @@ function renderShopList() {
     `;
     list.appendChild(div);
   });
-}
+};
 
 window.updateShopField = function(sIdx, key, val) {
   if (window.globalData.shops[sIdx]) {
@@ -130,14 +129,13 @@ window.deleteShop = function(sIdx) {
 };
 
 // ==========================================
-// 2. 玩家端坊市商店 UI 介面
+// 玩家端坊市商店 UI 介面
 // ==========================================
 window.openShopUI = function(shopId = 'shop_daily') {
   let shops = window.globalData?.shops || [];
   let shop = shops.find(s => s.id === shopId) || shops[0];
   if (!shop) {
-    if (typeof window.showToast === 'function') window.showToast('目前沒有可用的坊市商店！', '#e74c3c');
-    else alert('目前沒有可用的坊市商店！');
+    alert('目前沒有可用的坊市商店！');
     return;
   }
 
@@ -191,13 +189,12 @@ window.openShopUI = function(shopId = 'shop_daily') {
       ${itemsHtml}
     </div>
 
-    <!-- 🌟 可輸入數量的購買 Modal -->
+    <!-- 數量選擇與購買確認 Modal -->
     <div id="shop-buy-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 25px; z-index: 9800; width: 400px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
       <h3 style="color: #f1c40f; margin-bottom: 15px; font-size: 22px;" id="modal-item-title">購買商品</h3>
       <div style="font-size: 40px; margin-bottom: 10px;" id="modal-item-icon">📦</div>
       <div style="color: #aaa; font-size: 14px; margin-bottom: 15px;" id="modal-item-price-info">單價: 0 銅幣</div>
       
-      <!-- 數量調整控制器 -->
       <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px;">
         <button onclick="window.adjustBuyQty(-10)" style="background:#444; color:#fff; border:none; padding:8px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">-10</button>
         <button onclick="window.adjustBuyQty(-1)" style="background:#e74c3c; color:#fff; border:none; padding:8px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">-1</button>
@@ -225,7 +222,6 @@ window.closeShopUI = function() {
   if (ui) ui.remove();
 };
 
-// 🌟 開啟購買數量 Modal 邏輯
 let _currentShopId = '';
 let _currentShopItemIdx = -1;
 
@@ -310,7 +306,6 @@ window.updateBuyTotalPrice = function() {
   document.getElementById('modal-total-price').innerText = totalPrice;
 };
 
-// 🌟 執行批量購買邏輯 (含銅幣與庫存不足校驗)
 window.executeBatchBuy = function(shop, shopItem, qty) {
   let tpl = (window.ITEMS || {})[shopItem.itemId];
   if (!tpl) return;
@@ -318,36 +313,22 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
   let totalPrice = shopItem.price * qty;
   let currentCopper = window.globalData.currency?.copper || 0;
 
-  // 1. 檢查庫存不足
   if (shopItem.stock !== undefined && shopItem.stock < qty) {
-    if (typeof window.showConfirmDialog === 'function') {
-      window.showConfirmDialog('購買失敗', `<span style="color:#e74c3c;"><b>商品庫存不足！</b></span><br>欲購買 ${qty} 個，現有庫存僅剩 ${shopItem.stock} 個。`, null, true);
-    } else {
-      alert('商品庫存不足！');
-    }
+    alert(`購買失敗：庫存不足！現有庫存僅剩 ${shopItem.stock} 個。`);
     return;
   }
 
-  // 2. 檢查銅幣不足
   if (currentCopper < totalPrice) {
     let missingCopper = totalPrice - currentCopper;
-    if (typeof window.showConfirmDialog === 'function') {
-      window.showConfirmDialog('銅幣不足', `<span style="color:#e74c3c;"><b>無法購買！銅幣餘額不足。</b></span><br>總價需花費 ${totalPrice} 銅幣，您還缺少 <span style="color:#f1c40f;"><b>${missingCopper} 銅幣</b></span>。`, null, true);
-    } else {
-      alert(`銅幣不足！還缺少 ${missingCopper} 銅幣。`);
-    }
+    alert(`銅幣不足！總價需 ${totalPrice} 銅幣，還缺少 ${missingCopper} 銅幣。`);
     return;
   }
 
-  // 扣除銅幣
   window.globalData.currency.copper -= totalPrice;
-
-  // 扣除庫存
   if (shopItem.stock !== undefined) {
     shopItem.stock -= qty;
   }
 
-  // 發送到背包
   if (!window.INVENTORY) window.INVENTORY = [];
   let isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
 
@@ -358,7 +339,6 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
     }
   } else {
     let existing = window.INVENTORY.find(i => i.itemId === shopItem.itemId && !i.equippedBy);
-    let maxStack = tpl.maxStack || 9999;
     if (existing) {
       existing.count = (existing.count || 1) + qty;
     } else {
@@ -374,11 +354,6 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   saveData();
   window.closeBuyQuantityModal();
-
-  if (typeof window.showToast === 'function') {
-    window.showToast(`🎉 成功購買 ${tpl.name} x${qty}！`, '#2ecc71');
-  }
-
-  // 重新整理商店介面
+  alert(`🎉 成功購買 ${tpl.name} x${qty}！`);
   window.openShopUI(shop.id);
 };
