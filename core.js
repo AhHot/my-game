@@ -1,5 +1,5 @@
 // ==========================================
-// 公共数据核心：负责数据的读写与持久化
+// 公共数据核心：负责数据的读写与持久化 (支持突破、秘籍与铜币系統)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -52,7 +52,13 @@ const DEFAULT_STATUS = [
 
 const DEFAULT_ITEMS = [ 
   { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }, 
-  { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' } 
+  { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' },
+  // 🌟 新增：全英文 ID 的突破與升級材料
+  { id: 'item_breakthrough_pill', name: '突破丹', category: 'material', icon: '🧪', desc: '人物到达30、45、60级突破時必需的珍貴丹藥', maxStack: 9999, useEffect: 'None', useValue: 0 },
+  { id: 'item_skill_book_low', name: '初级秘籍', category: 'material', icon: '📘', desc: '用于提升技能等级 (2-4级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
+  { id: 'item_skill_book_mid', name: '中级秘籍', category: 'material', icon: '📗', desc: '用于提升技能等级 (5-7级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
+  { id: 'item_skill_book_high', name: '高级秘籍', category: 'material', icon: '📙', desc: '用于提升技能等级 (8-10级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
+  { id: 'item_tian_shu', name: '无字天书', category: 'material', icon: '📜', desc: '技能突破10级满级时不可或缺的神書', maxStack: 99, useEffect: 'None', useValue: 0 }
 ];
 
 const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '', rewardExp: 100 } ];
@@ -100,6 +106,20 @@ const DEFAULT_GLOBAL_CONFIG = {
   dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
   affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
   affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
+  // 🌟 新增默認商店與銅幣配置
+  currency: { copper: 50000, sycee: 100 },
+  shops: [
+    {
+      id: 'shop_daily',
+      name: '日常坊市',
+      bgUrl: '',
+      items: [
+        { itemId: 'item_breakthrough_pill', price: 500, stock: 99 },
+        { itemId: 'item_skill_book_low', price: 200, stock: 50 },
+        { itemId: 'item_skill_book_mid', price: 600, stock: 30 }
+      ]
+    }
+  ],
   elements: [
     { id: 'fire', name: '火', icon: '🔥', color: '#ff5722' },
     { id: 'water', name: '水', icon: '💧', color: '#2196f3' },
@@ -129,7 +149,6 @@ function loadAllData() {
   try { inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []; } catch(e) { inventory = []; }
   try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); } catch(e) { globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); }
 
-  // 🛡️ 終極守門員：確保後台的所有配置都完整存在，絕不讓數據漏掉
   if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
   Object.keys(DEFAULT_GLOBAL_CONFIG.config).forEach(k => {
     if (globalData.config[k] === undefined) globalData.config[k] = DEFAULT_GLOBAL_CONFIG.config[k];
@@ -138,10 +157,11 @@ function loadAllData() {
   if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
   if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
   if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
+  if (!globalData.currency) globalData.currency = { copper: 50000, sycee: 100 };
+  if (!globalData.shops) globalData.shops = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG.shops));
   if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
   if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
 
-  // 🛡️ 核心修復：逐一檢查「詞條數值池」，只要缺了任何一條，自動補齊！
   if (!globalData.affixValues) globalData.affixValues = {};
   Object.keys(DEFAULT_AFFIX_VALUES).forEach(k => {
     if (!globalData.affixValues[k] || typeof globalData.affixValues[k].min === 'undefined') {
@@ -149,18 +169,18 @@ function loadAllData() {
     }
   });
 
-  // 兼容旧数据
   gameChars.forEach(c => {
     if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
+    if (!c.skillLevels) c.skillLevels = {}; // 技能等級矩陣
     if (c.level === undefined) c.level = 1;
     if (c.exp === undefined) c.exp = 0;
     if (c.freePoints === undefined) c.freePoints = 0;
     if (!c.growthModel) c.growthModel = 'm1';
+    if (c.breakthroughStage === undefined) c.breakthroughStage = 0; // 突破階段記錄 (0:未突破30, 1:已破30, 2:已破45, 3:已破60)
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
-  // 🛡️ 加載完畢後，強制保存一次，確保剛剛補齊的數值立刻寫進瀏覽器！
   saveData(); 
 }
 
@@ -181,7 +201,6 @@ function saveData() {
   localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
 }
 
-// 提供公共的工具函数
 function getElementOptions(selectedId) {
   let html = '';
   globalData.elements.forEach(el => {
@@ -241,5 +260,4 @@ function generateRandomInstance(templateId) {
   return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: template.id, quality, baseAtk, baseDef, baseHp, extras: extras, equippedBy: '', count: 1 };
 }
 
-// 启动时加载数据
 loadAllData();
