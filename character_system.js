@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 支援突破與技能升級聯動
+// 模組：完整人物與背包系統 (character_system.js) - 修復排版與空白問題
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -22,17 +22,20 @@
             <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
 
             <!-- 左侧基础面板 (宽度固定 420px) -->
-            <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
+            <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative; overflow: hidden;">
                 
                 <!-- 顶部铜币显示栏 -->
-                <div id="ui-currency-bar" style="background: rgba(0,0,0,0.6); padding: 8px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid #333; font-size: 16px; font-weight: bold; z-index: 10;">
+                <div id="ui-currency-bar" style="background: rgba(0,0,0,0.6); padding: 8px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid #333; font-size: 16px; font-weight: bold; z-index: 10; flex-shrink: 0;">
                     <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
                 </div>
 
-                <!-- 立繪區域 -->
-                <div class="char-portrait" style="height: 330px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
+                <!-- 立繪區域 (固定高度 280px) -->
+                <div class="char-portrait" style="height: 280px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
                 
-                <!-- 底部头像切换列 -->
+                <!-- 左側動態內容區 (屬性與成長模型，自動填滿剩餘空間) -->
+                <div id="left-dynamic-content" style="flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 8px;"></div>
+
+                <!-- 底部头像切换列 (固定高度 85px) -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
                 
                 <!-- 小箭头弹出详细信息按鈕 -->
@@ -40,17 +43,17 @@
             </div>
 
             <!-- 右侧区域 -->
-            <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px;">
+            <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px; overflow: hidden;">
                 
                 <!-- Tab 顺序：預設技能在左，背包在右 -->
-                <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px;">
+                <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px; flex-shrink: 0;">
                     <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
                     <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
                 </div>
 
                 <!-- 背包介面容器 -->
                 <div id="inv-container" style="flex: 1; display: none; flex-direction: column; overflow: hidden;">
-                    <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; flex-shrink: 0;">
                         <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 8px 20px; background: #e67e22; border: 1px solid #e67e22; border-radius: 20px; cursor: pointer; font-size: 18px; color: #fff; font-weight: bold;">全部</div>
                         <div class="filter-btn" onclick="window.setFilter('equip', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">装备</div>
                         <div class="filter-btn" onclick="window.setFilter('consumable', this)" style="padding: 8px 20px; background: #222; border: 1px solid #444; border-radius: 20px; cursor: pointer; font-size: 18px; color: #aaa;">消耗品</div>
@@ -124,18 +127,16 @@
         return globalExpTable[level - 1] || 100;
     }
 
-    // 🌟 核心：支援等級突破限制的經驗增加函數
     function addCharacterExp(char, amount) {
         if (char.level >= 60) return false;
         
-        // 檢查當前等級上限是否被突破卡住
         let maxAllowedLv = 60;
         let stage = char.breakthroughStage || 0;
         if (stage === 0) maxAllowedLv = 30;
         else if (stage === 1) maxAllowedLv = 45;
         else if (stage === 2) maxAllowedLv = 60;
 
-        if (char.level >= maxAllowedLv) return false; // 卡在突破等級，暫不獲得經驗
+        if (char.level >= maxAllowedLv) return false;
 
         char.exp = (char.exp || 0) + amount;
         let currentLv = char.level || 1;
@@ -150,7 +151,6 @@
             leveledUp = true;
         }
 
-        // 如果剛好達到上限，清空超額經驗並鎖定
         if (currentLv >= maxAllowedLv && char.exp >= reqExp) {
             char.exp = reqExp;
         }
@@ -159,7 +159,6 @@
         return leveledUp;
     }
 
-    // 🌟 核心：角色等級突破處理
     window.handleCharacterBreakthrough = function(char) {
         let lv = char.level;
         let reqPills = 0;
@@ -183,7 +182,6 @@
             return;
         }
 
-        // 檢查背包突破丹數量
         let pillItem = INVENTORY.find(i => i.itemId === 'item_breakthrough_pill' && !i.equippedBy);
         let pillCount = pillItem ? (pillItem.count || 1) : 0;
 
@@ -198,7 +196,6 @@
             return;
         }
 
-        // 扣除道具與銅幣
         pillItem.count -= reqPills;
         if (pillItem.count <= 0) {
             let idx = INVENTORY.indexOf(pillItem);
@@ -206,14 +203,12 @@
         }
         globalData.currency.copper -= reqCopper;
 
-        // 設定突破成功
         char.breakthroughStage = targetStage;
         saveGameData();
         window.showToast(`🎉 突破成功！解鎖更高等級上限！`, '#2ecc71');
         selectCharacter(char);
     };
 
-    // 🌟 核心：技能升級處理
     window.upgradeCharacterSkill = function(char, skillId) {
         if (!char.skillLevels) char.skillLevels = {};
         let currentLv = char.skillLevels[skillId] || 1;
@@ -227,7 +222,6 @@
         let reqBookCount = 0;
         let needTianShu = false;
 
-        // 根據升級目標判定消耗
         if (currentLv >= 1 && currentLv <= 3) {
             reqBookId = 'item_skill_book_low';
             if (currentLv === 1) reqBookCount = 10;
@@ -243,7 +237,7 @@
             if (currentLv === 7) reqBookCount = 5;
             else if (currentLv === 8) reqBookCount = 15;
             else if (currentLv === 9) {
-                reqBookCount = 90; // 升10級需要 90 本高級秘籍 + 無字天書
+                reqBookCount = 90;
                 needTianShu = true;
             }
         }
@@ -266,7 +260,6 @@
             return;
         }
 
-        // 扣除道具
         bookItem.count -= reqBookCount;
         if (bookItem.count <= 0) INVENTORY.splice(INVENTORY.indexOf(bookItem), 1);
 
@@ -360,7 +353,6 @@
     }
 
     function refreshLeftPanel() {
-        // 更新銅幣顯示
         const copperSpan = document.getElementById('player-copper-display');
         if (copperSpan) {
             if (!globalData.currency) globalData.currency = { copper: 50000, sycee: 100 };
@@ -370,14 +362,14 @@
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
-            portraitEl.style.height = '330px';
+            portraitEl.style.height = '280px';
             portraitEl.style.background = `url('${bgImg}') top center/cover`;
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
                 infoOverlay = document.createElement('div');
                 infoOverlay.id = 'portrait-info-overlay';
-                infoOverlay.style.cssText = "position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 20px; background: linear-gradient(to top, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 60%, transparent 100%); display: flex; flex-direction: column; gap: 4px;";
+                infoOverlay.style.cssText = "position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 15px; background: linear-gradient(to top, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0.6) 60%, transparent 100%); display: flex; flex-direction: column; gap: 4px;";
                 portraitEl.appendChild(infoOverlay);
             }
 
@@ -386,7 +378,6 @@
             const reqExp = getExpNeeded(cLv);
             const pct = Math.min(100, (cExp / reqExp) * 100);
 
-            // 檢查是否需要顯示突破按鈕
             let stage = selectedChar.breakthroughStage || 0;
             let needBreakthrough = (cLv === 30 && stage < 1) || (cLv === 45 && stage < 2) || (cLv === 60 && stage < 3);
             let breakthroughBtnHtml = '';
@@ -394,7 +385,7 @@
                 let pillNeed = cLv === 30 ? 50 : (cLv === 45 ? 1500 : 5000);
                 let copperNeed = cLv === 30 ? '1.5萬' : (cLv === 45 ? '10萬' : '50萬');
                 breakthroughBtnHtml = `
-                    <button onclick="window.handleCharacterBreakthrough(selectedChar)" style="background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+                    <button onclick="window.handleCharacterBreakthrough(selectedChar)" style="background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-weight: bold; cursor: pointer; font-size: 13px; margin-top: 2px;">
                         🔥 進行 Lv.${cLv} 突破 (需突破丹x${pillNeed}, 銅幣${copperNeed})
                     </button>
                 `;
@@ -402,8 +393,8 @@
 
             infoOverlay.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <h2 style="color: #f1c40f; font-size: 22px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
-                    <span style="color: #2ecc71; font-weight: bold; font-size: 15px;">Lv. ${cLv} ${stage > 0 ? `(突破段位 ${stage})` : ''}</span>
+                    <h2 style="color: #f1c40f; font-size: 20px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
+                    <span style="color: #2ecc71; font-weight: bold; font-size: 14px;">Lv. ${cLv} ${stage > 0 ? `(突破段位 ${stage})` : ''}</span>
                 </div>
                 <div>
                     <div style="font-size: 10px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 && stage >= 3 ? '已滿級' : `${cExp} / ${reqExp}`}</div>
@@ -414,14 +405,7 @@
         }
 
         let dynamicBox = document.getElementById('left-dynamic-content');
-        if (!dynamicBox) {
-            dynamicBox = document.createElement('div');
-            dynamicBox.id = 'left-dynamic-content';
-            dynamicBox.style.cssText = "flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 8px;";
-            const leftPanel = document.getElementById('left-panel');
-            const charListArea = document.getElementById('ui-char-list');
-            leftPanel.insertBefore(dynamicBox, charListArea);
-        }
+        if (!dynamicBox) return;
 
         if (currentTab === 'skill') {
             const fp = selectedChar.freePoints || 0;
@@ -433,11 +417,11 @@
                     <div style="color: #f1c40f; font-size: 12px; font-weight: bold;">剩余点数: ${fp}</div>
                     <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: bold;">重置意境</button>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
             `;
             Object.keys(statNames).forEach(k => {
                 statsHtml += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 4px 6px; border-radius: 6px; border: 1px solid #333;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 3px 6px; border-radius: 6px; border: 1px solid #333;">
                         <div><span style="color: #888; font-size: 11px;">${statNames[k]}</span><b style="color: #fff; margin-left: 4px; font-size: 12px;">${stats[k] || 0}</b></div>
                         <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 18px; height: 18px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 11px;">+</button>
                     </div>
@@ -446,11 +430,11 @@
             statsHtml += `</div>`;
 
             let coreFourHtml = `
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 2px;">
-                    <div style="background: #1a1c29; padding: 5px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 12px; margin-top:1px;">${currentUnit.maxHp}</b></div>
-                    <div style="background: #1a1c29; padding: 5px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 12px; margin-top:1px;">${currentUnit.atk}</b></div>
-                    <div style="background: #1a1c29; padding: 5px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 12px; margin-top:1px;">${currentUnit.def}</b></div>
-                    <div style="background: #1a1c29; padding: 5px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 12px; margin-top:1px;">${currentUnit.speed.toFixed(1)}</b></div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px;">
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.maxHp}</b></div>
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.atk}</b></div>
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.def}</b></div>
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.speed.toFixed(1)}</b></div>
                 </div>
             `;
 
@@ -529,11 +513,11 @@
 
             const div = document.createElement('div');
             div.className = 'equip-slot' + (inst ? '' : ' empty');
-            div.style.cssText = "height: 48px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            div.style.cssText = "height: 44px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
             
             if (inst && tpl) {
                 div.innerHTML = `
-                    <div class="eq-icon" style="font-size: 18px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-icon" style="font-size: 16px;">${tpl.icon || '📦'}</div>
                     <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 9px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;">${tpl.name}</div>
                 `;
                 div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
@@ -625,8 +609,8 @@
                 if (itemTpl) {
                     const countStr = (inst.count && inst.count > 1) ? `<div class="item-count" style="position: absolute; bottom: 4px; right: 4px; font-size: 14px; font-weight: bold; color: #fff; background: rgba(0,0,0,0.8); padding: 2px 6px; border-radius: 6px;">x${inst.count}</div>` : '';
                     slot.innerHTML = `
-                        <div class="item-icon" style="font-size: 36px; margin-bottom: 5px; border-bottom: 2px solid ${qColors[inst.quality] || '#fff'}">${itemTpl.icon || '📦'}</div>
-                        <div class="item-name" style="color:${qColors[inst.quality] || '#fff'}; font-size: 14px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px;">${itemTpl.name}</div>
+                        <div class="item-icon" style="font-size: 32px; margin-bottom: 3px; border-bottom: 2px solid ${qColors[inst.quality] || '#fff'}">${itemTpl.icon || '📦'}</div>
+                        <div class="item-name" style="color:${qColors[inst.quality] || '#fff'}; font-size: 13px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px;">${itemTpl.name}</div>
                         ${countStr}
                     `;
                     slot.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, itemTpl, false); };
@@ -638,7 +622,6 @@
         }
     }
 
-    // 🌟 核心：渲染技能與升級按鈕
     function renderSkills() {
         const box = document.getElementById('skill-container');
         if(!box) return;
@@ -660,7 +643,7 @@
 
             const div = document.createElement('div');
             div.className = 'skill-card';
-            div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 10px;";
+            div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px;";
             
             let desc = '';
             if (sk.multiplier > 0) desc += `造成 ${(sk.multiplier * 100).toFixed(0)}% 攻击力伤害。 `;
@@ -675,7 +658,6 @@
                 });
             }
 
-            // 升級按鈕與所需消耗提示
             let upgradeCostInfo = '';
             if (currentSkillLv < 10) {
                 let reqText = '';
@@ -690,21 +672,21 @@
                 else if (currentSkillLv === 9) reqText = '90本高級秘籍 + 無字天書x1';
 
                 upgradeCostInfo = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px dashed #333; padding-top: 10px;">
-                        <span style="font-size: 14px; color: #aaa;">升級消耗: <b style="color: #f1c40f;">${reqText}</b></span>
-                        <button onclick="window.upgradeCharacterSkill(selectedChar, '${skillId}')" style="background: #27ae60; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px;">🔼 提升技能等級</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px dashed #333; padding-top: 8px;">
+                        <span style="font-size: 13px; color: #aaa;">升級消耗: <b style="color: #f1c40f;">${reqText}</b></span>
+                        <button onclick="window.upgradeCharacterSkill(selectedChar, '${skillId}')" style="background: #27ae60; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px;">🔼 提升技能等級</button>
                     </div>
                 `;
             } else {
-                upgradeCostInfo = `<div style="margin-top: 10px; border-top: 1px dashed #333; padding-top: 10px; color: #f1c40f; font-weight: bold; text-align: center;">⭐ 技能已達最高 10 級</div>`;
+                upgradeCostInfo = `<div style="margin-top: 8px; border-top: 1px dashed #333; padding-top: 8px; color: #f1c40f; font-weight: bold; text-align: center;">⭐ 技能已達最高 10 級</div>`;
             }
 
             div.innerHTML = `
-                <div class="skill-header" style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #f1c40f; font-size: 20px;">
+                <div class="skill-header" style="display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #f1c40f; font-size: 18px;">
                     <span>[${slotNames[key] || key}] ${sk.name}</span>
-                    <span style="color:#2ecc71; font-size:16px; background: rgba(46,204,113,0.1); padding: 2px 10px; border-radius: 4px;">Lv. ${currentSkillLv} / 10</span>
+                    <span style="color:#2ecc71; font-size:15px; background: rgba(46,204,113,0.1); padding: 2px 8px; border-radius: 4px;">Lv. ${currentSkillLv} / 10</span>
                 </div>
-                <div class="skill-desc" style="font-size: 16px; color: #bbb; line-height: 1.5;">${desc}<br>${effectsStr}</div>
+                <div class="skill-desc" style="font-size: 15px; color: #bbb; line-height: 1.4;">${desc}<br>${effectsStr}</div>
                 ${upgradeCostInfo}
             `;
             box.appendChild(div);
