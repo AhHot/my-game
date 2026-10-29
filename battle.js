@@ -16,6 +16,78 @@ try {
   window.EXP_TABLE = gc.expTable || []; window.GROWTH_MODELS = gc.growthModels || []; window.ART_CONFIG = gc.artConfig || {}; 
 } catch(e) { window.ART_CONFIG = {}; }
 
+// ============================================================
+// ★ 技能等級成長曲線（新版，與 character_system.js UI 保持一致）
+// ============================================================
+// 設計：
+//   普攻 normal  : Lv1 → Lv10 線性 +20%（每級 +20%/9 ≈ +2.22%）
+//   招式 skill   : Lv1 → Lv10 線性 +30%（每級 +3.33%）
+//   絕技 ultimate: Lv1 → Lv10 非線性 +50%，Lv.4 / Lv.7 / Lv.10 大幅提升
+//                  每級增量：Lv2:+3, Lv3:+3, Lv4:+8, Lv5:+3, Lv6:+3, Lv7:+8, Lv8:+3, Lv9:+3, Lv10:+16
+//                  累積    ：+0, +3, +6, +14, +17, +20, +28, +31, +34, +50 (%)
+//   追打 followup: Lv1 → Lv10 線性 +20%（每級 +2.22%）
+//   被動 passive : Lv1 → Lv10 線性 +10%（每級 +1.11%）
+//   治療/護盾    : Lv1 → Lv10 線性 +25%（每級 +2.78%）
+//   耗藍(mpCost)、CD(cooldown)：不隨等級變化
+// ============================================================
+
+// 回傳 Lv `lv` 時該技能的累積加成（例：0.20 表示 +20%），Lv1 回傳 0
+function getSkillBonus(skill, lv) {
+    if (!skill || lv <= 1) return 0;
+
+    // 絕技：非線性曲線（Lv.4 / Lv.7 / Lv.10 大幅提升）
+    if (skill.type === 'ultimate') {
+        // 索引 i 對應「從 Lv(i+1) 升到 Lv(i+2)」的增量（單位：%）
+        const increments = [3, 3, 8, 3, 3, 8, 3, 3, 16];
+        let totalPct = 0;
+        for (let i = 0; i < Math.min(lv - 1, increments.length); i++) {
+            totalPct += increments[i];
+        }
+        return totalPct / 100;
+    }
+
+    // 其他類型：線性成長
+    let totalGrowth;
+    if (skill.type === 'normal')        totalGrowth = 0.20;
+    else if (skill.type === 'followup') totalGrowth = 0.20;
+    else if (skill.type === 'passive')  totalGrowth = 0.10;
+    else if (skill.type === 'skill') {
+        // 純治療 / 護盾類（multiplier=0 且 heal/shield > 0）
+        if (skill.multiplier === 0 && (skill.healMultiplier > 0 || skill.shieldMultiplier > 0)) totalGrowth = 0.25;
+        else totalGrowth = 0.30;
+    } else {
+        totalGrowth = 0.30;
+    }
+
+    // Lv1 → Lv10 共 9 級躍升，均勻分攤
+    return totalGrowth * (lv - 1) / 9;
+}
+
+// 回傳依技能等級放大後的技能副本，並帶幂等標記，避免重複加成
+function getEffectiveSkill(unit, baseSkill) {
+    if (!baseSkill) return baseSkill;
+    if (baseSkill._effectiveApplied) return baseSkill; // 幂等：已轉換過直接回傳
+
+    const lv = (unit && unit.skillLevels && unit.skillLevels[baseSkill.id]) || 1;
+    if (lv <= 1) {
+        return Object.assign({}, baseSkill, { _level: 1, _effectiveApplied: true });
+    }
+
+    const bonus = getSkillBonus(baseSkill, lv);
+    const factor = 1 + bonus;
+
+    const eff = Object.assign({}, baseSkill);
+    if (eff.multiplier > 0)       eff.multiplier       = +(eff.multiplier * factor).toFixed(4);
+    if (eff.healMultiplier > 0)   eff.healMultiplier   = +(eff.healMultiplier * factor).toFixed(4);
+    if (eff.shieldMultiplier > 0) eff.shieldMultiplier = +(eff.shieldMultiplier * factor).toFixed(4);
+    if (eff.type === 'passive' && eff.passiveValue > 0)
+        eff.passiveValue = +(eff.passiveValue * factor).toFixed(4);
+
+    eff._level = lv;
+    eff._effectiveApplied = true;
+    return eff;
+}
+
 class Unit {
   constructor(data) {
     Object.assign(this, data);
@@ -64,8 +136,11 @@ class Unit {
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
     
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
-    this.passives.forEach(sk => {
-      if (sk.isAura) return;
+
+    // ★ 修改：套用被動時使用 getEffectiveSkill（吃技能等級）
+    this.passives.forEach(baseSk => {
+      if (baseSk.isAura) return;
+      const sk = getEffectiveSkill(this, baseSk);
       if (sk.passiveType === 'atkAdd') { this.atk += this.baseAtk * sk.passiveValue; this.baseAtk += this.baseAtk * sk.passiveValue; }
       if (sk.passiveType === 'hpAdd') this.maxHp += this.maxHp * sk.passiveValue;
       if (sk.passiveType === 'defAdd') { this.def += this.baseDef * sk.passiveValue; this.baseDef += this.baseDef * sk.passiveValue; }
@@ -90,10 +165,12 @@ class Unit {
     this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
     allUnits.forEach(ally => {
       if (ally.side !== this.side || !ally.isAlive()) return;
-      ally.passives.forEach(sk => {
-        if (!sk.isAura) return;
+      // ★ 修改：光環的 passiveValue 使用擁有者(ally)的技能等級
+      ally.passives.forEach(baseSk => {
+        if (!baseSk.isAura) return;
         const dist = Math.abs(ally.gridX - this.gridX) + Math.abs(ally.gridY - this.gridY);
-        if (dist <= sk.auraRange) {
+        if (dist <= baseSk.auraRange) {
+          const sk = getEffectiveSkill(ally, baseSk);
           if (sk.passiveType === 'atkAdd') this.atk += this.baseAtk * sk.passiveValue;
           if (sk.passiveType === 'defAdd') this.def += this.baseDef * sk.passiveValue;
           if (sk.passiveType === 'speedAdd') this.speed += this.baseSpeed * sk.passiveValue;
@@ -258,14 +335,17 @@ const BattleLogic = {
     });
     const w = { ultimate: 3, skill: 2, normal: 1 };
     usable.sort((a, b) => (w[b.type] || 0) - (w[a.type] || 0));
-    if (usable.length > 0) return usable[0];
+    // ★ 修改：回傳前用 getEffectiveSkill 包裝
+    if (usable.length > 0) return getEffectiveSkill(actor, usable[0]);
     const fb = Object.values(SKILLS).find(s => s.type === 'normal');
-    if (fb) return fb;
-    return { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] };
+    if (fb) return getEffectiveSkill(actor, fb);
+    return getEffectiveSkill(actor, { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] });
   },
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); },
 
   simulateSkill(actor, sk, allUnits) {
+    // ★ 修改：幂等轉換，即使 chooseSkill 已轉換過也不會重複加成
+    sk = getEffectiveSkill(actor, sk);
     actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
     if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
 
@@ -339,7 +419,8 @@ const BattleLogic = {
         const used = u.followupCounts[fid] || 0;
         if (used < (SKILLS[fid].maxTriggers || 1)) {
           u.followupCounts[fid] = used + 1;
-          const sk = SKILLS[fid];
+          // ★ 修改：使用 getEffectiveSkill（追打吃等級）
+          const sk = getEffectiveSkill(u, SKILLS[fid]);
           u.mp = Math.max(0, u.mp - (sk.mpCost || 0));
           const targets = this.selectTargets(u, sk, allUnits);
           targets.forEach(t => {
@@ -743,7 +824,8 @@ class BattleScene extends Phaser.Scene {
         this.tweens.add({ targets: v.container, x: origX + (30 * dirX), y: origY + (30 * dirY), duration: 150 / this.speedMultiplier, yoyo: true, ease: 'Quad.easeOut' });
       } else { this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.1, scaleY: v.container.scaleY * 1.1, duration: 150 / this.speedMultiplier, yoyo: true }); }
     }
-    this.addLog(`${actor.name} 使用【${sk.name}】`, sk.type === 'ultimate' ? '#e74c3c' : '#fff');
+    // ★ 修改：技能 log 會顯示等級
+    this.addLog(`${actor.name} 使用【${sk.name}${sk._level ? ' Lv.' + sk._level : ''}】`, sk.type === 'ultimate' ? '#e74c3c' : '#fff');
     this.time.delayedCall(450 / this.speedMultiplier, () => {
       actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0)); if (sk.cooldown > 0) actor.cooldowns[sk.id] = sk.cooldown;
       let heal = 0;
@@ -802,7 +884,11 @@ class BattleScene extends Phaser.Scene {
     for (let u of cand) {
       const fid = u.skillSlots.followup; if (!fid || !SKILLS[fid]) continue;
       if (SKILLS[fid].comboTagIn === tag) {
-        const used = u.followupCounts[fid] || 0; if (used < (SKILLS[fid].maxTriggers || 1)) { u.followupCounts[fid] = used + 1; this.doFollowup(u, SKILLS[fid]); break; }
+        const used = u.followupCounts[fid] || 0; if (used < (SKILLS[fid].maxTriggers || 1)) { u.followupCounts[fid] = used + 1; 
+          // ★ 修改：追打技能也用 getEffectiveSkill
+          this.doFollowup(u, getEffectiveSkill(u, SKILLS[fid])); 
+          break; 
+        }
       }
     }
   }
@@ -810,7 +896,8 @@ class BattleScene extends Phaser.Scene {
     const targets = BattleLogic.selectTargets(actor, sk, this.allUnits); if (targets.length === 0) return;
     const v = this.unitViews.get(actor);
     if (v) { this.showFloat(actor, '⚡追打', '#fc0'); this.tweens.add({ targets: v.container, scaleX: v.container.scaleX * 1.2, scaleY: v.container.scaleY * 1.2, duration: 150 / this.speedMultiplier, yoyo: true }); }
-    this.addLog(`⚡ ${actor.name} 追打【${sk.name}】`, '#fc0');
+    // ★ 修改：log 顯示追打技能等級
+    this.addLog(`⚡ ${actor.name} 追打【${sk.name}${sk._level ? ' Lv.' + sk._level : ''}】`, '#fc0');
     this.time.delayedCall(300 / this.speedMultiplier, () => {
       actor.mp = Math.max(0, actor.mp - (sk.mpCost || 0));
       targets.forEach(t => { const r = BattleLogic.computeDamage(actor, t, sk); if (!r.isMiss) { t.takeDamage(r.damage); this.showDamage(t, r); this.updateUnitView(t); this.cameras.main.shake(80 / this.speedMultiplier, 0.005); } });
