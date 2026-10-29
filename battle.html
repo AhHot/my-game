@@ -58,9 +58,9 @@
     <div id="game"></div>
     
     <!-- 按鈕：完全照著圖二設計 -->
-    <button id="btn-pack" onclick="window.openCharacterUI()">
-        <span>👤</span> 角色与背包
-    </button>
+    <button id="btn-pack" onclick="window.safeOpenCharacterUI()">
+    <span>👤</span> 角色与背包
+</button>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <script src="data.js?v=15"></script>
@@ -70,12 +70,17 @@
 
     <script>
         window.safeOpenCharacterUI = function() {
-            if (typeof window.openCharacterUI === 'function') {
-                window.openCharacterUI();
-            } else {
-                alert('角色與背包系統載入中或未初始化！');
-            }
-        };
+    try {
+        if (typeof window.openCharacterUI === 'function') {
+            window.openCharacterUI();
+        } else {
+            alert('角色與背包系統載入中或未初始化！');
+        }
+    } catch (e) {
+        console.error('打開角色背包失敗：', e);
+        alert('打開角色背包失敗：' + (e && e.message ? e.message : e));
+    }
+};
         setInterval(() => {
             document.querySelectorAll('.phaser-dom-element').forEach(el => el.remove());
         }, 500);
