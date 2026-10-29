@@ -1,5 +1,5 @@
 // ==========================================
-// 公共数据核心：负责数据的读写与持久化 (支持突破、秘籍与铜币系統)
+// 公共数据核心：负责数据的读写与持久化 (支持突破、秘籍与铜币系統及全局映射)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -53,7 +53,7 @@ const DEFAULT_STATUS = [
 const DEFAULT_ITEMS = [ 
   { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }, 
   { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' },
-  // 🌟 新增：全英文 ID 的突破與升級材料
+  // 🌟 全英文 ID 的突破與升級材料
   { id: 'item_breakthrough_pill', name: '突破丹', category: 'material', icon: '🧪', desc: '人物到达30、45、60级突破時必需的珍貴丹藥', maxStack: 9999, useEffect: 'None', useValue: 0 },
   { id: 'item_skill_book_low', name: '初级秘籍', category: 'material', icon: '📘', desc: '用于提升技能等级 (2-4级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
   { id: 'item_skill_book_mid', name: '中级秘籍', category: 'material', icon: '📗', desc: '用于提升技能等级 (5-7级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
@@ -105,8 +105,6 @@ const DEFAULT_GLOBAL_CONFIG = {
   expTable: JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE)),
   dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
   affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
-  affixValues: JSON.parse(JSON.stringify(DEFAULT_AFFIX_VALUES)),
-  // 🌟 新增默認商店與銅幣配置
   currency: { copper: 50000, sycee: 100 },
   shops: [
     {
@@ -136,8 +134,9 @@ const DEFAULT_GLOBAL_CONFIG = {
   }
 };
 
-// --- 全局数据变量 ---
+// --- 全局数据变量與映射 ---
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
+let CHARACTERS, INVENTORY, ITEMS, SKILLS, STATUSES;
 let editingElementIds = new Set();
 
 function loadAllData() {
@@ -172,14 +171,24 @@ function loadAllData() {
   gameChars.forEach(c => {
     if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
-    if (!c.skillLevels) c.skillLevels = {}; // 技能等級矩陣
+    if (!c.skillLevels) c.skillLevels = {};
     if (c.level === undefined) c.level = 1;
     if (c.exp === undefined) c.exp = 0;
     if (c.freePoints === undefined) c.freePoints = 0;
     if (!c.growthModel) c.growthModel = 'm1';
-    if (c.breakthroughStage === undefined) c.breakthroughStage = 0; // 突破階段記錄 (0:未突破30, 1:已破30, 2:已破45, 3:已破60)
+    if (c.breakthroughStage === undefined) c.breakthroughStage = 0;
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
+
+  // 🌟 關鍵：建立全局大寫映射供所有模組使用
+  window.CHARACTERS = gameChars;
+  window.INVENTORY = inventory;
+  window.ITEMS = {};
+  gameItems.forEach(it => { window.ITEMS[it.id] = it; });
+  window.SKILLS = {};
+  gameSkills.forEach(sk => { window.SKILLS[sk.id] = sk; });
+  window.STATUSES = {};
+  gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
 
   saveData(); 
 }
@@ -199,6 +208,16 @@ function saveData() {
   localStorage.setItem('my_game_items_sync', JSON.stringify(gameItems));
   localStorage.setItem('my_game_levels_sync', JSON.stringify(gameLevels));
   localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
+
+  // 同步更新映射
+  window.CHARACTERS = gameChars;
+  window.INVENTORY = inventory;
+  window.ITEMS = {};
+  gameItems.forEach(it => { window.ITEMS[it.id] = it; });
+  window.SKILLS = {};
+  gameSkills.forEach(sk => { window.SKILLS[sk.id] = sk; });
+  window.STATUSES = {};
+  gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
 }
 
 function getElementOptions(selectedId) {
