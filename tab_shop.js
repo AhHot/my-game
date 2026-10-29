@@ -83,10 +83,16 @@ window.updateShopField = function(sIdx, key, val) {
   }
 };
 
+// ★ 改善點 1：選擇商品後立即重新渲染列表，不用再點別處才生效
 window.updateShopItem = function(sIdx, iIdx, key, val) {
   if (window.globalData.shops[sIdx] && window.globalData.shops[sIdx].items[iIdx]) {
     window.globalData.shops[sIdx].items[iIdx][key] = val;
     saveData();
+    
+    // 如果改的是商品ID，即時刷新畫面
+    if (key === 'itemId') {
+      renderShopList();
+    }
   }
 };
 
@@ -248,9 +254,19 @@ window.openBuyQuantityModal = function(shopId, itemIdx) {
 
   window.updateBuyTotalPrice();
 
+  // ★ 改善點 2：點擊確認購買時，彈出圖片樣式的確認框
   document.getElementById('modal-confirm-buy-btn').onclick = () => {
     let qty = parseInt(document.getElementById('buy-qty-input').value) || 1;
-    window.executeBatchBuy(shop, shopItem, qty);
+    let totalPrice = shopItem.price * qty;
+
+    // 這裡調用新增的專屬確認彈窗
+    window.showShopConfirmDialog(
+      '購買確認', 
+      `確定要花費 <span style="color:#f1c40f; font-weight:bold;">${totalPrice}</span> 銅幣購買 <span style="color:#f1c40f; font-weight:bold;">${tpl.name} × ${qty}</span> 嗎？`,
+      () => {
+        window.executeBatchBuy(shop, shopItem, qty);
+      }
+    );
   };
 
   modal.style.display = 'block';
@@ -306,7 +322,6 @@ window.updateBuyTotalPrice = function() {
   document.getElementById('modal-total-price').innerText = totalPrice;
 };
 
-// 🌟 執行批次購買，並正確呼叫 generateRandomInstance 實裝數值與隨機詞條
 window.executeBatchBuy = function(shop, shopItem, qty) {
   let tpl = (window.ITEMS || {})[shopItem.itemId];
   if (!tpl) return;
@@ -335,7 +350,6 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   if (isEquip) {
     for (let i = 0; i < qty; i++) {
-      // 優先使用你的遊戲內隨機實例生成函數，確保基礎數值與隨機詞條完美掛載
       let inst = typeof generateRandomInstance === 'function' 
         ? generateRandomInstance(shopItem.itemId) 
         : { 
@@ -368,6 +382,61 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   if (typeof saveData === 'function') saveData();
   window.closeBuyQuantityModal();
-  alert(`🎉 成功購買 ${tpl.name} x${qty}！`);
-  window.openShopUI(shop.id);
+  window.closeShopUI(); // 購買成功後先關閉，避免舊數據殘留
+  window.openShopUI(shop.id); // 重新打開刷新商店庫存UI
+  
+  // 延遲一點點顯示提示，以免被遮擋
+  setTimeout(() => {
+    alert(`🎉 成功購買 ${tpl.name} x${qty}！`);
+  }, 100);
+};
+
+// ==========================================
+// 新增的專屬確認彈窗（完全參考用戶提供圖片的樣式）
+// ==========================================
+window.showShopConfirmDialog = function(title, messageHtml, onConfirm) {
+  // 若已經有彈窗先移除
+  let existing = document.getElementById('custom-shop-confirm');
+  if (existing) existing.remove();
+
+  let scaleContainer = document.getElementById('game-scale-container') || document.body;
+  
+  let modal = document.createElement('div');
+  modal.id = 'custom-shop-confirm';
+  // 遮罩背景
+  modal.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; justify-content: center; align-items: center; pointer-events: auto;';
+
+  modal.innerHTML = `
+    <div style="background: #1e2746; border: 3px solid #f1c40f; border-radius: 12px; width: 420px; padding: 30px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+      
+      <!-- 右上角關閉按鈕 (仿照圖片中極小的叉叉) -->
+      <div onclick="this.parentElement.parentElement.remove()" style="position: absolute; top: 10px; right: 15px; font-size: 20px; color: #aaa; cursor: pointer; font-weight: bold;">✖</div>
+
+      <!-- 標題 -->
+      <h3 style="color: #f1c40f; font-size: 26px; font-weight: bold; margin-bottom: 20px; letter-spacing: 2px;">${title}</h3>
+      
+      <!-- 內容文字 -->
+      <div style="color: #fff; font-size: 18px; margin-bottom: 35px; line-height: 1.5;">
+        ${messageHtml}
+      </div>
+
+      <!-- 底部按鈕 -->
+      <div style="display: flex; justify-content: center; gap: 20px;">
+        <button id="confirm-btn-yes" style="flex: 1; padding: 12px 0; background: #27ae60; color: #fff; border: none; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">是</button>
+        <button id="confirm-btn-no" style="flex: 1; padding: 12px 0; background: #c0392b; color: #fff; border: none; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">否</button>
+      </div>
+    </div>
+  `;
+
+  scaleContainer.appendChild(modal);
+
+  // 綁定按鈕事件
+  modal.querySelector('#confirm-btn-yes').onclick = () => {
+    modal.remove();
+    if (typeof onConfirm === 'function') onConfirm();
+  };
+
+  modal.querySelector('#confirm-btn-no').onclick = () => {
+    modal.remove();
+  };
 };
