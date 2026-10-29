@@ -9,6 +9,21 @@
     let globalExpTable = [];
     let tempAllocated = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
 
+    // ★ 新增：技能等級成長率（與 battle.js 將採用的規則完全一致）
+    //   普攻 +4%/級、招式 +8%/級、絕技/追打 +10%/級、治療/護盾類 +6%/級、被動 +5%/級
+    function getSkillLevelGrowthRate(sk) {
+        if (!sk) return 0.08;
+        if (sk.type === 'normal')   return 0.04;
+        if (sk.type === 'ultimate') return 0.10;
+        if (sk.type === 'followup') return 0.10;
+        if (sk.type === 'passive')  return 0.05;
+        if (sk.type === 'skill') {
+            if (sk.multiplier === 0 && (sk.healMultiplier > 0 || sk.shieldMultiplier > 0)) return 0.06;
+            return 0.08;
+        }
+        return 0.08;
+    }
+
     function initCharacterSystemDOM() {
         if (document.getElementById('fullscreen-ui')) return;
 
@@ -184,7 +199,11 @@
         return leveledUp;
     }
 
-    window.handleCharacterBreakthrough = function(char) {
+    // ★ 修改：改為無參數版，內部從 selectedChar 取角色（修復 inline onclick 拿不到 IIFE 內變數的問題）
+    window.handleCharacterBreakthrough = function() {
+        const char = selectedChar;
+        if (!char) { window.showToast('尚未選擇角色', '#e74c3c'); return; }
+
         if (!window.globalData) window.globalData = {};
         if (!window.globalData.currency) window.globalData.currency = { copper: 50000, sycee: 100 };
         
@@ -236,7 +255,10 @@
         );
     };
 
-    window.upgradeCharacterSkill = function(char, skillId) {
+    // ★ 修改：改為無參數版 (skillId)，內部從 selectedChar 取角色
+    window.upgradeCharacterSkill = function(skillId) {
+        const char = selectedChar;
+        if (!char) { window.showToast('尚未選擇角色', '#e74c3c'); return; }
         if (!char.skillLevels) char.skillLevels = {};
         let currentLv = char.skillLevels[skillId] || 1;
 
@@ -490,7 +512,7 @@
                 let pillNeed = cLv === 30 ? 50 : (cLv === 45 ? 1500 : 5000);
                 let copperNeed = cLv === 30 ? '1.5萬' : (cLv === 45 ? '10萬' : '50萬');
                 breakthroughBtnHtml = `
-                    <button onclick="window.handleCharacterBreakthrough(selectedChar)" style="background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px;">
+                    <button onclick="window.handleCharacterBreakthrough()" style="background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px;">
                         🔥 進行 Lv.${cLv} 突破 (需突破丹x${pillNeed}, 銅幣${copperNeed})
                     </button>
                 `;
@@ -782,10 +804,40 @@
             const div = document.createElement('div');
             div.className = 'skill-card';
             div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px;";
-            
+
+            // ★ 修改：依等級計算實際倍率，並顯示 Lv.1 對照
+            const levelGrowthRate = getSkillLevelGrowthRate(sk);
+            const lvFactor = 1 + (currentSkillLv - 1) * levelGrowthRate;
+
             let desc = '';
-            if (sk.multiplier > 0) desc += `造成 ${(sk.multiplier * 100).toFixed(0)}% 攻擊力傷害。 `;
-            if (sk.healMultiplier > 0) desc += `恢復 ${(sk.healMultiplier * 100).toFixed(0)}% 攻擊力的生命。 `;
+            if (sk.multiplier > 0) {
+                const basePct = (sk.multiplier * 100).toFixed(0);
+                const nowPct  = (sk.multiplier * lvFactor * 100).toFixed(0);
+                desc += currentSkillLv > 1
+                    ? `造成 ${nowPct}% 攻擊力傷害 <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
+                    : `造成 ${basePct}% 攻擊力傷害。 `;
+            }
+            if (sk.healMultiplier > 0) {
+                const basePct = (sk.healMultiplier * 100).toFixed(0);
+                const nowPct  = (sk.healMultiplier * lvFactor * 100).toFixed(0);
+                desc += currentSkillLv > 1
+                    ? `恢復 ${nowPct}% 攻擊力的生命 <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
+                    : `恢復 ${basePct}% 攻擊力的生命。 `;
+            }
+            if (sk.shieldMultiplier > 0) {
+                const basePct = (sk.shieldMultiplier * 100).toFixed(0);
+                const nowPct  = (sk.shieldMultiplier * lvFactor * 100).toFixed(0);
+                desc += currentSkillLv > 1
+                    ? `附加 ${nowPct}% 攻擊力的護盾 <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
+                    : `附加 ${basePct}% 攻擊力的護盾。 `;
+            }
+            if (sk.type === 'passive' && sk.passiveValue) {
+                const basePct = (sk.passiveValue * 100).toFixed(1);
+                const nowPct  = (sk.passiveValue * lvFactor * 100).toFixed(1);
+                desc += currentSkillLv > 1
+                    ? `被動加成 ${nowPct}% <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
+                    : `被動加成 ${basePct}%。 `;
+            }
             if (sk.mpCost > 0) desc += `消耗內力: ${sk.mpCost}%。 `;
             if (sk.cooldown > 0) desc += `冷卻: ${sk.cooldown} 回合。 `;
             
@@ -812,7 +864,7 @@
                 upgradeCostInfo = `
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-top: 1px dashed #333; padding-top: 8px;">
                         <span style="font-size: 13px; color: #aaa;">升級消耗: <b style="color: #f1c40f;">${reqText}</b></span>
-                        <button onclick="window.upgradeCharacterSkill(selectedChar, '${skillId}')" style="background: #27ae60; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px;">🔼 提升技能等級</button>
+                        <button onclick="window.upgradeCharacterSkill('${skillId}')" style="background: #27ae60; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 15px;">🔼 提升技能等級</button>
                     </div>
                 `;
             } else {
