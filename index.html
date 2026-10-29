@@ -127,6 +127,8 @@
     <script src="battle.js"></script>
     <script src="character_system.js"></script>
     <script src="tab_char.js"></script>
+    <!-- ★ 新增載入坊市商店模組 -->
+    <script src="tab_shop.js"></script>
 
     <script>
         function resizeGameUI() {
@@ -241,7 +243,11 @@
                         else showToast('角色介面載入中...', '#e67e22');
                     };
                 } else if (act === 'shop' || key === 'shop' || title.includes('坊市') || title.includes('商店')) {
-                    callback = () => openShopUI();
+                    // ★ 這裡改為呼叫全域的 window.openShopUI()
+                    callback = () => { 
+                        if (typeof window.openShopUI === 'function') window.openShopUI();
+                        else showToast('坊市模組載入失敗...', '#e74c3c');
+                    };
                 } else if (act === 'story' || key === 'story' || title.includes('劇本') || title.includes('江湖')) {
                     callback = () => { window.location.href = 'story_menu.html'; };
                 } else if (act === 'settings' || key === 'settings' || title.includes('設置')) {
@@ -262,144 +268,6 @@
             btn.onclick = onClickCallback;
             return btn;
         }
-
-        // 🌟 核心：開啟坊市商店UI (樣式完全承襲角色背包介面)
-        function openShopUI() {
-            let shopDiv = document.getElementById('shop-fullscreen-ui');
-            if (!shopDiv) {
-                const scaleContainer = document.getElementById('game-scale-container') || document.body;
-                shopDiv = document.createElement('div');
-                shopDiv.id = 'shop-fullscreen-ui';
-                shopDiv.className = 'interactive-ui';
-                shopDiv.style.cssText = "display: flex; position: absolute; width: 1280px; height: 720px; background: rgba(10, 10, 15, 0.95); z-index: 9100; color: #ddd; flex-direction: column; padding: 30px; pointer-events: auto;";
-                scaleContainer.appendChild(shopDiv);
-            } else {
-                shopDiv.style.display = 'flex';
-            }
-
-            renderShopUIContent();
-        }
-
-        function renderShopUIContent() {
-            const shopDiv = document.getElementById('shop-fullscreen-ui');
-            if (!shopDiv) return;
-
-            if (!globalData.shops || globalData.shops.length === 0) {
-                globalData.shops = [
-                    {
-                        id: 'shop_daily', name: '日常坊市', bgUrl: '',
-                        items: [
-                            { itemId: 'item_breakthrough_pill', price: 500, stock: 99 },
-                            { itemId: 'item_skill_book_low', price: 200, stock: 50 },
-                            { itemId: 'item_skill_book_mid', price: 600, stock: 30 }
-                        ]
-                    }
-                ];
-            }
-
-            if (!globalData.currency) globalData.currency = { copper: 50000, sycee: 100 };
-
-            // 商店頂部選單 (對齊角色 Tab 樣式)
-            let shopTabsHtml = globalData.shops.map((s, idx) => `
-                <div class="rt-tab ${selectedShopIdx === idx ? 'active' : ''}" onclick="switchShopTab(${idx})" 
-                     style="padding: 12px 30px; background: ${selectedShopIdx === idx ? '#3498db' : '#1a1c29'}; border-radius: 8px; cursor: pointer; font-weight: bold; color: ${selectedShopIdx === idx ? '#fff' : '#888'}; font-size: 20px;">
-                    🛒 ${s.name}
-                </div>
-            `).join('');
-
-            const currentShop = globalData.shops[selectedShopIdx] || globalData.shops[0];
-
-            // 渲染商品網格
-            let itemsGridHtml = '';
-            if (currentShop.items && currentShop.items.length > 0) {
-                currentShop.items.forEach((shopItem, itemIdx) => {
-                    const itemTpl = gameItems.find(it => it.id === shopItem.itemId);
-                    if (!itemTpl) return;
-
-                    itemsGridHtml += `
-                        <div style="background: #1a1c29; border: 2px solid #333; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; gap: 10px;">
-                            <div style="font-size: 48px;">${itemTpl.icon || '📦'}</div>
-                            <div style="font-size: 20px; font-weight: bold; color: #f1c40f;">${itemTpl.name}</div>
-                            <div style="font-size: 14px; color: #aaa; text-align: center; height: 36px; overflow: hidden;">${itemTpl.desc || '無描述'}</div>
-                            <div style="font-size: 16px; color: #2ecc71; font-weight: bold;">🪙 價格: ${shopItem.price} 銅幣</div>
-                            <div style="font-size: 14px; color: #888;">庫存: ${shopItem.stock}</div>
-                            <button onclick="buyShopItem(${selectedShopIdx}, ${itemIdx})" 
-                                    style="width: 100%; padding: 10px; background: #e67e22; color: #fff; border: none; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
-                                🛒 立即購買
-                            </button>
-                        </div>
-                    `;
-                });
-            } else {
-                itemsGridHtml = '<div style="grid-column: span 3; text-align: center; color: #888; font-size: 20px; margin-top: 50px;">該坊市暫未上架商品</div>';
-            }
-
-            shopDiv.innerHTML = `
-                <div class="close-ui-btn" onclick="closeShopUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px;">
-                    <div style="display: flex; gap: 15px;">${shopTabsHtml}</div>
-                    <div style="font-size: 22px; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.5); padding: 8px 20px; border-radius: 20px; border: 1px solid #444;">
-                        🪙 當前銅幣: ${globalData.currency.copper}
-                    </div>
-                </div>
-
-                <div style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-content: start; padding-right: 10px;">
-                    ${itemsGridHtml}
-                </div>
-            `;
-        }
-
-        window.switchShopTab = function(idx) {
-            selectedShopIdx = idx;
-            renderShopUIContent();
-        };
-
-        window.closeShopUI = function() {
-            const shopDiv = document.getElementById('shop-fullscreen-ui');
-            if (shopDiv) shopDiv.style.display = 'none';
-        };
-
-        window.buyShopItem = function(sIdx, iIdx) {
-            const shop = globalData.shops[sIdx];
-            if (!shop || !shop.items || !shop.items[iIdx]) return;
-
-            const shopItem = shop.items[iIdx];
-            const itemTpl = gameItems.find(it => it.id === shopItem.itemId);
-            if (!itemTpl) return;
-
-            if (shopItem.stock <= 0) {
-                showToast('該商品已售罄！', '#e74c3c');
-                return;
-            }
-
-            if (globalData.currency.copper < shopItem.price) {
-                showToast(`銅幣不足！需要 ${shopItem.price} 銅幣`, '#e74c3c');
-                return;
-            }
-
-            // 扣除銅幣與庫存
-            globalData.currency.copper -= shopItem.price;
-            shopItem.stock -= 1;
-
-            // 加入背包
-            let existing = inventory.find(i => i.itemId === itemTpl.id && !i.equippedBy);
-            if (existing && !['weapon', 'armor', 'accessory'].includes(itemTpl.category)) {
-                existing.count = (existing.count || 1) + 1;
-            } else {
-                inventory.push({
-                    uid: 'inst_' + Date.now() + Math.floor(Math.random() * 1000),
-                    itemId: itemTpl.id,
-                    quality: 'white',
-                    count: 1,
-                    equippedBy: ''
-                });
-            }
-
-            saveData();
-            showToast(`🎉 成功購買 ${itemTpl.name}！`, '#2ecc71');
-            renderShopUIContent();
-        };
 
         function showToast(msg, color = '#2ecc71') {
             const toast = document.getElementById('global-toast');
