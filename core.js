@@ -1,5 +1,5 @@
 // ==========================================
-// 公共數據核心：負責數據的讀寫與持久化 (完整 Window 綁定修復版)
+// 公共數據核心：負責數據的讀寫與持久化 (徹底隔離版)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -137,29 +137,42 @@ const DEFAULT_GLOBAL_CONFIG = {
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
 let editingElementIds = new Set();
 
+// 判斷當前是否在編輯器環境（非常重要，防止數據互相污染）
+const IS_EDITOR = window.location.pathname.includes('editor.html') || window.location.href.includes('editor.html');
+
 function loadAllData() {
-  // ★★★ 關鍵修復：優先讀 my_game_characters（battle.js / character_system.js 共用的主 key），
-  //     若為空才 fallback 到 my_game_data_v22。這樣無論從哪個頁面切到哪個頁面，
-  //     都能讀到最新的角色數據，不會再被另一套 key 的舊數據覆蓋。
   try {
-    const charsNewStr = localStorage.getItem('my_game_characters');
-    const charsOldStr = localStorage.getItem('my_game_data_v22');
-    let parsedChars = null;
-
-    if (charsNewStr) {
-      try {
-        const p = JSON.parse(charsNewStr);
-        if (Array.isArray(p) && p.length) parsedChars = p;
-      } catch(e) {}
+    if (IS_EDITOR) {
+      // 編輯器：永遠只讀取【初始配置】，絕對不讀取玩家進度
+      gameChars = JSON.parse(localStorage.getItem('my_game_data_v22')) || JSON.parse(JSON.stringify(DEFAULT_CHARS));
+    } else {
+      // 遊戲環境：讀取【初始配置】，並用【玩家進度】進行覆蓋
+      let base = JSON.parse(localStorage.getItem('my_game_data_v22')) || JSON.parse(JSON.stringify(DEFAULT_CHARS));
+      
+      const playerSaveStr = localStorage.getItem('my_game_characters');
+      if (playerSaveStr) {
+        try {
+          const pChars = JSON.parse(playerSaveStr);
+          if (Array.isArray(pChars)) {
+            pChars.forEach(pc => {
+              let bc = base.find(c => c.id === pc.id);
+              if (bc) {
+                // 只合併玩家的進度字段，保留系統配置的最新改動
+                bc.level = pc.level !== undefined ? pc.level : bc.level;
+                bc.exp = pc.exp !== undefined ? pc.exp : bc.exp;
+                bc.freePoints = pc.freePoints !== undefined ? pc.freePoints : bc.freePoints;
+                bc.skillLevels = pc.skillLevels || bc.skillLevels || {};
+                bc.breakthroughStage = pc.breakthroughStage !== undefined ? pc.breakthroughStage : (bc.breakthroughStage || 0);
+                bc.equipment = pc.equipment || bc.equipment || {};
+                bc.allocatedStats = pc.allocatedStats || bc.allocatedStats || {};
+                bc.stats = pc.stats || bc.stats; // 保留玩家可能修改的基礎屬性
+              }
+            });
+          }
+        } catch(e) { console.warn('合併玩家存檔失敗', e); }
+      }
+      gameChars = base;
     }
-    if (!parsedChars && charsOldStr) {
-      try {
-        const p = JSON.parse(charsOldStr);
-        if (Array.isArray(p) && p.length) parsedChars = p;
-      } catch(e) {}
-    }
-
-    gameChars = parsedChars || JSON.parse(JSON.stringify(DEFAULT_CHARS));
   } catch(e) {
     gameChars = JSON.parse(JSON.stringify(DEFAULT_CHARS));
   }
@@ -169,26 +182,14 @@ function loadAllData() {
   try { gameItems = JSON.parse(localStorage.getItem('my_game_items_v22')) || JSON.parse(JSON.stringify(DEFAULT_ITEMS)); } catch(e) { gameItems = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); }
   try { gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22')) || JSON.parse(JSON.stringify(DEFAULT_LEVELS)); } catch(e) { gameLevels = JSON.parse(JSON.stringify(DEFAULT_LEVELS)); }
 
-  // ★ inventory 同理：優先讀 my_game_inventory_sync（battle.js 用的）
+  // inventory 同理
   try {
-    const invNewStr = localStorage.getItem('my_game_inventory_sync');
-    const invOldStr = localStorage.getItem('my_game_inventory_v22');
-    let parsedInv = null;
-
-    if (invNewStr) {
-      try {
-        const p = JSON.parse(invNewStr);
-        if (Array.isArray(p)) parsedInv = p;
-      } catch(e) {}
+    if (IS_EDITOR) {
+      inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || [];
+    } else {
+      let invSave = localStorage.getItem('my_game_inventory_sync');
+      inventory = invSave ? JSON.parse(invSave) : (JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []);
     }
-    if (!parsedInv && invOldStr) {
-      try {
-        const p = JSON.parse(invOldStr);
-        if (Array.isArray(p)) parsedInv = p;
-      } catch(e) {}
-    }
-
-    inventory = parsedInv || [];
   } catch(e) { inventory = []; }
 
   try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); } catch(e) { globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); }
@@ -225,7 +226,6 @@ function loadAllData() {
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
-  // 🌟 將所有數據與大寫對照表強制綁定到 window 物件，供所有分頁模組調用
   window.gameChars = gameChars;
   window.gameSkills = gameSkills;
   window.gameStatuses = gameStatuses;
@@ -248,20 +248,20 @@ function loadAllData() {
 }
 
 function saveData() {
-  localStorage.setItem('my_game_data_v22', JSON.stringify(gameChars));
-  localStorage.setItem('my_game_skills_v22', JSON.stringify(gameSkills));
-  localStorage.setItem('my_game_statuses_v22', JSON.stringify(gameStatuses));
-  localStorage.setItem('my_game_items_v22', JSON.stringify(gameItems));
-  localStorage.setItem('my_game_levels_v22', JSON.stringify(gameLevels));
-  localStorage.setItem('my_game_inventory_v22', JSON.stringify(inventory));
-  localStorage.setItem('my_game_config', JSON.stringify(globalData));
-
-  localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
-  localStorage.setItem('my_game_skills_sync', JSON.stringify(gameSkills));
-  localStorage.setItem('my_game_statuses_sync', JSON.stringify(gameStatuses));
-  localStorage.setItem('my_game_items_sync', JSON.stringify(gameItems));
-  localStorage.setItem('my_game_levels_sync', JSON.stringify(gameLevels));
-  localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
+  if (IS_EDITOR) {
+    // 編輯器：只存初始配置
+    localStorage.setItem('my_game_data_v22', JSON.stringify(gameChars));
+    localStorage.setItem('my_game_skills_v22', JSON.stringify(gameSkills));
+    localStorage.setItem('my_game_statuses_v22', JSON.stringify(gameStatuses));
+    localStorage.setItem('my_game_items_v22', JSON.stringify(gameItems));
+    localStorage.setItem('my_game_levels_v22', JSON.stringify(gameLevels));
+    localStorage.setItem('my_game_inventory_v22', JSON.stringify(inventory));
+    localStorage.setItem('my_game_config', JSON.stringify(globalData));
+  } else {
+    // 遊戲環境：只存玩家進度
+    localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
+    localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
+  }
 
   // 同步更新 window 映射
   window.gameChars = gameChars;
@@ -298,36 +298,29 @@ function getSkillOptions(selectedId) {
 
 function genUid() { return 'u_' + Date.now() + Math.floor(Math.random()*1000); }
 
-// 🌟 核心修改：加入裝備專屬的品質掉落區間過濾，並重新計算權重
 function generateRandomInstance(templateId) {
   const template = gameItems.find(t => t.id === templateId);
   if (!template) return null;
   
-  // 1. 決定允許的品質範圍
   let allowedRates = globalData.dropRates || DEFAULT_DROP_RATES;
   
-  // 如果該裝備有設定品質下限或上限
   if (template.qualityMin || template.qualityMax) {
     const qualityOrder = ['white', 'green', 'blue', 'purple', 'orange', 'red'];
     let minIdx = qualityOrder.indexOf(template.qualityMin || 'white');
     let maxIdx = qualityOrder.indexOf(template.qualityMax || 'red');
     
-    // 安全防護：如果找不到，就退回預設
     if (minIdx === -1) minIdx = 0;
     if (maxIdx === -1) maxIdx = qualityOrder.length - 1;
-    if (minIdx > maxIdx) { let temp = minIdx; minIdx = maxIdx; maxIdx = temp; } // 防呆交換
+    if (minIdx > maxIdx) { let temp = minIdx; minIdx = maxIdx; maxIdx = temp; }
 
-    // 過濾出符合區間的品質
     allowedRates = allowedRates.filter(d => {
       let qIdx = qualityOrder.indexOf(d.q);
       return qIdx >= minIdx && qIdx <= maxIdx;
     });
   }
 
-  // 如果過濾後是空的，作為安全防護，退回全局
   if (allowedRates.length === 0) allowedRates = globalData.dropRates || DEFAULT_DROP_RATES;
 
-  // 2. 根據剩下的區間總長度，重新擲骰子 (確保機率總和為100%)
   let totalWeight = allowedRates.reduce((sum, d) => sum + (d.max - d.min), 0);
   let r = Math.random() * totalWeight;
   
