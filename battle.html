@@ -69,6 +69,13 @@
     <script src="tab_char.js?v=15"></script>
 
     <script>
+        window.safeOpenCharacterUI = function() {
+            if (typeof window.openCharacterUI === 'function') {
+                window.openCharacterUI();
+            } else {
+                alert('角色與背包系統載入中或未初始化！');
+            }
+        };
         setInterval(() => {
             document.querySelectorAll('.phaser-dom-element').forEach(el => el.remove());
         }, 500);
