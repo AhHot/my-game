@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：物品與裝備模板管理 (tab_item.js) - 完整分類 Tab 版
+// 模組：物品與裝備模板管理 (tab_item.js) - 完整分類 Tab 版 + 專屬品質掉落設定
 // ==========================================
 
 window.renderTabItem = function(container) {
@@ -60,6 +60,36 @@ function renderItemList() {
     let equipStatsHtml = '';
     if (isEquip) {
       equipStatsHtml = `
+        <!-- ★ 新增：專屬品質掉落範圍設定 -->
+        <div class="sub-title" style="margin-top: 15px; color: #e74c3c;">🎲 專屬掉落品質範圍設定</div>
+        <div class="form-item full" style="background: #2a1a1a; padding: 10px; border-radius: 6px; border: 1px solid #c0392b; margin-bottom: 10px;">
+          <p style="font-size: 11px; color: #e74c3c; margin-bottom: 8px;">※ 設定此裝備只會在哪個品質區間內隨機抽選（系統會自動重新分配機率）。</p>
+          <div style="display: flex; gap: 10px;">
+            <div style="flex: 1;">
+              <label style="color: #fff;">最低品質下限</label>
+              <select onchange="window.updateItemField(${index}, 'qualityMin', this.value)" style="width: 100%; background: #111; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px;">
+                <option value="white" ${item.qualityMin === 'white' || !item.qualityMin ? 'selected' : ''}>白 (white)</option>
+                <option value="green" ${item.qualityMin === 'green' ? 'selected' : ''}>綠 (green)</option>
+                <option value="blue" ${item.qualityMin === 'blue' ? 'selected' : ''}>藍 (blue)</option>
+                <option value="purple" ${item.qualityMin === 'purple' ? 'selected' : ''}>紫 (purple)</option>
+                <option value="orange" ${item.qualityMin === 'orange' ? 'selected' : ''}>橙 (orange)</option>
+                <option value="red" ${item.qualityMin === 'red' ? 'selected' : ''}>紅 (red)</option>
+              </select>
+            </div>
+            <div style="flex: 1;">
+              <label style="color: #fff;">最高品質上限</label>
+              <select onchange="window.updateItemField(${index}, 'qualityMax', this.value)" style="width: 100%; background: #111; color: #fff; border: 1px solid #444; padding: 5px; border-radius: 4px;">
+                <option value="white" ${item.qualityMax === 'white' ? 'selected' : ''}>白 (white)</option>
+                <option value="green" ${item.qualityMax === 'green' ? 'selected' : ''}>綠 (green)</option>
+                <option value="blue" ${item.qualityMax === 'blue' ? 'selected' : ''}>藍 (blue)</option>
+                <option value="purple" ${item.qualityMax === 'purple' ? 'selected' : ''}>紫 (purple)</option>
+                <option value="orange" ${item.qualityMax === 'orange' ? 'selected' : ''}>橙 (orange)</option>
+                <option value="red" ${item.qualityMax === 'red' || !item.qualityMax ? 'selected' : ''}>紅 (red)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="sub-title">⚔️ 裝備基礎數值範圍</div>
         <div class="form-item"><label>最小攻擊 (atkMin)</label><input type="number" value="${item.atkMin || 0}" onchange="window.updateItemField(${index}, 'atkMin', parseFloat(this.value))"></div>
         <div class="form-item"><label>最大攻擊 (atkMax)</label><input type="number" value="${item.atkMax || 0}" onchange="window.updateItemField(${index}, 'atkMax', parseFloat(this.value))"></div>
