@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 支援刷新倒計時版
+// 模組：坊市與商店系統 (tab_shop.js) - 完美倒計時版
 // ==========================================
 
 window.renderTabShop = function(container) {
@@ -203,7 +203,7 @@ function checkAndRefreshShop(shop) {
   return shopState;
 }
 
-// ★ 新增：計算並更新倒計時 UI
+// ★ 新增：純數學計算，完美避開時區陷阱
 function updateCountdownUI(shopId, refreshType) {
   const timerEl = document.getElementById('shop-refresh-timer');
   if (!timerEl) return;
@@ -214,38 +214,46 @@ function updateCountdownUI(shopId, refreshType) {
     return;
   }
 
-  const now = new Date();
-  // 獲取當前 UTC+8 時間
-  const utc8Time = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (8 * 3600000));
-  
-  let targetTime = new Date(utc8Time);
+  // 獲取當前絕對時間戳 (毫秒)
+  const nowMs = Date.now();
+  // 獲取當前 UTC+8 對應的絕對時間戳偏移
+  const utc8NowMs = nowMs + 8 * 3600000;
+  const utc8Now = new Date(utc8NowMs);
+
+  let targetMs = 0;
 
   if (refreshType === 'daily') {
-    // 目標時間：明天的 00:00:00 (UTC+8)
-    targetTime.setHours(24, 0, 0, 0);
+    // 目標：下一個 UTC+8 的 00:00:00
+    const y = utc8Now.getUTCFullYear();
+    const m = utc8Now.getUTCMonth();
+    const d = utc8Now.getUTCDate();
+    // Date.UTC 返回的是 UTC 時區的時間戳，減去 8 小時就是 UTC+8 的 0 點
+    targetMs = Date.UTC(y, m, d + 1, 0, 0, 0) - 8 * 3600000;
   } else if (refreshType === 'weekly') {
-    // 目標時間：下週一的 00:00:00 (UTC+8)
-    let day = utc8Time.getDay() || 7;
-    let daysToNextMonday = 8 - day;
-    targetTime.setDate(utc8Time.getDate() + daysToNextMonday);
-    targetTime.setHours(0, 0, 0, 0);
+    // 目標：下一個 UTC+8 週一的 00:00:00
+    const y = utc8Now.getUTCFullYear();
+    const m = utc8Now.getUTCMonth();
+    const d = utc8Now.getUTCDate();
+    const day = utc8Now.getUTCDay() || 7;
+    const daysToNextMonday = 8 - day;
+    
+    targetMs = Date.UTC(y, m, d + daysToNextMonday, 0, 0, 0) - 8 * 3600000;
   }
 
-  // 將目標時間轉回本地時間戳進行相減
-  const targetLocalMs = targetTime.getTime() - (8 * 3600000) + (now.getTimezoneOffset() * 60000);
-  const diff = targetLocalMs - now.getTime();
+  const diff = targetMs - nowMs;
 
   if (diff <= 0) {
-    timerEl.innerText = '刷新中...';
+    timerEl.innerText = '(刷新中...)';
+    timerEl.style.color = '#2ecc71';
     return;
   }
 
   const h = Math.floor(diff / (1000 * 60 * 60));
-  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const min = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-  timerEl.innerText = `(距下次刷新 ${h}時 ${m}分 ${s}秒)`;
-  timerEl.style.color = h < 1 ? '#e67e22' : '#aaa'; // 剩餘不到1小時變橘色提示
+  timerEl.innerText = `(距下次刷新 ${h}時 ${min}分 ${s}秒)`;
+  timerEl.style.color = h < 1 ? '#e67e22' : '#aaa'; // 剩餘不到 1 小時變橘色
 }
 
 window.openShopUI = function(shopId = 'shop_daily') {
@@ -308,9 +316,9 @@ window.openShopUI = function(shopId = 'shop_daily') {
     <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); padding: 15px 25px; border-radius: 10px; border-bottom: 2px solid #333;">
         
-        <!-- ★ 這裡修改了商店標題，加入了倒計時 span -->
         <div style="display: flex; align-items: baseline; gap: 15px;">
           <h2 style="color: #f1c40f; margin: 0; font-size: 28px;">🛒 ${shop.name}</h2>
+          <!-- 倒計時顯示區 -->
           <span id="shop-refresh-timer" style="font-size: 14px; color: #aaa; font-weight: normal;"></span>
         </div>
         
@@ -367,7 +375,6 @@ window.closeShopUI = function() {
   let ui = document.getElementById('shop-fullscreen-ui');
   if (ui) ui.remove();
   
-  // ★ 清理倒計時定時器，防止記憶體洩漏
   if (window._shopCountdownTimer) {
     clearInterval(window._shopCountdownTimer);
     window._shopCountdownTimer = null;
@@ -540,7 +547,6 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
   }
 
   window.closeBuyQuantityModal();
-  
   window.openShopUI(shop.id); 
 
   setTimeout(() => {
