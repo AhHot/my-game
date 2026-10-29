@@ -1,175 +1,177 @@
 // ==========================================
-// 模块：物品面板 (tab_item.js)
+// 模組：物品與裝備模板管理 (tab_item.js) - 完整功能版 (含最大堆疊與發送功能)
 // ==========================================
-let currentItemSubTab = 'weapon';
-
-window.switchItemSubTab = function(sub) {
-  currentItemSubTab = sub;
-  ['weapon', 'armor', 'accessory', 'consumable', 'material', 'quest'].forEach(s => {
-    document.getElementById(`tab-item-${s}`).classList.toggle('active', sub === s);
-  });
-  window.renderTabItem(document.getElementById('app-content'));
-};
 
 window.renderTabItem = function(container) {
+  if (!window.gameItems) {
+    window.gameItems = [];
+  }
+
   container.innerHTML = `
-    <div class="search-bar"><input type="text" id="search-item" placeholder="🔍 搜索物品..." oninput="window.filterItemList()"></div>
-    <div class="sub-tabs">
-      <div class="sub-tab ${currentItemSubTab==='weapon'?'active':''}" id="tab-item-weapon" onclick="window.switchItemSubTab('weapon')">武器</div>
-      <div class="sub-tab ${currentItemSubTab==='armor'?'active':''}" id="tab-item-armor" onclick="window.switchItemSubTab('armor')">防具</div>
-      <div class="sub-tab ${currentItemSubTab==='accessory'?'active':''}" id="tab-item-accessory" onclick="window.switchItemSubTab('accessory')">饰品</div>
-      <div class="sub-tab ${currentItemSubTab==='consumable'?'active':''}" id="tab-item-consumable" onclick="window.switchItemSubTab('consumable')">消耗品</div>
-      <div class="sub-tab ${currentItemSubTab==='material'?'active':''}" id="tab-item-material" onclick="window.switchItemSubTab('material')">材料</div>
-      <div class="sub-tab ${currentItemSubTab==='quest'?'active':''}" id="tab-item-quest" onclick="window.switchItemSubTab('quest')">任务</div>
+    <div class="card">
+      <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 物品與裝備模板管理</h3>
+      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理所有道具、裝備、消耗品及突破/升級材料的屬性、最大堆疊數與發送測試。</p>
+      <div id="item-editor-list"></div>
+      <button class="btn" style="background:#3498db; width:100%; margin-top:15px;" onclick="window.addNewItemTemplate()">➕ 新增物品模板</button>
     </div>
-    <div id="item-list"></div>
-    <button class="btn" style="background:#3498db; width:100%; margin-bottom:20px;" onclick="window.addNewItem()">➕ 新增物品模板</button>
+    <button class="btn btn-play" style="width:100%; margin-bottom:20px;" onclick="saveData(); alert('物品配置已成功保存！');">💾 保存物品配置</button>
   `;
 
-  window.filterItemList = function() {
-    const list = document.getElementById('item-list'); list.innerHTML = '';
-    const keyword = document.getElementById('search-item').value.toLowerCase();
-    
-    gameItems.forEach((item, index) => {
-      if (item.category !== currentItemSubTab) return;
-      if (keyword && !item.name.toLowerCase().includes(keyword)) return;
-      
-      const isEquip = ['weapon', 'armor', 'accessory'].includes(item.category);
-      let slotSelector = '';
-      if (item.category === 'armor') {
-        slotSelector = `
-          <div class="form-item">
-            <label>装备部位</label>
-            <select onchange="window.updateItem(${index}, 'equipSlot', this.value)">
-              <option value="head" ${item.equipSlot === 'head' ? 'selected' : ''}>头部</option>
-              <option value="body" ${item.equipSlot === 'body' ? 'selected' : ''}>衣服</option>
-              <option value="legs" ${item.equipSlot === 'legs' ? 'selected' : ''}>腿部</option>
-            </select>
-          </div>`;
-      } else if (item.category === 'accessory') {
-        slotSelector = `
-          <div class="form-item">
-            <label>装备部位</label>
-            <select onchange="window.updateItem(${index}, 'equipSlot', this.value)">
-              <option value="ring" ${item.equipSlot === 'ring' ? 'selected' : ''}>戒指</option>
-              <option value="necklace" ${item.equipSlot === 'necklace' ? 'selected' : ''}>项链</option>
-            </select>
-          </div>`;
-      }
+  renderItemList();
+};
 
-      let equipStatsHtml = '';
-      if (isEquip) {
-        equipStatsHtml = `
-          <div class="sub-title">基础属性范围</div>
-          <div class="form-item"><label>攻击力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.atkMin||0}" onchange="window.updateItem(${index}, 'atkMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.atkMax||0}" onchange="window.updateItem(${index}, 'atkMax', parseInt(this.value))" placeholder="Max"></div></div>
-          <div class="form-item"><label>防御力</label><div style="display:flex;gap:2px;"><input type="number" value="${item.defMin||0}" onchange="window.updateItem(${index}, 'defMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.defMax||0}" onchange="window.updateItem(${index}, 'defMax', parseInt(this.value))" placeholder="Max"></div></div>
-          <div class="form-item"><label>生命值</label><div style="display:flex;gap:2px;"><input type="number" value="${item.hpMin||0}" onchange="window.updateItem(${index}, 'hpMin', parseInt(this.value))" placeholder="Min"><input type="number" value="${item.hpMax||0}" onchange="window.updateItem(${index}, 'hpMax', parseInt(this.value))" placeholder="Max"></div></div>
+function renderItemList() {
+  const list = document.getElementById('item-editor-list');
+  if (!list) return;
+  list.innerHTML = '';
 
-          <div class="sub-title">自带额外属性 (填 10 代表 10%)</div>
-          <div class="form-item"><label>攻击力(%)</label><input type="number" step="0.1" value="${(item.atkPercent||0)*100}" onchange="window.updateItemPct(${index}, 'atkPercent', this.value)"></div>
-          <div class="form-item"><label>防御力(%)</label><input type="number" step="0.1" value="${(item.defPercent||0)*100}" onchange="window.updateItemPct(${index}, 'defPercent', this.value)"></div>
-          <div class="form-item"><label>生命值(%)</label><input type="number" step="0.1" value="${(item.hpPercent||0)*100}" onchange="window.updateItemPct(${index}, 'hpPercent', this.value)"></div>
-          <div class="form-item"><label>暴击率(%)</label><input type="number" step="0.1" value="${(item.critRate||0)*100}" onchange="window.updateItemPct(${index}, 'critRate', this.value)"></div>
-          <div class="form-item"><label>暴击伤害</label><input type="number" step="0.1" value="${item.critDmg||0}" onchange="window.updateItem(${index}, 'critDmg', parseFloat(this.value))"></div>
-          <div class="form-item"><label>抗暴率(%)</label><input type="number" step="0.1" value="${(item.critResist||0)*100}" onchange="window.updateItemPct(${index}, 'critResist', this.value)"></div>
-          <div class="form-item"><label>命中率(%)</label><input type="number" step="0.1" value="${(item.hitRate||0)*100}" onchange="window.updateItemPct(${index}, 'hitRate', this.value)"></div>
-          <div class="form-item"><label>闪避率(%)</label><input type="number" step="0.1" value="${(item.dodgeRate||0)*100}" onchange="window.updateItemPct(${index}, 'dodgeRate', this.value)"></div>
-          <div class="form-item"><label>吸血(%)</label><input type="number" step="0.1" value="${(item.lifesteal||0)*100}" onchange="window.updateItemPct(${index}, 'lifesteal', this.value)"></div>
-          <div class="form-item"><label>速度</label><input type="number" value="${item.speed||0}" onchange="window.updateItem(${index}, 'speed', parseInt(this.value))"></div>
-        `;
-      }
+  window.gameItems.forEach((item, index) => {
+    let isEquip = ['weapon', 'armor', 'accessory'].includes(item.category);
+    let isConsumable = item.category === 'consumable';
 
-      let consumableHtml = '';
-      if (item.category === 'consumable') {
-        consumableHtml = `
-          <div class="sub-title" style="color:#2ecc71;">养成与效果设定</div>
-          <div class="form-item">
-            <label>使用效果</label>
-            <select onchange="window.updateItem(${index}, 'useEffect', this.value)">
-              <option value="None" ${item.useEffect === 'None' ? 'selected' : ''}>无效果</option>
-              <option value="AddExp" ${item.useEffect === 'AddExp' ? 'selected' : ''}>增加经验</option>
-              <option value="AddStat" ${item.useEffect === 'AddStat' ? 'selected' : ''}>永久增加意境</option>
-              <option value="PackageEquip" ${item.useEffect === 'PackageEquip' ? 'selected' : ''}>自选装备包(预留)</option>
-              <option value="RandomEquip" ${item.useEffect === 'RandomEquip' ? 'selected' : ''}>随机装备包(预留)</option>
-            </select>
-          </div>
-          <div class="form-item">
-            <label>效果数值</label>
-            <input type="number" value="${item.useValue || 0}" onchange="window.updateItem(${index}, 'useValue', parseFloat(this.value))">
-          </div>
-          <div class="form-item full" style="display:${item.useEffect === 'AddStat' ? 'flex' : 'none'};">
-            <label>增加哪种意境</label>
-            <select onchange="window.updateItem(${index}, 'useStatKey', this.value)">
-              <option value="fengRui" ${item.useStatKey === 'fengRui' ? 'selected' : ''}>锋锐</option>
-              <option value="hunHou" ${item.useStatKey === 'hunHou' ? 'selected' : ''}>浑厚</option>
-              <option value="lingDong" ${item.useStatKey === 'lingDong' ? 'selected' : ''}>灵动</option>
-              <option value="jianRen" ${item.useStatKey === 'jianRen' ? 'selected' : ''}>坚韧</option>
-              <option value="guiMi" ${item.useStatKey === 'guiMi' ? 'selected' : ''}>诡秘</option>
-              <option value="jueQing" ${item.useStatKey === 'jueQing' ? 'selected' : ''}>绝情</option>
-            </select>
-          </div>
-        `;
-      }
+    let equipStatsHtml = '';
+    if (isEquip) {
+      equipStatsHtml = `
+        <div class="sub-title">⚔️ 裝備基礎數值範圍</div>
+        <div class="form-item"><label>最小攻擊 (atkMin)</label><input type="number" value="${item.atkMin || 0}" onchange="window.updateItemField(${index}, 'atkMin', parseFloat(this.value))"></div>
+        <div class="form-item"><label>最大攻擊 (atkMax)</label><input type="number" value="${item.atkMax || 0}" onchange="window.updateItemField(${index}, 'atkMax', parseFloat(this.value))"></div>
+        <div class="form-item"><label>最小防御 (defMin)</label><input type="number" value="${item.defMin || 0}" onchange="window.updateItemField(${index}, 'defMin', parseFloat(this.value))"></div>
+        <div class="form-item"><label>最大防御 (defMax)</label><input type="number" value="${item.defMax || 0}" onchange="window.updateItemField(${index}, 'defMax', parseFloat(this.value))"></div>
+        <div class="form-item"><label>最小生命 (hpMin)</label><input type="number" value="${item.hpMin || 0}" onchange="window.updateItemField(${index}, 'hpMin', parseFloat(this.value))"></div>
+        <div class="form-item"><label>最大生命 (hpMax)</label><input type="number" value="${item.hpMax || 0}" onchange="window.updateItemField(${index}, 'hpMax', parseFloat(this.value))"></div>
+        
+        <div class="sub-title">✨ 裝備固定附加屬性 (%)</div>
+        <div class="form-item"><label>攻擊百分比 (%)</label><input type="number" step="0.1" value="${item.atkPercent || 0}" onchange="window.updateItemField(${index}, 'atkPercent', parseFloat(this.value))"></div>
+        <div class="form-item"><label>防禦百分比 (%)</label><input type="number" step="0.1" value="${item.defPercent || 0}" onchange="window.updateItemField(${index}, 'defPercent', parseFloat(this.value))"></div>
+        <div class="form-item"><label>生命百分比 (%)</label><input type="number" step="0.1" value="${item.hpPercent || 0}" onchange="window.updateItemField(${index}, 'hpPercent', parseFloat(this.value))"></div>
+        <div class="form-item"><label>暴擊率 (%)</label><input type="number" step="0.1" value="${item.critRate || 0}" onchange="window.updateItemField(${index}, 'critRate', parseFloat(this.value))"></div>
+        <div class="form-item"><label>暴擊傷害 (%)</label><input type="number" step="0.1" value="${item.critDmg || 0}" onchange="window.updateItemField(${index}, 'critDmg', parseFloat(this.value))"></div>
+        <div class="form-item"><label>吸血 (%)</label><input type="number" step="0.1" value="${item.lifesteal || 0}" onchange="window.updateItemField(${index}, 'lifesteal', parseFloat(this.value))"></div>
+        <div class="form-item"><label>速度加成</label><input type="number" value="${item.speed || 0}" onchange="window.updateItemField(${index}, 'speed', parseFloat(this.value))"></div>
+      `;
+    }
 
-      const div = document.createElement('div'); div.className = 'card';
-      div.innerHTML = `
-        <div class="card-header">
-          <h3>${item.icon || '📦'} ${item.name}</h3>
-          <div>
-            <button class="btn-grant" onclick="window.grantTestItem('${item.id}')">🎁 发放测试</button>
-            <button class="btn-del" onclick="window.deleteItem(${index})">删除</button>
-          </div>
+    let consumableHtml = '';
+    if (isConsumable) {
+      consumableHtml = `
+        <div class="sub-title">💊 消耗品效果設置</div>
+        <div class="form-item">
+          <label>效果類型 (useEffect)</label>
+          <select onchange="window.updateItemField(${index}, 'useEffect', this.value)">
+            <option value="None" ${item.useEffect === 'None' ? 'selected' : ''}>無</option>
+            <option value="AddExp" ${item.useEffect === 'AddExp' ? 'selected' : ''}>增加經驗 (AddExp)</option>
+            <option value="AddStat" ${item.useEffect === 'AddStat' ? 'selected' : ''}>永久增加屬性 (AddStat)</option>
+          </select>
         </div>
-        <div class="form-grid">
-          <div class="form-item"><label>名称</label><input type="text" value="${item.name}" onchange="window.updateItem(${index}, 'name', this.value)"></div>
-          <div class="form-item"><label>图标</label><input type="text" value="${item.icon || ''}" onchange="window.updateItem(${index}, 'icon', this.value)"></div>
-          <div class="form-item"><label>最大堆叠数</label><input type="number" value="${item.maxStack || 1}" onchange="window.updateItem(${index}, 'maxStack', parseInt(this.value))"></div>
-          ${slotSelector}
-          <div class="form-item full"><label>描述</label><input type="text" value="${item.desc || ''}" onchange="window.updateItem(${index}, 'desc', this.value)"></div>
-          ${equipStatsHtml}
-          ${consumableHtml}
-        </div>`;
-      list.appendChild(div);
-    });
-  };
-  window.filterItemList();
+        <div class="form-item"><label>效果數值 (useValue)</label><input type="number" value="${item.useValue || 0}" onchange="window.updateItemField(${index}, 'useValue', parseFloat(this.value))"></div>
+        <div class="form-item">
+          <label>屬性Key (若是AddStat)</label>
+          <select onchange="window.updateItemField(${index}, 'useStatKey', this.value)">
+            <option value="">(無)</option>
+            <option value="fengRui" ${item.useStatKey === 'fengRui' ? 'selected' : ''}>鋒銳</option>
+            <option value="hunHou" ${item.useStatKey === 'hunHou' ? 'selected' : ''}>渾厚</option>
+            <option value="lingDong" ${item.useStatKey === 'lingDong' ? 'selected' : ''}>靈動</option>
+            <option value="jianRen" ${item.useStatKey === 'jianRen' ? 'selected' : ''}>堅韌</option>
+            <option value="guiMi" ${item.useStatKey === 'guiMi' ? 'selected' : ''}>詭秘</option>
+            <option value="jueQing" ${item.useStatKey === 'jueQing' ? 'selected' : ''}>絕情</option>
+          </select>
+        </div>
+      `;
+    }
+
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.background = '#111';
+    div.innerHTML = `
+      <div class="card-header">
+        <h4 style="color:#3498db;">${item.icon || '📦'} ${item.name || '未命名'} (ID: ${item.id})</h4>
+        <div>
+          <button class="btn-grant" onclick="window.grantItemToPlayer('${item.id}')">🎁 發送到背包</button>
+          <button class="btn-del" onclick="window.deleteItemTemplate(${index})">刪除物品</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-item"><label>物品 ID (英文唯一識別碼)</label><input type="text" value="${item.id}" onchange="window.updateItemField(${index}, 'id', this.value)"></div>
+        <div class="form-item"><label>物品名稱</label><input type="text" value="${item.name}" onchange="window.updateItemField(${index}, 'name', this.value)"></div>
+        <div class="form-item">
+          <label>物品分類</label>
+          <select onchange="window.updateItemField(${index}, 'category', this.value); renderItemList();">
+            <option value="weapon" ${item.category === 'weapon' ? 'selected' : ''}>武器 (weapon)</option>
+            <option value="armor" ${item.category === 'armor' ? 'selected' : ''}>防具/衣服 (armor)</option>
+            <option value="accessory" ${item.category === 'accessory' ? 'selected' : ''}>飾品 (accessory)</option>
+            <option value="consumable" ${item.category === 'consumable' ? 'selected' : ''}>消耗品 (consumable)</option>
+            <option value="material" ${item.category === 'material' ? 'selected' : ''}>材料 (material)</option>
+            <option value="quest" ${item.category === 'quest' ? 'selected' : ''}>任務 (quest)</option>
+          </select>
+        </div>
+        <div class="form-item"><label>圖標 (Emoji)</label><input type="text" value="${item.icon || '📦'}" onchange="window.updateItemField(${index}, 'icon', this.value)"></div>
+        <div class="form-item"><label>最大堆疊數 (maxStack)</label><input type="number" value="${item.maxStack || 99}" onchange="window.updateItemField(${index}, 'maxStack', parseInt(this.value))"></div>
+        <div class="form-item full"><label>物品描述</label><textarea onchange="window.updateItemField(${index}, 'desc', this.value)">${item.desc || ''}</textarea></div>
+        ${equipStatsHtml}
+        ${consumableHtml}
+      </div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+window.updateItemField = function(index, key, val) {
+  if (window.gameItems[index]) {
+    window.gameItems[index][key] = val;
+    saveData();
+  }
 };
 
-window.updateItem = function(index, key, value) { 
-  gameItems[index][key] = value; saveData(); 
-  if (['category', 'useEffect'].includes(key)) window.renderTabItem(document.getElementById('app-content')); 
-};
-window.updateItemPct = function(index, key, value) { gameItems[index][key] = parseFloat(value) / 100; saveData(); };
-window.addNewItem = function() { 
-  const isEquip = ['weapon', 'armor', 'accessory'].includes(currentItemSubTab);
-  gameItems.push({ 
-    id:'item_'+Date.now(), name:'新物品', category:currentItemSubTab, 
-    equipSlot: currentItemSubTab === 'weapon' ? 'weapon' : (currentItemSubTab === 'armor' ? 'body' : (currentItemSubTab === 'accessory' ? 'ring' : '')), 
-    icon:'📦', desc:'', maxStack: isEquip ? 1 : 99,
-    useEffect: 'None', useValue: 0, useStatKey: 'fengRui',
-    atkMin:0, atkMax:0, defMin:0, defMax:0, hpMin:0, hpMax:0, 
-    atkPercent:0, defPercent:0, hpPercent:0, critRate:0, critDmg:0, lifesteal:0, hitRate:0, dodgeRate:0, critResist:0, speed:0 
-  }); 
-  saveData(); window.renderTabItem(document.getElementById('app-content')); 
-};
-window.deleteItem = function(index) { if (confirm('确定删除？')) { gameItems.splice(index, 1); saveData(); window.renderTabItem(document.getElementById('app-content')); } };
+window.grantItemToPlayer = function(itemId) {
+  const template = window.gameItems.find(i => i.id === itemId);
+  if (!template) return alert('找不到該物品模板！');
 
-window.grantTestItem = function(itemId) {
-  const tpl = gameItems.find(i => i.id === itemId);
-  if (!tpl) return;
-  
-  const isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
+  if (!window.INVENTORY) window.INVENTORY = [];
+
+  let isEquip = ['weapon', 'armor', 'accessory'].includes(template.category);
   if (isEquip) {
-    const inst = generateRandomInstance(tpl.id);
-    if(inst) inventory.push(inst);
+    let inst = generateRandomInstance(itemId);
+    if (inst) {
+      window.INVENTORY.push(inst);
+    }
   } else {
-    const existing = inventory.find(i => i.itemId === tpl.id && !i.equippedBy);
-    if (existing && existing.count < (tpl.maxStack || 1)) {
+    let existing = window.INVENTORY.find(i => i.itemId === itemId && !i.equippedBy);
+    let maxStack = template.maxStack || 99;
+    if (existing && (existing.count || 1) < maxStack) {
       existing.count = (existing.count || 1) + 1;
     } else {
-      inventory.push({ uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: tpl.id, quality: 'white', count: 1, equippedBy: '' });
+      window.INVENTORY.push({
+        uid: 'inst_' + Date.now() + Math.floor(Math.random() * 1000),
+        itemId: itemId,
+        quality: 'white',
+        count: 1,
+        equippedBy: ''
+      });
     }
   }
   saveData();
-  alert(`已成功发放：${tpl.name} (请在游戏内背包查看)`);
+  alert(`🎁 成功發送「${template.name}」到玩家背包！`);
+};
+
+window.addNewItemTemplate = function() {
+  window.gameItems.push({
+    id: 'item_' + Date.now(),
+    name: '新物品',
+    category: 'material',
+    icon: '📦',
+    desc: '',
+    maxStack: 9999,
+    useEffect: 'None',
+    useValue: 0
+  });
+  saveData();
+  renderItemList();
+};
+
+window.deleteItemTemplate = function(index) {
+  if (confirm('確定刪除此物品模板？')) {
+    window.gameItems.splice(index, 1);
+    saveData();
+    renderItemList();
+  }
 };
