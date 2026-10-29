@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 意境按鈕排版優化版
+// 模組：完整人物與背包系統 (character_system.js) - 排版置中與圖片防呆版
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -9,12 +9,8 @@
     let globalExpTable = [];
     let tempAllocated = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
 
-    // ============================================================
-    // ★ 技能等級成長曲線（與 battle.js 的 getSkillBonus 完全一致）
-    // ============================================================
     function getSkillBonus(sk, lv) {
         if (!sk || lv <= 1) return 0;
-
         if (sk.type === 'ultimate') {
             const increments = [3, 3, 8, 3, 3, 8, 3, 3, 16];
             let totalPct = 0;
@@ -23,7 +19,6 @@
             }
             return totalPct / 100;
         }
-
         let totalGrowth;
         if (sk.type === 'normal')        totalGrowth = 0.20;
         else if (sk.type === 'followup') totalGrowth = 0.20;
@@ -34,7 +29,6 @@
         } else {
             totalGrowth = 0.30;
         }
-
         return totalGrowth * (lv - 1) / 9;
     }
 
@@ -53,7 +47,7 @@
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
                 
                 <!-- 立繪區 -->
-                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0; border-bottom: 2px solid #333;"></div>
+                <div class="char-portrait" style="height: 380px; width: 420px; background: #111 center/cover; position: relative; flex-shrink: 0; border-bottom: 2px solid #333;"></div>
                 
                 <!-- 屬性/裝備區 -->
                 <div id="left-dynamic-content" style="flex: 1; padding: 12px 15px; overflow-y: hidden; background: #12141c; display: flex; flex-direction: column; gap: 8px;"></div>
@@ -446,8 +440,10 @@
             btn.className = 'char-avatar-btn';
             btn.style.cssText = "width: 65px; height: 65px; flex-shrink: 0; border-radius: 10px; background: #222; border: 2px solid #444; display: flex; justify-content: center; align-items: center; font-size: 32px; cursor: pointer; transition: all 0.2s; overflow: hidden;";
             
-            if (p.avatarUrl) {
-                btn.style.background = `url('${p.avatarUrl}') center/cover`;
+            // ★ 小頭像防呆與轉碼
+            if (p.avatarUrl && p.avatarUrl.trim() !== '') {
+                let url = encodeURI(p.avatarUrl.trim());
+                btn.style.background = `url('${url}') center/cover, #222`;
                 btn.innerHTML = '';
             } else {
                 btn.innerHTML = p.emoji || '👤';
@@ -519,8 +515,15 @@
 
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
-            const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
-            portraitEl.style.background = `url('${bgImg}') top center/cover`;
+            let bgImg = selectedChar.portraitUrl;
+            
+            // ★ 大立繪防呆與轉碼
+            if (bgImg && bgImg.trim() !== '') {
+                bgImg = encodeURI(bgImg.trim());
+                portraitEl.style.background = `url('${bgImg}') top center/cover, #1a1c29`;
+            } else {
+                portraitEl.style.background = `url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover, #1a1c29`;
+            }
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
@@ -590,22 +593,22 @@
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
             `;
             
-            // ★ 修改意境數值的排版：左邊數值，右邊按鈕(上加下減)
+            // ★ 意境數值置中，字體微調大
             Object.keys(statNames).forEach(k => {
                 let tempAdded = tempAllocated[k] || 0;
-                let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:11px; font-weight:bold;">(+${tempAdded})</span>` : '';
+                let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:12px; font-weight:bold;">(+${tempAdded})</span>` : '';
 
                 statsHtml += `
                     <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 6px 8px; border-radius: 6px; border: 1px solid #333;">
-                        <div style="display: flex; flex-direction: column; line-height: 1.2;">
-                            <span style="font-size: 12px; color: #aaa;">${statNames[k]}</span>
-                            <span style="font-size: 15px; color: #fff; font-weight: bold; margin-top: 2px;">
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; line-height: 1.2;">
+                            <span style="font-size: 13px; color: #aaa;">${statNames[k]}</span>
+                            <span style="font-size: 16px; color: #fff; font-weight: bold; margin-top: 2px;">
                                 ${stats[k] || 0} ${tempStr}
                             </span>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 26px; height: 22px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; line-height: 1;">+</button>
-                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 4px; width: 26px; height: 22px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; line-height: 1;">-</button>
+                        <div style="display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; margin-left: 4px;">
+                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 28px; height: 24px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; line-height: 1;">+</button>
+                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 4px; width: 28px; height: 24px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; line-height: 1;">-</button>
                         </div>
                     </div>
                 `;
