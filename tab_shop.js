@@ -1,18 +1,18 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 裝備數值與詞條完整實裝版
+// 模組：坊市與商店系統 (tab_shop.js) - 每日0點/每週刷新完整實裝版
 // ==========================================
 
 window.renderTabShop = function(container) {
   if (!window.globalData.shops) {
     window.globalData.shops = [
-      { id: 'shop_daily', name: '日常坊市', bgUrl: '', items: [] }
+      { id: 'shop_daily', name: '日常坊市', bgUrl: '', refreshType: 'daily', items: [] }
     ];
   }
 
   let html = `
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🛒 坊市與商店系統管理</h3>
-      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理遊戲中的各個坊市商店、背景圖、上架商品及價格庫存。</p>
+      <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理遊戲中的各個坊市商店。注意：商品的「初始庫存」為每次刷新後恢復的數量。</p>
       <div id="shop-editor-list" style="display:flex; flex-direction:column; gap:20px;"></div>
       <button class="btn" style="background:#3498db; width:100%; margin-top:15px;" onclick="window.addNewShop()">➕ 新增坊市商店</button>
     </div>
@@ -42,18 +42,24 @@ function renderShopList() {
               </select>
             </div>
             <div style="width:90px;">
-              <label style="font-size:10px; color:#888; display:block;">價格 (銅幣)</label>
+              <label style="font-size:10px; color:#888; display:block;">單價 (銅幣)</label>
               <input type="number" value="${shopItem.price || 100}" onchange="window.updateShopItem(${sIdx}, ${iIdx}, 'price', parseInt(this.value))" style="background:#0f0f15; color:#f1c40f; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px; width:100%;">
             </div>
             <div style="width:80px;">
-              <label style="font-size:10px; color:#888; display:block;">庫存</label>
-              <input type="number" value="${shopItem.stock || 99}" onchange="window.updateShopItem(${sIdx}, ${iIdx}, 'stock', parseInt(this.value))" style="background:#0f0f15; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px; width:100%;">
+              <label style="font-size:10px; color:#888; display:block;">初始庫存</label>
+              <input type="number" value="${shopItem.stock !== undefined ? shopItem.stock : 99}" onchange="window.updateShopItem(${sIdx}, ${iIdx}, 'stock', parseInt(this.value))" style="background:#0f0f15; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px; width:100%;">
             </div>
             <button onclick="window.removeShopItem(${sIdx}, ${iIdx})" style="background:#c0392b; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; margin-top:14px; font-size:11px;">刪除</button>
           </div>
         `;
       });
     }
+
+    let refreshOptions = `
+      <option value="none" ${shop.refreshType === 'none' ? 'selected' : ''}>不刷新 (永久限購)</option>
+      <option value="daily" ${shop.refreshType === 'daily' || !shop.refreshType ? 'selected' : ''}>每日凌晨 0 點刷新 (港澳台時區)</option>
+      <option value="weekly" ${shop.refreshType === 'weekly' ? 'selected' : ''}>每週一凌晨 0 點刷新</option>
+    `;
 
     const div = document.createElement('div');
     div.className = 'card';
@@ -66,6 +72,14 @@ function renderShopList() {
       <div class="form-grid" style="margin-bottom:10px;">
         <div class="form-item"><label>商店 ID</label><input type="text" value="${shop.id}" onchange="window.updateShopField(${sIdx}, 'id', this.value)"></div>
         <div class="form-item"><label>商店顯示名稱</label><input type="text" value="${shop.name}" onchange="window.updateShopField(${sIdx}, 'name', this.value)"></div>
+        
+        <div class="form-item" style="grid-column: span 2; background: rgba(231, 76, 60, 0.1); padding: 10px; border-radius: 6px; border: 1px dashed #e74c3c;">
+          <label style="color:#e74c3c; font-weight:bold;">⏱️ 商店刷新模式 (影響所有商品庫存)</label>
+          <select onchange="window.updateShopField(${sIdx}, 'refreshType', this.value)" style="width:100%; margin-top:5px; background:#0f0f15; color:#fff; border:1px solid #444; padding:8px; border-radius:4px;">
+            ${refreshOptions}
+          </select>
+        </div>
+
         <div class="form-item full"><label>背景圖片 URL</label><input type="text" value="${shop.bgUrl || ''}" placeholder="留空則使用預設背景" onchange="window.updateShopField(${sIdx}, 'bgUrl', this.value)"></div>
       </div>
       <div class="sub-title" style="margin-top:10px;">📦 上架商品列表</div>
@@ -83,16 +97,11 @@ window.updateShopField = function(sIdx, key, val) {
   }
 };
 
-// ★ 改善點 1：選擇商品後立即重新渲染列表，不用再點別處才生效
 window.updateShopItem = function(sIdx, iIdx, key, val) {
   if (window.globalData.shops[sIdx] && window.globalData.shops[sIdx].items[iIdx]) {
     window.globalData.shops[sIdx].items[iIdx][key] = val;
     saveData();
-    
-    // 如果改的是商品ID，即時刷新畫面
-    if (key === 'itemId') {
-      renderShopList();
-    }
+    if (key === 'itemId') renderShopList();
   }
 };
 
@@ -120,6 +129,7 @@ window.addNewShop = function() {
     id: 'shop_' + Date.now(),
     name: '新坊市',
     bgUrl: '',
+    refreshType: 'daily',
     items: []
   });
   saveData();
@@ -135,8 +145,72 @@ window.deleteShop = function(sIdx) {
 };
 
 // ==========================================
-// 玩家端坊市商店 UI 介面
+// 玩家端坊市商店 UI 介面與刷新邏輯
 // ==========================================
+
+function getShopState() {
+  let stateStr = localStorage.getItem('my_game_shop_state');
+  if (!stateStr) return {};
+  try { return JSON.parse(stateStr); } catch(e) { return {}; }
+}
+
+function saveShopState(state) {
+  localStorage.setItem('my_game_shop_state', JSON.stringify(state));
+}
+
+// 核心：檢查並執行刷新 (嚴格對齊 UTC+8 時間)
+function checkAndRefreshShop(shop) {
+  let state = getShopState();
+  let shopState = state[shop.id];
+
+  // 獲取當前 UTC+8 (港澳台) 時間
+  const now = new Date();
+  // 將本地時間轉為 UTC 時間戳，再加上 8 小時的毫秒數
+  const utc8Time = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (8 * 3600000));
+  
+  // 產生 UTC+8 的「年-月-日」字串，例如 "2023-10-27"
+  let todayStr = utc8Time.getFullYear() + '-' + (utc8Time.getMonth() + 1) + '-' + utc8Time.getDate();
+  
+  // 計算 UTC+8 的本週一日期字串 (用於每週刷新)
+  let day = utc8Time.getDay() || 7; // 星期天算作 7
+  let monday = new Date(utc8Time);
+  monday.setDate(utc8Time.getDate() - day + 1);
+  let weekStr = monday.getFullYear() + '-' + (monday.getMonth() + 1) + '-' + monday.getDate();
+
+  let needRefresh = false;
+
+  if (!shopState) {
+    // 第一次打開，必定刷新並初始化狀態
+    needRefresh = true;
+  } else {
+    if (shop.refreshType === 'daily') {
+      // 如果上次刷新的日期與今天不同，代表跨天了(過了0點)
+      if (shopState.lastRefreshDate !== todayStr) needRefresh = true;
+    } else if (shop.refreshType === 'weekly') {
+      // 如果上次刷新的週一與本週一不同，代表跨週了
+      if (shopState.lastRefreshWeek !== weekStr) needRefresh = true;
+    }
+    // 如果是 none，則需要 never refresh (除非第一次打開)
+  }
+
+  if (needRefresh) {
+    shopState = {
+      lastRefreshDate: todayStr, // 記錄刷新時的 UTC+8 日期
+      lastRefreshWeek: weekStr,  // 記錄刷新時的 UTC+8 週一日期
+      stock: {}                  // 重置庫存
+    };
+    if (shop.items) {
+      shop.items.forEach(it => {
+        shopState.stock[it.itemId] = it.stock !== undefined ? it.stock : 9999;
+      });
+    }
+    state[shop.id] = shopState;
+    saveShopState(state);
+  }
+
+  return shopState;
+}
+
 window.openShopUI = function(shopId = 'shop_daily') {
   let shops = window.globalData?.shops || [];
   let shop = shops.find(s => s.id === shopId) || shops[0];
@@ -144,6 +218,9 @@ window.openShopUI = function(shopId = 'shop_daily') {
     alert('目前沒有可用的坊市商店！');
     return;
   }
+
+  // 核心：打開時檢查是否跨天/跨週
+  let currentShopState = checkAndRefreshShop(shop);
 
   let scaleContainer = document.getElementById('game-scale-container') || document.body;
   let oldUi = document.getElementById('shop-fullscreen-ui');
@@ -163,15 +240,18 @@ window.openShopUI = function(shopId = 'shop_daily') {
     shop.items.forEach((item, idx) => {
       let tpl = itemsDict[item.itemId];
       if (!tpl) return;
-      let stockDisplay = item.stock !== undefined ? `庫存: ${item.stock}` : '庫存: 無限';
-      let isSoldOut = item.stock === 0;
+      
+      // 從獨立狀態讀取庫存
+      let stockCount = currentShopState.stock[item.itemId] !== undefined ? currentShopState.stock[item.itemId] : 0;
+      let stockDisplay = `庫存: ${stockCount}`;
+      let isSoldOut = stockCount <= 0;
 
       itemsHtml += `
         <div style="background: rgba(15, 15, 25, 0.9); border: 2px solid ${isSoldOut ? '#444' : '#f1c40f'}; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; position: relative; opacity: ${isSoldOut ? 0.6 : 1};">
           <div style="font-size: 48px; margin-bottom: 10px;">${tpl.icon || '📦'}</div>
           <div style="font-size: 20px; font-weight: bold; color: #fff; text-align: center; margin-bottom: 5px;">${tpl.name}</div>
           <div style="font-size: 14px; color: #aaa; text-align: center; margin-bottom: 15px; height: 40px; overflow: hidden;">${tpl.desc || '暫無描述'}</div>
-          <div style="font-size: 14px; color: #2ecc71; margin-bottom: 5px;">${stockDisplay}</div>
+          <div style="font-size: 14px; color: ${isSoldOut ? '#e74c3c' : '#2ecc71'}; margin-bottom: 5px;">${stockDisplay}</div>
           <div style="font-size: 18px; color: #f1c40f; font-weight: bold; margin-bottom: 15px;">🪙 ${item.price} 銅幣</div>
           <button ${isSoldOut ? 'disabled' : ''} onclick="window.openBuyQuantityModal('${shop.id}', ${idx})" style="width: 100%; padding: 10px; background: ${isSoldOut ? '#555' : '#e67e22'}; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: ${isSoldOut ? 'not-allowed' : 'pointer'}; font-size: 16px;">
             ${isSoldOut ? '已售罄' : '購買'}
@@ -195,7 +275,6 @@ window.openShopUI = function(shopId = 'shop_daily') {
       ${itemsHtml}
     </div>
 
-    <!-- 數量選擇 Modal -->
     <div id="shop-buy-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 25px; z-index: 9800; width: 400px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
       <h3 style="color: #f1c40f; margin-bottom: 15px; font-size: 22px;" id="modal-item-title">購買商品</h3>
       <div style="font-size: 40px; margin-bottom: 10px;" id="modal-item-icon">📦</div>
@@ -242,24 +321,26 @@ window.openBuyQuantityModal = function(shopId, itemIdx) {
   let tpl = (window.ITEMS || {})[shopItem.itemId];
   if (!tpl) return;
 
+  let state = getShopState();
+  let shopState = state[shopId];
+  let currentStock = shopState?.stock[shopItem.itemId] || 0;
+
   const modal = document.getElementById('shop-buy-modal');
   if (!modal) return;
 
   document.getElementById('modal-item-title').innerText = `購買 ${tpl.name}`;
   document.getElementById('modal-item-icon').innerText = tpl.icon || '📦';
-  document.getElementById('modal-item-price-info').innerText = `單價: ${shopItem.price} 銅幣 | 可購數量: ${shopItem.stock !== undefined ? shopItem.stock : '無限'}`;
+  document.getElementById('modal-item-price-info').innerText = `單價: ${shopItem.price} 銅幣 | 可購數量: ${currentStock}`;
   
   const input = document.getElementById('buy-qty-input');
   input.value = 1;
 
   window.updateBuyTotalPrice();
 
-  // ★ 改善點 2：點擊確認購買時，彈出圖片樣式的確認框
   document.getElementById('modal-confirm-buy-btn').onclick = () => {
     let qty = parseInt(document.getElementById('buy-qty-input').value) || 1;
     let totalPrice = shopItem.price * qty;
 
-    // 這裡調用新增的專屬確認彈窗
     window.showShopConfirmDialog(
       '購買確認', 
       `確定要花費 <span style="color:#f1c40f; font-weight:bold;">${totalPrice}</span> 銅幣購買 <span style="color:#f1c40f; font-weight:bold;">${tpl.name} × ${qty}</span> 嗎？`,
@@ -282,9 +363,12 @@ window.adjustBuyQty = function(delta) {
   if (!input) return;
 
   let current = parseInt(input.value) || 1;
+  
+  let state = getShopState();
+  let shopState = state[_currentShopId];
   let shop = (window.globalData?.shops || []).find(s => s.id === _currentShopId);
   let shopItem = shop ? shop.items[_currentShopItemIdx] : null;
-  let maxStock = (shopItem && shopItem.stock !== undefined) ? shopItem.stock : 9999;
+  let maxStock = shopState && shopItem ? (shopState.stock[shopItem.itemId] || 0) : 9999;
 
   let next = current + delta;
   if (next < 1) next = 1;
@@ -301,9 +385,11 @@ window.onBuyQtyChange = function() {
   let qty = parseInt(input.value);
   if (isNaN(qty) || qty < 1) qty = 1;
 
+  let state = getShopState();
+  let shopState = state[_currentShopId];
   let shop = (window.globalData?.shops || []).find(s => s.id === _currentShopId);
   let shopItem = shop ? shop.items[_currentShopItemIdx] : null;
-  let maxStock = (shopItem && shopItem.stock !== undefined) ? shopItem.stock : 9999;
+  let maxStock = shopState && shopItem ? (shopState.stock[shopItem.itemId] || 0) : 9999;
 
   if (qty > maxStock) qty = maxStock;
   input.value = qty;
@@ -329,8 +415,12 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
   let totalPrice = shopItem.price * qty;
   let currentCopper = window.globalData.currency?.copper || 0;
 
-  if (shopItem.stock !== undefined && shopItem.stock < qty) {
-    alert(`購買失敗：庫存不足！現有庫存僅剩 ${shopItem.stock} 個。`);
+  let state = getShopState();
+  let shopState = state[shop.id];
+  let currentStock = shopState?.stock[shopItem.itemId] || 0;
+
+  if (currentStock < qty) {
+    alert(`購買失敗：庫存不足！現有庫存僅剩 ${currentStock} 個。`);
     return;
   }
 
@@ -340,10 +430,12 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
     return;
   }
 
+  // 扣除銅幣
   window.globalData.currency.copper -= totalPrice;
-  if (shopItem.stock !== undefined) {
-    shopItem.stock -= qty;
-  }
+  
+  // 扣除獨立狀態中的庫存
+  shopState.stock[shopItem.itemId] = currentStock - qty;
+  saveShopState(state);
 
   if (!window.INVENTORY) window.INVENTORY = [];
   let isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
@@ -355,13 +447,8 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
         : { 
             uid: 'inst_' + Date.now() + Math.random(), 
             itemId: shopItem.itemId, 
-            quality: 'white', 
-            count: 1, 
-            equippedBy: '',
-            baseAtk: tpl.baseAtk || 50,
-            baseDef: tpl.baseDef || 20,
-            baseHp: tpl.baseHp || 100,
-            extras: []
+            quality: 'white', count: 1, equippedBy: '',
+            baseAtk: 50, baseDef: 20, baseHp: 100, extras: []
           };
       if (inst) window.INVENTORY.push(inst);
     }
@@ -380,22 +467,24 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
     }
   }
 
-  if (typeof saveData === 'function') saveData();
+  if (typeof saveData === 'function') {
+    saveData();
+  } else {
+    localStorage.setItem('my_game_characters', JSON.stringify(window.CHARACTERS || []));
+    localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY || []));
+    localStorage.setItem('my_game_config', JSON.stringify(window.globalData));
+  }
+
   window.closeBuyQuantityModal();
-  window.closeShopUI(); // 購買成功後先關閉，避免舊數據殘留
-  window.openShopUI(shop.id); // 重新打開刷新商店庫存UI
-  
-  // 延遲一點點顯示提示，以免被遮擋
+  window.closeShopUI(); 
+  window.openShopUI(shop.id); 
+
   setTimeout(() => {
     alert(`🎉 成功購買 ${tpl.name} x${qty}！`);
   }, 100);
 };
 
-// ==========================================
-// 新增的專屬確認彈窗（完全參考用戶提供圖片的樣式）
-// ==========================================
 window.showShopConfirmDialog = function(title, messageHtml, onConfirm) {
-  // 若已經有彈窗先移除
   let existing = document.getElementById('custom-shop-confirm');
   if (existing) existing.remove();
 
@@ -403,24 +492,15 @@ window.showShopConfirmDialog = function(title, messageHtml, onConfirm) {
   
   let modal = document.createElement('div');
   modal.id = 'custom-shop-confirm';
-  // 遮罩背景
   modal.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; justify-content: center; align-items: center; pointer-events: auto;';
 
   modal.innerHTML = `
     <div style="background: #1e2746; border: 3px solid #f1c40f; border-radius: 12px; width: 420px; padding: 30px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
-      
-      <!-- 右上角關閉按鈕 (仿照圖片中極小的叉叉) -->
       <div onclick="this.parentElement.parentElement.remove()" style="position: absolute; top: 10px; right: 15px; font-size: 20px; color: #aaa; cursor: pointer; font-weight: bold;">✖</div>
-
-      <!-- 標題 -->
       <h3 style="color: #f1c40f; font-size: 26px; font-weight: bold; margin-bottom: 20px; letter-spacing: 2px;">${title}</h3>
-      
-      <!-- 內容文字 -->
       <div style="color: #fff; font-size: 18px; margin-bottom: 35px; line-height: 1.5;">
         ${messageHtml}
       </div>
-
-      <!-- 底部按鈕 -->
       <div style="display: flex; justify-content: center; gap: 20px;">
         <button id="confirm-btn-yes" style="flex: 1; padding: 12px 0; background: #27ae60; color: #fff; border: none; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">是</button>
         <button id="confirm-btn-no" style="flex: 1; padding: 12px 0; background: #c0392b; color: #fff; border: none; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">否</button>
@@ -430,7 +510,6 @@ window.showShopConfirmDialog = function(title, messageHtml, onConfirm) {
 
   scaleContainer.appendChild(modal);
 
-  // 綁定按鈕事件
   modal.querySelector('#confirm-btn-yes').onclick = () => {
     modal.remove();
     if (typeof onConfirm === 'function') onConfirm();
