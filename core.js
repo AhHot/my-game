@@ -1,5 +1,5 @@
 // ==========================================
-// 公共数据核心：负责数据的读写与持久化 (支持突破、秘籍与铜币系統及全局映射)
+// 公共数据核心：负责数据的读写与持久化 (完整 Window 綁定修復版)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -53,7 +53,6 @@ const DEFAULT_STATUS = [
 const DEFAULT_ITEMS = [ 
   { id: 'item_sword', name: '铁剑', category: 'weapon', equipSlot: 'weapon', icon: '🗡️', desc: '', maxStack: 1, atkMin: 50, atkMax: 100, defMin: 0, defMax: 0, hpMin: 0, hpMax: 0, atkPercent: 0, defPercent: 0, hpPercent: 0, critRate: 0, critDmg: 0, lifesteal: 0, hitRate: 0, dodgeRate: 0, critResist: 0, speed: 0 }, 
   { id: 'item_exp_pill', name: '小还丹', category: 'consumable', icon: '💊', desc: '使用后获得1000点经验', maxStack: 99, useEffect: 'AddExp', useValue: 1000, useStatKey: '' },
-  // 🌟 全英文 ID 的突破與升級材料
   { id: 'item_breakthrough_pill', name: '突破丹', category: 'material', icon: '🧪', desc: '人物到达30、45、60级突破時必需的珍貴丹藥', maxStack: 9999, useEffect: 'None', useValue: 0 },
   { id: 'item_skill_book_low', name: '初级秘籍', category: 'material', icon: '📘', desc: '用于提升技能等级 (2-4级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
   { id: 'item_skill_book_mid', name: '中级秘籍', category: 'material', icon: '📗', desc: '用于提升技能等级 (5-7级)', maxStack: 9999, useEffect: 'None', useValue: 0 },
@@ -134,9 +133,8 @@ const DEFAULT_GLOBAL_CONFIG = {
   }
 };
 
-// --- 全局数据变量與映射 ---
+// --- 全局變數與 Window 顯式掛載 ---
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
-let CHARACTERS, INVENTORY, ITEMS, SKILLS, STATUSES;
 let editingElementIds = new Set();
 
 function loadAllData() {
@@ -180,7 +178,15 @@ function loadAllData() {
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
-  // 🌟 關鍵：建立全局大寫映射供所有模組使用
+  // 🌟 關鍵修正：將所有數據與大寫對照表強制綁定到 window 物件，供所有分頁模組調用
+  window.gameChars = gameChars;
+  window.gameSkills = gameSkills;
+  window.gameStatuses = gameStatuses;
+  window.gameItems = gameItems;
+  window.gameLevels = gameLevels;
+  window.inventory = inventory;
+  window.globalData = globalData;
+
   window.CHARACTERS = gameChars;
   window.INVENTORY = inventory;
   window.ITEMS = {};
@@ -209,7 +215,15 @@ function saveData() {
   localStorage.setItem('my_game_levels_sync', JSON.stringify(gameLevels));
   localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
 
-  // 同步更新映射
+  // 同步更新 window 映射
+  window.gameChars = gameChars;
+  window.gameSkills = gameSkills;
+  window.gameStatuses = gameStatuses;
+  window.gameItems = gameItems;
+  window.gameLevels = gameLevels;
+  window.inventory = inventory;
+  window.globalData = globalData;
+
   window.CHARACTERS = gameChars;
   window.INVENTORY = inventory;
   window.ITEMS = {};
