@@ -330,12 +330,17 @@
         if (uiContainer) uiContainer.style.display = 'flex';
 
         if (window.game && window.game.scene) {
-            const activeScenes = window.game.scene.getScenes(true);
-            activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
+            try {
+                const activeScenes = window.game.scene.getScenes(true);
+                activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
+            } catch(e) {}
         }
         
-        const chars = window.CHARACTERS || window.gameChars;
-        if (!chars) return;
+        const chars = window.CHARACTERS || window.gameChars || JSON.parse(localStorage.getItem('my_game_characters') || '[]');
+        if (!chars || chars.length === 0) {
+            alert('找不到玩家角色數據！');
+            return;
+        }
 
         try {
             const gc = window.globalData || {};
@@ -345,6 +350,9 @@
         renderCharList();
         const players = chars.filter(c => c.side === 'player');
         if(players.length > 0) selectCharacter(players[0]);
+        } else if(chars.length > 0) {
+            selectCharacter(chars[0]);
+        }
     };
 
     window.closeCharacterUI = function() {
