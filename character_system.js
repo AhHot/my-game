@@ -26,7 +26,7 @@
                 <div id="ui-currency-bar" style="background: rgba(0,0,0,0.6); padding: 8px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid #333; font-size: 16px; font-weight: bold; z-index: 10; flex-shrink: 0;">
                     <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
                 </div>
-                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center 20%/cover; position: relative; flex-shrink: 0;"></div>
+                <div class="char-portrait" style="height: 370px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
                 <div id="left-dynamic-content" style="flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 6px;"></div>
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 80px; flex-shrink: 0; align-items: center;"></div>
                 <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 45%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020; box-shadow: 4px 0 10px rgba(0,0,0,0.5);">▶</div>
@@ -467,8 +467,8 @@
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
-            portraitEl.style.height = '380px';
-            portraitEl.style.background = `url('${bgImg}') center 20%/cover`;
+            portraitEl.style.height = '370px';
+            portraitEl.style.background = `url('${bgImg}') top center/cover`;
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
