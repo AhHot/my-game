@@ -2,7 +2,7 @@
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {};
 
-  // 確保結構完整，如果舊資料缺少按鈕或 StageCard 則自動補全
+  // 確保結構完整，預設將左側劇本按鈕改為「坊市入口」避免重複
   if (!mainConfig.bgList) {
     mainConfig.bgList = [
       { id: 'bg_01', name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
@@ -13,10 +13,16 @@ window.renderTabMainUI = function(container) {
   }
   if (!mainConfig.buttons || Object.keys(mainConfig.buttons).length === 0) {
     mainConfig.buttons = {
-      story: { title: '江湖歷程', icon: '📜', active: true, action: 'story' },
       character: { title: '角色與背包', icon: '👥', active: true, action: 'character' },
+      shop: { title: '坊市入口', icon: '🛒', active: true, action: 'shop' },
       settings: { title: '系統設置', icon: '⚙️', active: true, action: 'settings' }
     };
+  } else {
+    // 若已有舊設定，自動把劇本動作換成坊市入口或確保坊市存在
+    if (mainConfig.buttons.story) {
+      mainConfig.buttons.shop = { title: '坊市入口', icon: '🛒', active: true, action: 'shop' };
+      delete mainConfig.buttons.story;
+    }
   }
 
   localStorage.setItem('my_game_main_config', JSON.stringify(mainConfig));
@@ -109,6 +115,7 @@ function renderBtnList(config) {
       
       <select style="background:#16213e; color:#aaa; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px;" onchange="updateBtnField('${key}', 'action', this.value)" title="點擊觸發動作">
         <option value="character" ${btn.action === 'character' ? 'selected' : ''}>開啟人物與背包</option>
+        <option value="shop" ${btn.action === 'shop' ? 'selected' : ''}>開啟坊市入口</option>
         <option value="story" ${btn.action === 'story' ? 'selected' : ''}>進入江湖劇本</option>
         <option value="settings" ${btn.action === 'settings' ? 'selected' : ''}>系統設置</option>
         <option value="toast" ${btn.action === 'toast' ? 'selected' : ''}>顯示提示訊息</option>
