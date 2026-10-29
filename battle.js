@@ -17,50 +17,20 @@ try {
 } catch(e) { window.ART_CONFIG = {}; }
 
 // ============================================================
-// ★ 技能等級成長曲線（新版，與 character_system.js UI 保持一致）
+// ★ 新增：技能等級成長轉換器（與 character_system.js UI 完全一致）
 // ============================================================
-// 設計：
-//   普攻 normal  : Lv1 → Lv10 線性 +20%（每級 +20%/9 ≈ +2.22%）
-//   招式 skill   : Lv1 → Lv10 線性 +30%（每級 +3.33%）
-//   絕技 ultimate: Lv1 → Lv10 非線性 +50%，Lv.4 / Lv.7 / Lv.10 大幅提升
-//                  每級增量：Lv2:+3, Lv3:+3, Lv4:+8, Lv5:+3, Lv6:+3, Lv7:+8, Lv8:+3, Lv9:+3, Lv10:+16
-//                  累積    ：+0, +3, +6, +14, +17, +20, +28, +31, +34, +50 (%)
-//   追打 followup: Lv1 → Lv10 線性 +20%（每級 +2.22%）
-//   被動 passive : Lv1 → Lv10 線性 +10%（每級 +1.11%）
-//   治療/護盾    : Lv1 → Lv10 線性 +25%（每級 +2.78%）
-//   耗藍(mpCost)、CD(cooldown)：不隨等級變化
-// ============================================================
-
-// 回傳 Lv `lv` 時該技能的累積加成（例：0.20 表示 +20%），Lv1 回傳 0
-function getSkillBonus(skill, lv) {
-    if (!skill || lv <= 1) return 0;
-
-    // 絕技：非線性曲線（Lv.4 / Lv.7 / Lv.10 大幅提升）
-    if (skill.type === 'ultimate') {
-        // 索引 i 對應「從 Lv(i+1) 升到 Lv(i+2)」的增量（單位：%）
-        const increments = [3, 3, 8, 3, 3, 8, 3, 3, 16];
-        let totalPct = 0;
-        for (let i = 0; i < Math.min(lv - 1, increments.length); i++) {
-            totalPct += increments[i];
-        }
-        return totalPct / 100;
+// 成長率：普攻+4%/級、招式+8%、絕技+10%、追打+10%、治療/護盾類+6%、被動+5%
+function getLevelGrowthRate(skill) {
+    if (!skill) return 0.08;
+    if (skill.type === 'normal')   return 0.04;
+    if (skill.type === 'ultimate') return 0.10;
+    if (skill.type === 'followup') return 0.10;
+    if (skill.type === 'passive')  return 0.05;
+    if (skill.type === 'skill') {
+        if (skill.multiplier === 0 && (skill.healMultiplier > 0 || skill.shieldMultiplier > 0)) return 0.06;
+        return 0.08;
     }
-
-    // 其他類型：線性成長
-    let totalGrowth;
-    if (skill.type === 'normal')        totalGrowth = 0.20;
-    else if (skill.type === 'followup') totalGrowth = 0.20;
-    else if (skill.type === 'passive')  totalGrowth = 0.10;
-    else if (skill.type === 'skill') {
-        // 純治療 / 護盾類（multiplier=0 且 heal/shield > 0）
-        if (skill.multiplier === 0 && (skill.healMultiplier > 0 || skill.shieldMultiplier > 0)) totalGrowth = 0.25;
-        else totalGrowth = 0.30;
-    } else {
-        totalGrowth = 0.30;
-    }
-
-    // Lv1 → Lv10 共 9 級躍升，均勻分攤
-    return totalGrowth * (lv - 1) / 9;
+    return 0.08;
 }
 
 // 回傳依技能等級放大後的技能副本，並帶幂等標記，避免重複加成
@@ -73,8 +43,8 @@ function getEffectiveSkill(unit, baseSkill) {
         return Object.assign({}, baseSkill, { _level: 1, _effectiveApplied: true });
     }
 
-    const bonus = getSkillBonus(baseSkill, lv);
-    const factor = 1 + bonus;
+    const rate = getLevelGrowthRate(baseSkill);
+    const factor = 1 + (lv - 1) * rate;
 
     const eff = Object.assign({}, baseSkill);
     if (eff.multiplier > 0)       eff.multiplier       = +(eff.multiplier * factor).toFixed(4);
