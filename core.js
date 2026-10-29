@@ -1,5 +1,5 @@
 // ==========================================
-// 公共数据核心：负责数据的读写与持久化 (完整 Window 綁定修復版)
+// 公共數據核心：負責數據的讀寫與持久化 (完整 Window 綁定修復版)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -251,12 +251,50 @@ function getSkillOptions(selectedId) {
 
 function genUid() { return 'u_' + Date.now() + Math.floor(Math.random()*1000); }
 
+// 🌟 核心修改：加入裝備專屬的品質掉落區間過濾，並重新計算權重
 function generateRandomInstance(templateId) {
   const template = gameItems.find(t => t.id === templateId);
   if (!template) return null;
   
-  const r = Math.random() * 100;
-  const config = globalData.dropRates.find(d => r >= d.min && r < d.max) || globalData.dropRates[0];
+  // 1. 決定允許的品質範圍
+  let allowedRates = globalData.dropRates || DEFAULT_DROP_RATES;
+  
+  // 如果該裝備有設定品質下限或上限
+  if (template.qualityMin || template.qualityMax) {
+    const qualityOrder = ['white', 'green', 'blue', 'purple', 'orange', 'red'];
+    let minIdx = qualityOrder.indexOf(template.qualityMin || 'white');
+    let maxIdx = qualityOrder.indexOf(template.qualityMax || 'red');
+    
+    // 安全防護：如果找不到，就退回預設
+    if (minIdx === -1) minIdx = 0;
+    if (maxIdx === -1) maxIdx = qualityOrder.length - 1;
+    if (minIdx > maxIdx) { let temp = minIdx; minIdx = maxIdx; maxIdx = temp; } // 防呆交換
+
+    // 過濾出符合區間的品質
+    allowedRates = allowedRates.filter(d => {
+      let qIdx = qualityOrder.indexOf(d.q);
+      return qIdx >= minIdx && qIdx <= maxIdx;
+    });
+  }
+
+  // 如果過濾後是空的，作為安全防護，退回全局
+  if (allowedRates.length === 0) allowedRates = globalData.dropRates || DEFAULT_DROP_RATES;
+
+  // 2. 根據剩下的區間總長度，重新擲骰子 (確保機率總和為100%)
+  let totalWeight = allowedRates.reduce((sum, d) => sum + (d.max - d.min), 0);
+  let r = Math.random() * totalWeight;
+  
+  let currentSum = 0;
+  let config = allowedRates[0];
+  for (let cfg of allowedRates) {
+    let weight = cfg.max - cfg.min;
+    if (r >= currentSum && r < currentSum + weight) {
+      config = cfg;
+      break;
+    }
+    currentSum += weight;
+  }
+
   const quality = config.q;
   const qMult = config.m;
   const extraCount = config.n;
