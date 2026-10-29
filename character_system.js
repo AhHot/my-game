@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 放大字體與 380px 立繪版
+// 模組：完整人物與背包系統 (character_system.js) - 最終穩定修復版
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -7,8 +7,6 @@
     let currentTab = 'skill';
     let currentFilter = 'all';
     let globalExpTable = [];
-
-    // 臨時加點緩存 (加點預分配機制)
     let tempAllocated = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
 
     function initCharacterSystemDOM() {
@@ -24,36 +22,22 @@
         uiDiv.innerHTML = `
             <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 20px; right: 30px; font-size: 36px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
 
-            <!-- 左側基礎面板 (寬度固定 420px) -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
-                
-                <!-- 頂部銅幣顯示欄 -->
                 <div id="ui-currency-bar" style="background: rgba(0,0,0,0.6); padding: 8px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid #333; font-size: 16px; font-weight: bold; z-index: 10; flex-shrink: 0;">
                     <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
                 </div>
-
-                <!-- 🌟 1. 立繪區域 (調整高度為 380px) -->
-                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
-                
-                <!-- 左側動態內容區 (屬性與裝備槽) -->
+                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') center 20%/cover; position: relative; flex-shrink: 0;"></div>
                 <div id="left-dynamic-content" style="flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 6px;"></div>
-
-                <!-- 底部頭像切換列 -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 80px; flex-shrink: 0; align-items: center;"></div>
-                
-                <!-- 小箭頭彈出詳細資訊按鈕 -->
                 <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 45%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020; box-shadow: 4px 0 10px rgba(0,0,0,0.5);">▶</div>
             </div>
 
-            <!-- 右側區域 -->
             <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px; overflow: hidden;">
-                
                 <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px; flex-shrink: 0;">
                     <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
                     <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
                 </div>
 
-                <!-- 背包介面容器 -->
                 <div id="inv-container" style="flex: 1; display: none; flex-direction: column; overflow: hidden;">
                     <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; flex-shrink: 0;">
                         <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 8px 20px; background: #e67e22; border: 1px solid #e67e22; border-radius: 20px; cursor: pointer; font-size: 18px; color: #fff; font-weight: bold;">全部</div>
@@ -65,18 +49,15 @@
                     <div id="inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 15px; align-content: start; padding-bottom: 20px;"></div>
                 </div>
 
-                <!-- 技能介面容器 -->
                 <div id="skill-container" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; padding-bottom: 20px;"></div>
             </div>
 
-            <!-- 彈窗：物品詳情 -->
             <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideTooltip()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <div id="tooltip-content"></div>
                 <button class="btn-action btn-equip" id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
             </div>
 
-            <!-- 彈窗：詳細屬性 -->
             <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">詳細屬性</h2>
@@ -88,7 +69,6 @@
                 <div class="detail-grid" id="detail-special" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
             </div>
 
-            <!-- 全局確認/提示 Modal -->
             <div id="custom-confirm-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; z-index: 9800; width: 440px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
                 <h3 id="confirm-title" style="color: #f1c40f; margin-bottom: 15px; font-size: 24px;">提示</h3>
                 <p id="confirm-msg" style="color: #ddd; font-size: 18px; margin-bottom: 25px; line-height: 1.6;"></p>
@@ -103,6 +83,7 @@
     }
 
     window.showConfirmDialog = function(title, msg, onYesCallback, isAlertOnly = false) {
+        initCharacterSystemDOM();
         const modal = document.getElementById('custom-confirm-modal');
         const titleEl = document.getElementById('confirm-title');
         const msgEl = document.getElementById('confirm-msg');
@@ -349,7 +330,8 @@
 
         renderCharList();
         const players = chars.filter(c => c.side === 'player');
-        if(players.length > 0) selectCharacter(players[0]);
+        if(players.length > 0) {
+            selectCharacter(players[0]);
         } else if(chars.length > 0) {
             selectCharacter(chars[0]);
         }
@@ -362,8 +344,10 @@
         window.hideTooltip();
         window.hideDetailCard();
         if (window.game && window.game.scene) {
-            const activeScenes = window.game.scene.getScenes(true);
-            activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
+            try {
+                const activeScenes = window.game.scene.getScenes(true);
+                activeScenes.forEach(s => { if(s.input) s.input.enabled = true; });
+            } catch(e) {}
         }
     };
 
@@ -451,9 +435,8 @@
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
-            // 🌟 1. 將立繪高度調整為 380px
             portraitEl.style.height = '380px';
-            portraitEl.style.background = `url('${bgImg}') top center/cover`;
+            portraitEl.style.background = `url('${bgImg}') center 20%/cover`;
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
@@ -512,7 +495,6 @@
                 `;
             }
 
-            // 🌟 2. 加大字體與意境加減點按鈕 (寬高由 16px 改為 26px，字體改為 15px)
             let statsHtml = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <div style="color: #f1c40f; font-size: 15px; font-weight: bold;">剩余点数: <span style="color:${remainingPoints > 0 ? '#2ecc71' : '#fff'}">${remainingPoints}</span></div>
@@ -977,8 +959,13 @@
     }
 
     window.showToast = function(msg, color = '#2ecc71') {
-        const toast = document.getElementById('global-toast');
-        if(!toast) return;
+        let toast = document.getElementById('global-toast');
+        if(!toast) {
+            toast = document.createElement('div');
+            toast.id = 'global-toast';
+            toast.style.cssText = "display:none; position:fixed; top:20px; left:50%; transform:translateX(-50%); background:#2ecc71; color:#fff; padding:10px 20px; border-radius:6px; z-index:99999; font-size:16px; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.5);";
+            document.body.appendChild(toast);
+        }
         toast.innerText = msg;
         toast.style.background = color;
         toast.style.display = 'block';
