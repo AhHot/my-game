@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 支援多商店切換版
+// 模組：坊市與商店系統 (tab_shop.js) - 支援刷新倒計時版
 // ==========================================
 
 window.renderTabShop = function(container) {
@@ -163,7 +163,6 @@ function checkAndRefreshShop(shop) {
   let state = getShopState();
   let shopState = state[shop.id];
 
-  // 獲取當前 UTC+8 (港澳台) 時間
   const now = new Date();
   const utc8Time = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (8 * 3600000));
   
@@ -204,6 +203,51 @@ function checkAndRefreshShop(shop) {
   return shopState;
 }
 
+// ★ 新增：計算並更新倒計時 UI
+function updateCountdownUI(shopId, refreshType) {
+  const timerEl = document.getElementById('shop-refresh-timer');
+  if (!timerEl) return;
+
+  if (refreshType === 'none') {
+    timerEl.innerText = '（永久限購，不刷新）';
+    timerEl.style.color = '#e74c3c';
+    return;
+  }
+
+  const now = new Date();
+  // 獲取當前 UTC+8 時間
+  const utc8Time = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (8 * 3600000));
+  
+  let targetTime = new Date(utc8Time);
+
+  if (refreshType === 'daily') {
+    // 目標時間：明天的 00:00:00 (UTC+8)
+    targetTime.setHours(24, 0, 0, 0);
+  } else if (refreshType === 'weekly') {
+    // 目標時間：下週一的 00:00:00 (UTC+8)
+    let day = utc8Time.getDay() || 7;
+    let daysToNextMonday = 8 - day;
+    targetTime.setDate(utc8Time.getDate() + daysToNextMonday);
+    targetTime.setHours(0, 0, 0, 0);
+  }
+
+  // 將目標時間轉回本地時間戳進行相減
+  const targetLocalMs = targetTime.getTime() - (8 * 3600000) + (now.getTimezoneOffset() * 60000);
+  const diff = targetLocalMs - now.getTime();
+
+  if (diff <= 0) {
+    timerEl.innerText = '刷新中...';
+    return;
+  }
+
+  const h = Math.floor(diff / (1000 * 60 * 60));
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+  timerEl.innerText = `(距下次刷新 ${h}時 ${m}分 ${s}秒)`;
+  timerEl.style.color = h < 1 ? '#e67e22' : '#aaa'; // 剩餘不到1小時變橘色提示
+}
+
 window.openShopUI = function(shopId = 'shop_daily') {
   let shops = window.globalData?.shops || [];
   if (shops.length === 0) {
@@ -211,17 +255,13 @@ window.openShopUI = function(shopId = 'shop_daily') {
     return;
   }
 
-  // 如果傳入的 shopId 找不到，就預設打開第一個商店
   let shop = shops.find(s => s.id === shopId) || shops[0];
-
-  // 檢查並刷新當前商店庫存
   let currentShopState = checkAndRefreshShop(shop);
 
   let scaleContainer = document.getElementById('game-scale-container') || document.body;
   let oldUi = document.getElementById('shop-fullscreen-ui');
   if (oldUi) oldUi.remove();
 
-  // 生成頂部的商店切換 Tab
   let shopTabsHtml = shops.map(s => {
     let isActive = s.id === shop.id;
     return `<button onclick="window.openShopUI('${s.id}')" style="padding: 8px 20px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s; border: 2px solid ${isActive ? '#f1c40f' : 'transparent'}; background: ${isActive ? 'rgba(241, 196, 15, 0.2)' : 'rgba(0,0,0,0.5)'}; color: ${isActive ? '#f1c40f' : '#aaa'}; ${isActive ? 'box-shadow: 0 0 10px rgba(241,196,15,0.3);' : ''}">${s.name}</button>`;
@@ -267,7 +307,13 @@ window.openShopUI = function(shopId = 'shop_daily') {
     <!-- 頂部標題與商店切換 Tab -->
     <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); padding: 15px 25px; border-radius: 10px; border-bottom: 2px solid #333;">
-        <h2 style="color: #f1c40f; margin: 0; font-size: 28px;">🛒 ${shop.name}</h2>
+        
+        <!-- ★ 這裡修改了商店標題，加入了倒計時 span -->
+        <div style="display: flex; align-items: baseline; gap: 15px;">
+          <h2 style="color: #f1c40f; margin: 0; font-size: 28px;">🛒 ${shop.name}</h2>
+          <span id="shop-refresh-timer" style="font-size: 14px; color: #aaa; font-weight: normal;"></span>
+        </div>
+        
         <div style="display: flex; gap: 30px; align-items: center;">
           <span style="font-size: 20px; font-weight: bold; color: #f1c40f;">🪙 銅幣: <span id="shop-copper-display">${currentCopper}</span></span>
           <button onclick="window.closeShopUI()" style="background: #c0392b; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer;">✖ 離開坊市</button>
@@ -308,11 +354,24 @@ window.openShopUI = function(shopId = 'shop_daily') {
   `;
 
   scaleContainer.appendChild(uiDiv);
+
+  // ★ 啟動倒計時定時器
+  if (window._shopCountdownTimer) clearInterval(window._shopCountdownTimer);
+  updateCountdownUI(shop.id, shop.refreshType);
+  window._shopCountdownTimer = setInterval(() => {
+    updateCountdownUI(shop.id, shop.refreshType);
+  }, 1000);
 };
 
 window.closeShopUI = function() {
   let ui = document.getElementById('shop-fullscreen-ui');
   if (ui) ui.remove();
+  
+  // ★ 清理倒計時定時器，防止記憶體洩漏
+  if (window._shopCountdownTimer) {
+    clearInterval(window._shopCountdownTimer);
+    window._shopCountdownTimer = null;
+  }
 };
 
 let _currentShopId = '';
@@ -482,7 +541,6 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   window.closeBuyQuantityModal();
   
-  // 為了讓玩家買完後停留在當前商店，重新打開時傳入當前商店 ID
   window.openShopUI(shop.id); 
 
   setTimeout(() => {
