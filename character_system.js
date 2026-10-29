@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 貨幣欄重構版
+// 模組：完整人物與背包系統 (character_system.js) - 意境按鈕排版優化版
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -52,10 +52,10 @@
             <!-- 左側面板 -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
                 
-                <!-- 立繪區 (移除頂部貨幣欄，拉高至 380px) -->
+                <!-- 立繪區 -->
                 <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0; border-bottom: 2px solid #333;"></div>
                 
-                <!-- 屬性/裝備區 (強制不滾動) -->
+                <!-- 屬性/裝備區 -->
                 <div id="left-dynamic-content" style="flex: 1; padding: 12px 15px; overflow-y: hidden; background: #12141c; display: flex; flex-direction: column; gap: 8px;"></div>
                 
                 <!-- 底部頭像列表 -->
@@ -68,14 +68,11 @@
             <!-- 右側面板 -->
             <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 20px 30px 30px 30px; overflow: hidden;">
                 
-                <!-- ★ 新增：頂部貨幣欄與關閉按鈕 -->
+                <!-- 頂部貨幣欄與關閉按鈕 -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #1a1c29; padding: 12px 25px; border-radius: 8px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                    <!-- 貨幣顯示區，預留了其他貨幣的位置 -->
                     <div id="ui-currency-bar" style="display: flex; gap: 30px; font-size: 18px; font-weight: bold; color: #ddd;">
                         <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
-                        <!-- 未來擴充用：<span style="color: #e74c3c;">💎 元寶: 0</span> -->
                     </div>
-                    <!-- 關閉按鈕移至頂部欄 -->
                     <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="font-size: 28px; color: #aaa; cursor: pointer; line-height: 1; padding: 0 5px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">✖</div>
                 </div>
 
@@ -593,18 +590,22 @@
                 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
             `;
             
+            // ★ 修改意境數值的排版：左邊數值，右邊按鈕(上加下減)
             Object.keys(statNames).forEach(k => {
                 let tempAdded = tempAllocated[k] || 0;
                 let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:11px; font-weight:bold;">(+${tempAdded})</span>` : '';
 
                 statsHtml += `
-                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(255,255,255,0.04); padding: 6px 4px; border-radius: 6px; border: 1px solid #333;">
-                        <div style="font-size: 12px; color: #aaa; margin-bottom: 4px; white-space: nowrap;">
-                            ${statNames[k]} <b style="color: #fff; font-size: 14px;">${stats[k] || 0}</b> ${tempStr}
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 6px 8px; border-radius: 6px; border: 1px solid #333;">
+                        <div style="display: flex; flex-direction: column; line-height: 1.2;">
+                            <span style="font-size: 12px; color: #aaa;">${statNames[k]}</span>
+                            <span style="font-size: 15px; color: #fff; font-weight: bold; margin-top: 2px;">
+                                ${stats[k] || 0} ${tempStr}
+                            </span>
                         </div>
-                        <div style="display: flex; gap: 4px;">
-                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 14px;">-</button>
-                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 14px;">+</button>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 26px; height: 22px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; line-height: 1;">+</button>
+                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 4px; width: 26px; height: 22px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px; padding: 0; line-height: 1;">-</button>
                         </div>
                     </div>
                 `;
