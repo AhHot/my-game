@@ -9,19 +9,45 @@
     let globalExpTable = [];
     let tempAllocated = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
 
-    // ★ 新增：技能等級成長率（與 battle.js 將採用的規則完全一致）
-    //   普攻 +4%/級、招式 +8%/級、絕技/追打 +10%/級、治療/護盾類 +6%/級、被動 +5%/級
-    function getSkillLevelGrowthRate(sk) {
-        if (!sk) return 0.08;
-        if (sk.type === 'normal')   return 0.04;
-        if (sk.type === 'ultimate') return 0.10;
-        if (sk.type === 'followup') return 0.10;
-        if (sk.type === 'passive')  return 0.05;
-        if (sk.type === 'skill') {
-            if (sk.multiplier === 0 && (sk.healMultiplier > 0 || sk.shieldMultiplier > 0)) return 0.06;
-            return 0.08;
+    // ============================================================
+    // ★ 技能等級成長曲線（新版，與 battle.js 的 getSkillBonus 完全一致）
+    // ============================================================
+    //   普攻 normal  : Lv1 → Lv10 線性 +20%
+    //   招式 skill   : Lv1 → Lv10 線性 +30%
+    //   絕技 ultimate: Lv1 → Lv10 非線性 +50%
+    //                  每級增量：Lv2:+3, Lv3:+3, Lv4:+8, Lv5:+3, Lv6:+3, Lv7:+8, Lv8:+3, Lv9:+3, Lv10:+16 (%)
+    //                  累積    ：+0, +3, +6, +14, +17, +20, +28, +31, +34, +50 (%)
+    //   追打 followup: Lv1 → Lv10 線性 +20%
+    //   被動 passive : Lv1 → Lv10 線性 +10%
+    //   治療/護盾    : Lv1 → Lv10 線性 +25%
+    //   耗藍(mpCost)、CD(cooldown)：不隨等級變化
+    // ============================================================
+    function getSkillBonus(sk, lv) {
+        if (!sk || lv <= 1) return 0;
+
+        // 絕技：非線性曲線（Lv.4 / Lv.7 / Lv.10 大幅提升）
+        if (sk.type === 'ultimate') {
+            const increments = [3, 3, 8, 3, 3, 8, 3, 3, 16];
+            let totalPct = 0;
+            for (let i = 0; i < Math.min(lv - 1, increments.length); i++) {
+                totalPct += increments[i];
+            }
+            return totalPct / 100;
         }
-        return 0.08;
+
+        // 其他類型：線性成長
+        let totalGrowth;
+        if (sk.type === 'normal')        totalGrowth = 0.20;
+        else if (sk.type === 'followup') totalGrowth = 0.20;
+        else if (sk.type === 'passive')  totalGrowth = 0.10;
+        else if (sk.type === 'skill') {
+            if (sk.multiplier === 0 && (sk.healMultiplier > 0 || sk.shieldMultiplier > 0)) totalGrowth = 0.25;
+            else totalGrowth = 0.30;
+        } else {
+            totalGrowth = 0.30;
+        }
+
+        return totalGrowth * (lv - 1) / 9;
     }
 
     function initCharacterSystemDOM() {
@@ -805,9 +831,8 @@
             div.className = 'skill-card';
             div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px;";
 
-            // ★ 修改：依等級計算實際倍率，並顯示 Lv.1 對照
-            const levelGrowthRate = getSkillLevelGrowthRate(sk);
-            const lvFactor = 1 + (currentSkillLv - 1) * levelGrowthRate;
+            // ★ 修改：使用新版 getSkillBonus（與 battle.js 完全一致）
+            const lvFactor = 1 + getSkillBonus(sk, currentSkillLv);
 
             let desc = '';
             if (sk.multiplier > 0) {
