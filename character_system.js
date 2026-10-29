@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 最終穩定修復版
+// 模組：完整人物與背包系統 (character_system.js) - 貨幣欄重構版
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -10,22 +10,11 @@
     let tempAllocated = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
 
     // ============================================================
-    // ★ 技能等級成長曲線（新版，與 battle.js 的 getSkillBonus 完全一致）
-    // ============================================================
-    //   普攻 normal  : Lv1 → Lv10 線性 +20%
-    //   招式 skill   : Lv1 → Lv10 線性 +30%
-    //   絕技 ultimate: Lv1 → Lv10 非線性 +50%
-    //                  每級增量：Lv2:+3, Lv3:+3, Lv4:+8, Lv5:+3, Lv6:+3, Lv7:+8, Lv8:+3, Lv9:+3, Lv10:+16 (%)
-    //                  累積    ：+0, +3, +6, +14, +17, +20, +28, +31, +34, +50 (%)
-    //   追打 followup: Lv1 → Lv10 線性 +20%
-    //   被動 passive : Lv1 → Lv10 線性 +10%
-    //   治療/護盾    : Lv1 → Lv10 線性 +25%
-    //   耗藍(mpCost)、CD(cooldown)：不隨等級變化
+    // ★ 技能等級成長曲線（與 battle.js 的 getSkillBonus 完全一致）
     // ============================================================
     function getSkillBonus(sk, lv) {
         if (!sk || lv <= 1) return 0;
 
-        // 絕技：非線性曲線（Lv.4 / Lv.7 / Lv.10 大幅提升）
         if (sk.type === 'ultimate') {
             const increments = [3, 3, 8, 3, 3, 8, 3, 3, 16];
             let totalPct = 0;
@@ -35,7 +24,6 @@
             return totalPct / 100;
         }
 
-        // 其他類型：線性成長
         let totalGrowth;
         if (sk.type === 'normal')        totalGrowth = 0.20;
         else if (sk.type === 'followup') totalGrowth = 0.20;
@@ -61,24 +49,43 @@
         uiDiv.style.cssText = "display: none; position: absolute; width: 1280px; height: 720px; background: rgba(10, 10, 15, 0.95); z-index: 9000; color: #ddd; flex-direction: row; pointer-events: auto;";
         
         uiDiv.innerHTML = `
-            <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 20px; right: 30px; font-size: 36px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
-
+            <!-- 左側面板 -->
             <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
-                <div id="ui-currency-bar" style="background: rgba(0,0,0,0.6); padding: 8px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid #333; font-size: 16px; font-weight: bold; z-index: 10; flex-shrink: 0;">
-                    <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
-                </div>
-                <div class="char-portrait" style="height: 370px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
-                <div id="left-dynamic-content" style="flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 6px;"></div>
+                
+                <!-- 立繪區 (移除頂部貨幣欄，拉高至 380px) -->
+                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0; border-bottom: 2px solid #333;"></div>
+                
+                <!-- 屬性/裝備區 (強制不滾動) -->
+                <div id="left-dynamic-content" style="flex: 1; padding: 12px 15px; overflow-y: hidden; background: #12141c; display: flex; flex-direction: column; gap: 8px;"></div>
+                
+                <!-- 底部頭像列表 -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 80px; flex-shrink: 0; align-items: center;"></div>
+                
+                <!-- 展開詳情按鈕 -->
                 <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 45%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020; box-shadow: 4px 0 10px rgba(0,0,0,0.5);">▶</div>
             </div>
 
-            <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 30px; overflow: hidden;">
+            <!-- 右側面板 -->
+            <div id="right-panel" style="flex: 1; display: flex; flex-direction: column; background: rgba(20, 22, 30, 0.8); padding: 20px 30px 30px 30px; overflow: hidden;">
+                
+                <!-- ★ 新增：頂部貨幣欄與關閉按鈕 -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #1a1c29; padding: 12px 25px; border-radius: 8px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                    <!-- 貨幣顯示區，預留了其他貨幣的位置 -->
+                    <div id="ui-currency-bar" style="display: flex; gap: 30px; font-size: 18px; font-weight: bold; color: #ddd;">
+                        <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
+                        <!-- 未來擴充用：<span style="color: #e74c3c;">💎 元寶: 0</span> -->
+                    </div>
+                    <!-- 關閉按鈕移至頂部欄 -->
+                    <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="font-size: 28px; color: #aaa; cursor: pointer; line-height: 1; padding: 0 5px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">✖</div>
+                </div>
+
+                <!-- 技能 / 背包 Tab -->
                 <div class="right-tabs" style="display: flex; margin-bottom: 25px; border-bottom: 1px solid #333; padding-bottom: 15px; gap: 15px; flex-shrink: 0;">
                     <div class="rt-tab active" id="rt-btn-skill" onclick="window.switchRightTab('skill')" style="flex: 1; text-align: center; padding: 15px; background: #3498db; border-radius: 8px; cursor: pointer; font-weight: bold; color: #fff; font-size: 22px;">📖 技能</div>
                     <div class="rt-tab" id="rt-btn-inv" onclick="window.switchRightTab('inv')" style="flex: 1; text-align: center; padding: 15px; background: #1a1c29; border-radius: 8px; cursor: pointer; font-weight: bold; color: #888; font-size: 22px;">🎒 背包</div>
                 </div>
 
+                <!-- 背包容器 -->
                 <div id="inv-container" style="flex: 1; display: none; flex-direction: column; overflow: hidden;">
                     <div class="filter-bar" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; flex-shrink: 0;">
                         <div class="filter-btn active" onclick="window.setFilter('all', this)" style="padding: 8px 20px; background: #e67e22; border: 1px solid #e67e22; border-radius: 20px; cursor: pointer; font-size: 18px; color: #fff; font-weight: bold;">全部</div>
@@ -90,15 +97,18 @@
                     <div id="inventory-grid" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(85px, 1fr)); gap: 15px; align-content: start; padding-bottom: 20px;"></div>
                 </div>
 
+                <!-- 技能容器 -->
                 <div id="skill-container" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto; gap: 15px; padding-bottom: 20px;"></div>
             </div>
 
+            <!-- 物品詳情彈窗 -->
             <div id="item-tooltip" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideTooltip()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <div id="tooltip-content"></div>
                 <button class="btn-action btn-equip" id="btn-item-action" style="display: block; width: 100%; padding: 15px; margin-top: 25px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; font-size: 22px; color: #fff; background: #e67e22;">穿戴</button>
             </div>
 
+            <!-- 詳細屬性彈窗 -->
             <div id="detail-card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #0f0f15; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; box-shadow: 0 15px 40px rgba(0,0,0,0.9); z-index: 9600; width: 500px; max-height: 85vh; overflow-y: auto;">
                 <div class="card-close" onclick="window.hideDetailCard()" style="position: absolute; top: 15px; right: 20px; cursor: pointer; color: #aaa; font-size: 28px;">✖</div>
                 <h2 style="text-align:center; color:#f1c40f; margin-bottom:15px; font-size:26px;">詳細屬性</h2>
@@ -110,6 +120,7 @@
                 <div class="detail-grid" id="detail-special" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
             </div>
 
+            <!-- 確認對話框 -->
             <div id="custom-confirm-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; z-index: 9800; width: 440px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
                 <h3 id="confirm-title" style="color: #f1c40f; margin-bottom: 15px; font-size: 24px;">提示</h3>
                 <p id="confirm-msg" style="color: #ddd; font-size: 18px; margin-bottom: 25px; line-height: 1.6;"></p>
@@ -225,7 +236,6 @@
         return leveledUp;
     }
 
-    // ★ 修改：改為無參數版，內部從 selectedChar 取角色（修復 inline onclick 拿不到 IIFE 內變數的問題）
     window.handleCharacterBreakthrough = function() {
         const char = selectedChar;
         if (!char) { window.showToast('尚未選擇角色', '#e74c3c'); return; }
@@ -281,7 +291,6 @@
         );
     };
 
-    // ★ 修改：改為無參數版 (skillId)，內部從 selectedChar 取角色
     window.upgradeCharacterSkill = function(skillId) {
         const char = selectedChar;
         if (!char) { window.showToast('尚未選擇角色', '#e74c3c'); return; }
@@ -372,7 +381,6 @@
             } catch(e) {}
         }
 
-        // 🌟 關鍵修復：兼容 battle.html 沒有 core.js 的情況，手動把全局變數同步到 window
         try {
             if (typeof CHARACTERS !== 'undefined' && !window.CHARACTERS) window.CHARACTERS = CHARACTERS;
             if (typeof INVENTORY !== 'undefined' && !window.INVENTORY) window.INVENTORY = INVENTORY;
@@ -381,7 +389,6 @@
             if (typeof STATUSES !== 'undefined' && !window.STATUSES) window.STATUSES = STATUSES;
         } catch (e) {}
         
-        // 安全獲取角色數據
         let chars = null;
         try {
             if (typeof CHARACTERS !== 'undefined' && Array.isArray(CHARACTERS) && CHARACTERS.length > 0) {
@@ -505,6 +512,7 @@
     };
 
     function refreshLeftPanel() {
+        // 更新頂部貨幣顯示
         const copperSpan = document.getElementById('player-copper-display');
         if (copperSpan) {
             if (!window.globalData) window.globalData = {};
@@ -515,7 +523,6 @@
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
-            portraitEl.style.height = '370px';
             portraitEl.style.background = `url('${bgImg}') top center/cover`;
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
@@ -569,35 +576,35 @@
             let confirmBtnHtml = '';
             if (sumTemp > 0) {
                 confirmBtnHtml = `
-                    <button onclick="window.confirmPointAllocation()" style="background: linear-gradient(135deg, #27ae60, #2ea043); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.4);">
+                    <button onclick="window.confirmPointAllocation()" style="background: linear-gradient(135deg, #27ae60, #2ea043); color: #fff; border: none; border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.4);">
                         ✅ 確認分配 (+${sumTemp})
                     </button>
                 `;
             }
 
             let statsHtml = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <div style="color: #f1c40f; font-size: 15px; font-weight: bold;">剩余点数: <span style="color:${remainingPoints > 0 ? '#2ecc71' : '#fff'}">${remainingPoints}</span></div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                    <div style="color: #f1c40f; font-size: 14px; font-weight: bold;">剩余点数: <span style="color:${remainingPoints > 0 ? '#2ecc71' : '#fff'}">${remainingPoints}</span></div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
                         ${confirmBtnHtml}
-                        <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 5px; padding: 5px 10px; font-size: 12px; cursor: pointer; font-weight: bold;">重置意境</button>
+                        <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 5px; padding: 4px 8px; font-size: 12px; cursor: pointer; font-weight: bold;">重置意境</button>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
             `;
+            
             Object.keys(statNames).forEach(k => {
                 let tempAdded = tempAllocated[k] || 0;
-                let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:12px; font-weight:bold;">(+${tempAdded})</span>` : '';
+                let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:11px; font-weight:bold;">(+${tempAdded})</span>` : '';
 
                 statsHtml += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 6px 10px; border-radius: 8px; border: 1px solid #333;">
-                        <div>
-                            <span style="color: #aaa; font-size: 13px;">${statNames[k]}</span>
-                            <b style="color: #fff; margin-left: 6px; font-size: 15px;">${stats[k] || 0}</b> ${tempStr}
+                    <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(255,255,255,0.04); padding: 6px 4px; border-radius: 6px; border: 1px solid #333;">
+                        <div style="font-size: 12px; color: #aaa; margin-bottom: 4px; white-space: nowrap;">
+                            ${statNames[k]} <b style="color: #fff; font-size: 14px;">${stats[k] || 0}</b> ${tempStr}
                         </div>
-                        <div style="display: flex; gap: 6px;">
-                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 5px; width: 26px; height: 26px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px;">-</button>
-                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 5px; width: 26px; height: 26px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px;">+</button>
+                        <div style="display: flex; gap: 4px;">
+                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 14px;">-</button>
+                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 14px;">+</button>
                         </div>
                     </div>
                 `;
@@ -606,17 +613,17 @@
 
             let coreFourHtml = `
                 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
-                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.maxHp || 1000}</b></div>
-                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.atk || 100}</b></div>
-                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.def || 50}</b></div>
-                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${(currentUnit.speed || 8).toFixed(1)}</b></div>
+                    <div style="background: #1a1c29; padding: 6px 2px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.maxHp || 1000}</b></div>
+                    <div style="background: #1a1c29; padding: 6px 2px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.atk || 100}</b></div>
+                    <div style="background: #1a1c29; padding: 6px 2px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.def || 50}</b></div>
+                    <div style="background: #1a1c29; padding: 6px 2px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${(currentUnit.speed || 8).toFixed(1)}</b></div>
                 </div>
             `;
             dynamicBox.innerHTML = statsHtml + coreFourHtml;
         } else {
             dynamicBox.innerHTML = `
-                <div style="color: #3498db; font-size: 15px; font-weight: bold; margin-bottom: 8px;">📦 角色裝備槽位</div>
-                <div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"></div>
+                <div style="color: #3498db; font-size: 14px; font-weight: bold; margin-bottom: 4px;">📦 角色裝備槽位</div>
+                <div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;"></div>
             `;
             renderEquipSlots();
         }
@@ -717,17 +724,17 @@
 
             const div = document.createElement('div');
             div.className = 'equip-slot' + (inst ? '' : ' empty');
-            div.style.cssText = "height: 65px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            div.style.cssText = "height: 60px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative; padding: 4px;";
             
             if (inst && tpl) {
                 div.innerHTML = `
-                    <div class="eq-icon" style="font-size: 24px;">${tpl.icon || '📦'}</div>
-                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 12px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 3px;">${tpl.name}</div>
+                    <div class="eq-icon" style="font-size: 20px; margin-bottom: 2px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 11px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 2px;">${tpl.name}</div>
                 `;
                 div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
                 div.style.borderColor = qColors[inst.quality];
             } else {
-                div.innerHTML = `<span style="font-size:13px; color:#777;">${slot.name}</span>`;
+                div.innerHTML = `<span style="font-size:12px; color:#777;">${slot.name}</span>`;
             }
             container.appendChild(div);
         });
@@ -831,7 +838,6 @@
             div.className = 'skill-card';
             div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px;";
 
-            // ★ 修改：使用新版 getSkillBonus（與 battle.js 完全一致）
             const lvFactor = 1 + getSkillBonus(sk, currentSkillLv);
 
             let desc = '';
@@ -1082,7 +1088,17 @@
     };
 
     function saveGameData() {
-        localStorage.setItem('my_game_characters', JSON.stringify(window.CHARACTERS || window.gameChars));
-        localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY || []));
+        const chars = window.CHARACTERS || window.gameChars || [];
+        const inv = window.INVENTORY || [];
+
+        localStorage.setItem('my_game_characters', JSON.stringify(chars));
+        localStorage.setItem('my_game_inventory_sync', JSON.stringify(inv));
+
+        try {
+            localStorage.setItem('my_game_data_v22', JSON.stringify(chars));
+            localStorage.setItem('my_game_inventory_v22', JSON.stringify(inv));
+        } catch (e) {
+            console.warn('同步主數據 key 失敗：', e);
+        }
     }
 })();
