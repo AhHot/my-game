@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 獨立修復版
+// 模組：坊市與商店系統 (tab_shop.js) - 獨立穩定修復版
 // ==========================================
 
 window.renderTabShop = function(container) {
@@ -189,7 +189,7 @@ window.openShopUI = function(shopId = 'shop_daily') {
       ${itemsHtml}
     </div>
 
-    <!-- 數量選擇與購買確認 Modal -->
+    <!-- 數量選擇 Modal -->
     <div id="shop-buy-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 25px; z-index: 9800; width: 400px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
       <h3 style="color: #f1c40f; margin-bottom: 15px; font-size: 22px;" id="modal-item-title">購買商品</h3>
       <div style="font-size: 40px; margin-bottom: 10px;" id="modal-item-icon">📦</div>
