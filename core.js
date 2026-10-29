@@ -138,12 +138,59 @@ let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globa
 let editingElementIds = new Set();
 
 function loadAllData() {
-  try { gameChars = JSON.parse(localStorage.getItem('my_game_data_v22')) || JSON.parse(JSON.stringify(DEFAULT_CHARS)); } catch(e) { gameChars = JSON.parse(JSON.stringify(DEFAULT_CHARS)); }
+  // ★★★ 關鍵修復：優先讀 my_game_characters（battle.js / character_system.js 共用的主 key），
+  //     若為空才 fallback 到 my_game_data_v22。這樣無論從哪個頁面切到哪個頁面，
+  //     都能讀到最新的角色數據，不會再被另一套 key 的舊數據覆蓋。
+  try {
+    const charsNewStr = localStorage.getItem('my_game_characters');
+    const charsOldStr = localStorage.getItem('my_game_data_v22');
+    let parsedChars = null;
+
+    if (charsNewStr) {
+      try {
+        const p = JSON.parse(charsNewStr);
+        if (Array.isArray(p) && p.length) parsedChars = p;
+      } catch(e) {}
+    }
+    if (!parsedChars && charsOldStr) {
+      try {
+        const p = JSON.parse(charsOldStr);
+        if (Array.isArray(p) && p.length) parsedChars = p;
+      } catch(e) {}
+    }
+
+    gameChars = parsedChars || JSON.parse(JSON.stringify(DEFAULT_CHARS));
+  } catch(e) {
+    gameChars = JSON.parse(JSON.stringify(DEFAULT_CHARS));
+  }
+
   try { gameSkills = JSON.parse(localStorage.getItem('my_game_skills_v22')) || JSON.parse(JSON.stringify(DEFAULT_SKILLS)); } catch(e) { gameSkills = JSON.parse(JSON.stringify(DEFAULT_SKILLS)); }
   try { gameStatuses = JSON.parse(localStorage.getItem('my_game_statuses_v22')) || JSON.parse(JSON.stringify(DEFAULT_STATUS)); } catch(e) { gameStatuses = JSON.parse(JSON.stringify(DEFAULT_STATUS)); }
   try { gameItems = JSON.parse(localStorage.getItem('my_game_items_v22')) || JSON.parse(JSON.stringify(DEFAULT_ITEMS)); } catch(e) { gameItems = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); }
   try { gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22')) || JSON.parse(JSON.stringify(DEFAULT_LEVELS)); } catch(e) { gameLevels = JSON.parse(JSON.stringify(DEFAULT_LEVELS)); }
-  try { inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || []; } catch(e) { inventory = []; }
+
+  // ★ inventory 同理：優先讀 my_game_inventory_sync（battle.js 用的）
+  try {
+    const invNewStr = localStorage.getItem('my_game_inventory_sync');
+    const invOldStr = localStorage.getItem('my_game_inventory_v22');
+    let parsedInv = null;
+
+    if (invNewStr) {
+      try {
+        const p = JSON.parse(invNewStr);
+        if (Array.isArray(p)) parsedInv = p;
+      } catch(e) {}
+    }
+    if (!parsedInv && invOldStr) {
+      try {
+        const p = JSON.parse(invOldStr);
+        if (Array.isArray(p)) parsedInv = p;
+      } catch(e) {}
+    }
+
+    inventory = parsedInv || [];
+  } catch(e) { inventory = []; }
+
   try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); } catch(e) { globalData = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG)); }
 
   if (!globalData.config) globalData.config = { ...DEFAULT_GLOBAL_CONFIG.config };
@@ -178,7 +225,7 @@ function loadAllData() {
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
-  // 🌟 關鍵修正：將所有數據與大寫對照表強制綁定到 window 物件，供所有分頁模組調用
+  // 🌟 將所有數據與大寫對照表強制綁定到 window 物件，供所有分頁模組調用
   window.gameChars = gameChars;
   window.gameSkills = gameSkills;
   window.gameStatuses = gameStatuses;
