@@ -185,7 +185,6 @@
     }
 
     window.handleCharacterBreakthrough = function(char) {
-        // 修復：防止在沒有 core.js 的頁面崩潰
         if (!window.globalData) window.globalData = {};
         if (!window.globalData.currency) window.globalData.currency = { copper: 50000, sycee: 100 };
         
@@ -314,7 +313,6 @@
         const uiContainer = document.getElementById('fullscreen-ui');
         if (uiContainer) {
             uiContainer.style.display = 'flex';
-            // 修復：確保 UI 不會因為 absolute 定位跑到屏幕外
             if (!uiContainer.style.left || uiContainer.style.left === 'auto') uiContainer.style.left = '0px';
             if (!uiContainer.style.top || uiContainer.style.top === 'auto') uiContainer.style.top = '0px';
         }
@@ -325,8 +323,17 @@
                 activeScenes.forEach(s => { if(s.input) s.input.enabled = false; });
             } catch(e) {}
         }
+
+        // 🌟 關鍵修復：兼容 battle.html 沒有 core.js 的情況，手動把全局變數同步到 window
+        try {
+            if (typeof CHARACTERS !== 'undefined' && !window.CHARACTERS) window.CHARACTERS = CHARACTERS;
+            if (typeof INVENTORY !== 'undefined' && !window.INVENTORY) window.INVENTORY = INVENTORY;
+            if (typeof ITEMS !== 'undefined' && !window.ITEMS) window.ITEMS = ITEMS;
+            if (typeof SKILLS !== 'undefined' && !window.SKILLS) window.SKILLS = SKILLS;
+            if (typeof STATUSES !== 'undefined' && !window.STATUSES) window.STATUSES = STATUSES;
+        } catch (e) {}
         
-        // 修復：安全獲取角色數據，防止在不同頁面加載時找不到變數
+        // 安全獲取角色數據
         let chars = null;
         try {
             if (typeof CHARACTERS !== 'undefined' && Array.isArray(CHARACTERS) && CHARACTERS.length > 0) {
@@ -452,7 +459,6 @@
     function refreshLeftPanel() {
         const copperSpan = document.getElementById('player-copper-display');
         if (copperSpan) {
-            // 修復：battle.html 沒有 core.js，globalData 可能為 undefined
             if (!window.globalData) window.globalData = {};
             if (!window.globalData.currency) window.globalData.currency = { copper: 50000, sycee: 100 };
             copperSpan.innerText = window.globalData.currency.copper;
