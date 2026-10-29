@@ -4,11 +4,11 @@
 
 const FOLLOWUP_TAGS = [
   { val: '', label: '无 (不产生/不响应)' },
-  { val: 'po_shi', label: '【破势】(刀剑兵刃系)' },
-  { val: 'zhen_chan', label: '【震颤】(拳棍击打系)' },
-  { val: 'zhi_qi', label: '【滞气】(内功气功系)' },
-  { val: 'feng_hou', label: '【封喉】(刺客收割系)' },
-  { val: 'te_shu', label: '【特殊】(少数字符专属)' }
+  { val: 'po_shi', label: '【破势】' },
+  { val: 'zhen_chan', label: '【震颤】' },
+  { val: 'zhi_qi', label: '【滞气】' },
+  { val: 'feng_hou', label: '【封喉】' },
+  { val: 'te_shu', label: '【特殊】' }
 ];
 
 const DEFAULT_GROWTH_MODELS = [
