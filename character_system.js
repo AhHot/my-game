@@ -203,6 +203,7 @@
 
         let pillItem = (window.INVENTORY || []).find(i => i.itemId === 'item_breakthrough_pill' && !i.equippedBy);
         let pillCount = pillItem ? (pillItem.count || 1) : 0;
+        if (!window.globalData) window.globalData = {};
         let currentCopper = window.globalData.currency?.copper || 0;
 
         let missingList = [];
@@ -309,6 +310,9 @@
         initCharacterSystemDOM();
         const uiContainer = document.getElementById('fullscreen-ui');
         if (uiContainer) uiContainer.style.display = 'flex';
+                if (!uiContainer.style.left || uiContainer.style.left === 'auto') uiContainer.style.left = '0px';
+        if (!uiContainer.style.top || uiContainer.style.top === 'auto') uiContainer.style.top = '0px';
+    }
 
         if (window.game && window.game.scene) {
             try {
@@ -317,25 +321,37 @@
             } catch(e) {}
         }
         
-        const chars = window.CHARACTERS || window.gameChars || JSON.parse(localStorage.getItem('my_game_characters') || '[]');
-        if (!chars || chars.length === 0) {
-            alert('找不到玩家角色數據！');
-            return;
+let chars = null;
+    try {
+        if (typeof CHARACTERS !== 'undefined' && Array.isArray(CHARACTERS) && CHARACTERS.length > 0) {
+            chars = CHARACTERS;
         }
+    } catch (e) {}
+    if (!chars) chars = window.CHARACTERS || window.gameChars || null;
+    if (!chars) {
+        try { chars = JSON.parse(localStorage.getItem('my_game_characters') || '[]'); } catch (e) { chars = []; }
+    }
+    if (!chars || chars.length === 0) {
+        alert('找不到玩家角色數據！');
+        return;
+    }
+    // 讓後續 IIFE 內的邏輯（renderCharList / saveGameData）也能拿到
+    if (!window.CHARACTERS) window.CHARACTERS = chars;
+    if (!window.gameChars) window.gameChars = chars;
 
-        try {
-            const gc = window.globalData || {};
-            globalExpTable = gc.expTable || [];
-        } catch(e) {}
+    try {
+        const gc = window.globalData || {};
+        globalExpTable = gc.expTable || [];
+    } catch (e) {}
 
-        renderCharList();
-        const players = chars.filter(c => c.side === 'player');
-        if(players.length > 0) {
-            selectCharacter(players[0]);
-        } else if(chars.length > 0) {
-            selectCharacter(chars[0]);
-        }
-    };
+    renderCharList();
+    const players = chars.filter(c => c.side === 'player');
+    if (players.length > 0) {
+        selectCharacter(players[0]);
+    } else if (chars.length > 0) {
+        selectCharacter(chars[0]);
+    }
+};
 
     window.closeCharacterUI = function() {
         tempAllocated = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
@@ -428,9 +444,11 @@
     function refreshLeftPanel() {
         const copperSpan = document.getElementById('player-copper-display');
         if (copperSpan) {
-            if (!window.globalData.currency) window.globalData.currency = { copper: 50000, sycee: 100 };
-            copperSpan.innerText = window.globalData.currency.copper;
-        }
+    // 修復：battle.html 沒有 core.js，globalData 可能為 undefined
+    if (!window.globalData) window.globalData = {};
+    if (!window.globalData.currency) window.globalData.currency = { copper: 50000, sycee: 100 };
+    copperSpan.innerText = window.globalData.currency.copper;
+}
 
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
