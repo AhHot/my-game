@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：物品與裝備模板管理 (tab_item.js) - 完整分類 Tab 版 + 專屬品質掉落設定
+// 模組：物品與裝備模板管理 (tab_item.js) - 完整分類 Tab + 裝備子分類 + 智能新增
 // ==========================================
 
 window.renderTabItem = function(container) {
@@ -9,13 +9,14 @@ window.renderTabItem = function(container) {
 
   // 記錄當前分類篩選狀態
   if (window._currentItemTab === undefined) window._currentItemTab = 'all';
+  if (window._currentEquipSubTab === undefined) window._currentEquipSubTab = 'weapon';
 
   container.innerHTML = `
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 物品與裝備模板管理</h3>
       <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理所有道具、裝備、消耗品及突破/升級材料的屬性、最大堆疊數與發送測試。</p>
       
-      <!-- 物品分類 Tab 列 -->
+      <!-- 物品大分類 Tab 列 -->
       <div class="sub-tabs" style="display: flex; gap: 8px; margin-bottom: 15px;">
         <div class="sub-tab ${window._currentItemTab === 'all' ? 'active' : ''}" onclick="window.switchItemTab('all')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'all' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">全部</div>
         <div class="sub-tab ${window._currentItemTab === 'equip' ? 'active' : ''}" onclick="window.switchItemTab('equip')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'equip' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">裝備</div>
@@ -23,6 +24,15 @@ window.renderTabItem = function(container) {
         <div class="sub-tab ${window._currentItemTab === 'material' ? 'active' : ''}" onclick="window.switchItemTab('material')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'material' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">材料</div>
         <div class="sub-tab ${window._currentItemTab === 'quest' ? 'active' : ''}" onclick="window.switchItemTab('quest')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'quest' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">任務</div>
       </div>
+
+      <!-- ★ 新增：裝備專屬子分類 Tab -->
+      ${window._currentItemTab === 'equip' ? `
+      <div class="sub-tabs" style="display: flex; gap: 8px; margin-bottom: 15px; background: #111; padding: 8px; border-radius: 6px; border: 1px solid #333;">
+        <div class="sub-tab ${window._currentEquipSubTab === 'weapon' ? 'active' : ''}" onclick="window.switchEquipSubTab('weapon')" style="flex:1; padding:8px; text-align:center; background:${window._currentEquipSubTab === 'weapon' ? '#3498db' : '#16213e'}; color:#fff; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold; transition: 0.2s;">⚔️ 武器</div>
+        <div class="sub-tab ${window._currentEquipSubTab === 'armor' ? 'active' : ''}" onclick="window.switchEquipSubTab('armor')" style="flex:1; padding:8px; text-align:center; background:${window._currentEquipSubTab === 'armor' ? '#3498db' : '#16213e'}; color:#fff; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold; transition: 0.2s;">🛡️ 防具/衣服</div>
+        <div class="sub-tab ${window._currentEquipSubTab === 'accessory' ? 'active' : ''}" onclick="window.switchEquipSubTab('accessory')" style="flex:1; padding:8px; text-align:center; background:${window._currentEquipSubTab === 'accessory' ? '#3498db' : '#16213e'}; color:#fff; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold; transition: 0.2s;">💍 飾品</div>
+      </div>
+      ` : ''}
 
       <div id="item-editor-list"></div>
       <button class="btn" style="background:#3498db; width:100%; margin-top:15px;" onclick="window.addNewItemTemplate()">➕ 新增物品模板</button>
@@ -39,6 +49,13 @@ window.switchItemTab = function(tab) {
   if (container && window.renderTabItem) window.renderTabItem(container);
 };
 
+// ★ 新增：切換裝備子分類
+window.switchEquipSubTab = function(subTab) {
+  window._currentEquipSubTab = subTab;
+  const container = document.getElementById('app-content');
+  if (container && window.renderTabItem) window.renderTabItem(container);
+};
+
 function renderItemList() {
   const list = document.getElementById('item-editor-list');
   if (!list) return;
@@ -47,7 +64,16 @@ function renderItemList() {
   let filteredItems = window.gameItems.filter(item => {
     let tab = window._currentItemTab || 'all';
     if (tab === 'all') return true;
-    if (tab === 'equip') return ['weapon', 'armor', 'accessory'].includes(item.category);
+    
+    if (tab === 'equip') {
+      if (!['weapon', 'armor', 'accessory'].includes(item.category)) return false;
+      // ★ 裝備子分類過濾
+      if (window._currentEquipSubTab === 'weapon') return item.category === 'weapon';
+      if (window._currentEquipSubTab === 'armor') return item.category === 'armor';
+      if (window._currentEquipSubTab === 'accessory') return item.category === 'accessory';
+      return true;
+    }
+    
     return item.category === tab;
   });
 
@@ -60,7 +86,7 @@ function renderItemList() {
     let equipStatsHtml = '';
     if (isEquip) {
       equipStatsHtml = `
-        <!-- ★ 新增：專屬品質掉落範圍設定 -->
+        <!-- ★ 專屬品質掉落範圍設定 -->
         <div class="sub-title" style="margin-top: 15px; color: #e74c3c;">🎲 專屬掉落品質範圍設定</div>
         <div class="form-item full" style="background: #2a1a1a; padding: 10px; border-radius: 6px; border: 1px solid #c0392b; margin-bottom: 10px;">
           <p style="font-size: 11px; color: #e74c3c; margin-bottom: 8px;">※ 設定此裝備只會在哪個品質區間內隨機抽選（系統會自動重新分配機率）。</p>
@@ -211,16 +237,54 @@ window.grantItemToPlayer = function(itemId) {
   alert(`🎁 成功發送「${template.name}」到玩家背包！`);
 };
 
+// ★ 改善：智能新增邏輯
 window.addNewItemTemplate = function() {
+  let newCat = 'material';
+  let tab = window._currentItemTab;
+  let name = '新材料';
+  let icon = '📦';
+  let maxStack = 9999;
+
+  if (tab === 'equip') {
+    newCat = window._currentEquipSubTab || 'weapon';
+    if (newCat === 'weapon') { name = '新武器'; icon = '⚔️'; maxStack = 1; }
+    else if (newCat === 'armor') { name = '新防具'; icon = '🛡️'; maxStack = 1; }
+    else if (newCat === 'accessory') { name = '新飾品'; icon = '💍'; maxStack = 1; }
+  } else if (tab === 'consumable') {
+    newCat = 'consumable';
+    name = '新消耗品';
+    icon = '💊';
+    maxStack = 99;
+  } else if (tab === 'quest') {
+    newCat = 'quest';
+    name = '新任務物品';
+    icon = '📜';
+    maxStack = 1;
+  } else if (tab === 'material') {
+    newCat = 'material';
+    name = '新材料';
+    icon = '📦';
+    maxStack = 9999;
+  } else {
+    // all 狀態下默認材料
+    newCat = 'material';
+    name = '新物品';
+    icon = '📦';
+    maxStack = 9999;
+  }
+
   window.gameItems.push({
     id: 'item_' + Date.now(),
-    name: '新物品',
-    category: 'material',
-    icon: '📦',
+    name: name,
+    category: newCat,
+    icon: icon,
     desc: '',
-    maxStack: 9999,
+    maxStack: maxStack,
     useEffect: 'None',
-    useValue: 0
+    useValue: 0,
+    atkMin: 0, atkMax: 0,
+    defMin: 0, defMax: 0,
+    hpMin: 0, hpMax: 0
   });
   saveData();
   renderItemList();
