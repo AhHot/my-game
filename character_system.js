@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 增強版
+// 模組：完整人物與背包系統 (character_system.js) - 放大字體與 380px 立繪版
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -32,8 +32,8 @@
                     <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
                 </div>
 
-                <!-- 🌟 1. 立繪區域 (擴展高度至 340px，顯示更多立繪細節) -->
-                <div class="char-portrait" style="height: 340px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
+                <!-- 🌟 1. 立繪區域 (調整高度為 380px) -->
+                <div class="char-portrait" style="height: 380px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
                 
                 <!-- 左側動態內容區 (屬性與裝備槽) -->
                 <div id="left-dynamic-content" style="flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 6px;"></div>
@@ -102,7 +102,6 @@
         scaleContainer.appendChild(uiDiv);
     }
 
-    // 🌟 全局彈窗 (支持「是/否」與單一「確定」提示)
     window.showConfirmDialog = function(title, msg, onYesCallback, isAlertOnly = false) {
         const modal = document.getElementById('custom-confirm-modal');
         const titleEl = document.getElementById('confirm-title');
@@ -204,7 +203,6 @@
         return leveledUp;
     }
 
-    // 🌟 2. 突破消耗不足時彈窗提示說明
     window.handleCharacterBreakthrough = function(char) {
         let lv = char.level;
         let reqPills = 0;
@@ -254,7 +252,6 @@
         );
     };
 
-    // 🌟 2. 技能升級消耗不足時彈窗提示說明
     window.upgradeCharacterSkill = function(char, skillId) {
         if (!char.skillLevels) char.skillLevels = {};
         let currentLv = char.skillLevels[skillId] || 1;
@@ -446,9 +443,9 @@
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
             const bgImg = selectedChar.portraitUrl || 'https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop';
-            // 🌟 1. 調整立繪區域為 340px，顯示更多畫面
-            portraitEl.style.height = '340px';
-            portraitEl.style.background = `url('${bgImg}') center 20%/cover`;
+            // 🌟 1. 將立繪高度調整為 380px
+            portraitEl.style.height = '380px';
+            portraitEl.style.background = `url('${bgImg}') top center/cover`;
             
             let infoOverlay = document.getElementById('portrait-info-overlay');
             if (!infoOverlay) {
@@ -470,7 +467,7 @@
                 let pillNeed = cLv === 30 ? 50 : (cLv === 45 ? 1500 : 5000);
                 let copperNeed = cLv === 30 ? '1.5萬' : (cLv === 45 ? '10萬' : '50萬');
                 breakthroughBtnHtml = `
-                    <button onclick="window.handleCharacterBreakthrough(selectedChar)" style="background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-weight: bold; cursor: pointer; font-size: 13px; margin-top: 2px;">
+                    <button onclick="window.handleCharacterBreakthrough(selectedChar)" style="background: linear-gradient(135deg, #e67e22, #d35400); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px;">
                         🔥 進行 Lv.${cLv} 突破 (需突破丹x${pillNeed}, 銅幣${copperNeed})
                     </button>
                 `;
@@ -478,12 +475,12 @@
 
             infoOverlay.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: baseline;">
-                    <h2 style="color: #f1c40f; font-size: 20px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
-                    <span style="color: #2ecc71; font-weight: bold; font-size: 14px;">Lv. ${cLv} ${stage > 0 ? `(突破段位 ${stage})` : ''}</span>
+                    <h2 style="color: #f1c40f; font-size: 22px; margin:0; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${selectedChar.name}</h2>
+                    <span style="color: #2ecc71; font-weight: bold; font-size: 15px;">Lv. ${cLv} ${stage > 0 ? `(突破段位 ${stage})` : ''}</span>
                 </div>
                 <div>
-                    <div style="font-size: 10px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 && stage >= 3 ? '已滿級' : `${cExp} / ${reqExp}`}</div>
-                    <div style="width: 100%; height: 5px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;"><div style="width: ${pct}%; height: 100%; background: #3498db;"></div></div>
+                    <div style="font-size: 11px; color: #aaa; text-align: right; margin-bottom: 2px;">${cLv >= 60 && stage >= 3 ? '已滿級' : `${cExp} / ${reqExp}`}</div>
+                    <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.5); border-radius: 3px; overflow: hidden;"><div style="width: ${pct}%; height: 100%; background: #3498db;"></div></div>
                 </div>
                 ${breakthroughBtnHtml}
             `;
@@ -493,7 +490,6 @@
         if (!dynamicBox) return;
 
         if (currentTab === 'skill') {
-            // 🌟 3. 意境加點預分配與「加/減/確認分配」機制
             let sumTemp = Object.values(tempAllocated).reduce((a, b) => a + b, 0);
             const remainingPoints = (selectedChar.freePoints || 0) - sumTemp;
             const stats = getFinalStatsForUI(selectedChar);
@@ -502,35 +498,36 @@
             let confirmBtnHtml = '';
             if (sumTemp > 0) {
                 confirmBtnHtml = `
-                    <button onclick="window.confirmPointAllocation()" style="background: linear-gradient(135deg, #27ae60, #2ea043); color: #fff; border: none; border-radius: 4px; padding: 3px 10px; font-size: 11px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.4);">
+                    <button onclick="window.confirmPointAllocation()" style="background: linear-gradient(135deg, #27ae60, #2ea043); color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: 13px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 6px rgba(0,0,0,0.4);">
                         ✅ 確認分配 (+${sumTemp})
                     </button>
                 `;
             }
 
+            // 🌟 2. 加大字體與意境加減點按鈕 (寬高由 16px 改為 26px，字體改為 15px)
             let statsHtml = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                    <div style="color: #f1c40f; font-size: 12px; font-weight: bold;">剩余点数: <span style="color:${remainingPoints > 0 ? '#2ecc71' : '#fff'}">${remainingPoints}</span></div>
-                    <div style="display: flex; gap: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <div style="color: #f1c40f; font-size: 15px; font-weight: bold;">剩余点数: <span style="color:${remainingPoints > 0 ? '#2ecc71' : '#fff'}">${remainingPoints}</span></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
                         ${confirmBtnHtml}
-                        <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: bold;">重置意境</button>
+                        <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 5px; padding: 5px 10px; font-size: 12px; cursor: pointer; font-weight: bold;">重置意境</button>
                     </div>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
             `;
             Object.keys(statNames).forEach(k => {
                 let tempAdded = tempAllocated[k] || 0;
-                let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:10px;">(+${tempAdded})</span>` : '';
+                let tempStr = tempAdded > 0 ? `<span style="color:#2ecc71; font-size:12px; font-weight:bold;">(+${tempAdded})</span>` : '';
 
                 statsHtml += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 3px 6px; border-radius: 6px; border: 1px solid #333;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 6px 10px; border-radius: 8px; border: 1px solid #333;">
                         <div>
-                            <span style="color: #888; font-size: 11px;">${statNames[k]}</span>
-                            <b style="color: #fff; margin-left: 4px; font-size: 12px;">${stats[k] || 0}</b> ${tempStr}
+                            <span style="color: #aaa; font-size: 13px;">${statNames[k]}</span>
+                            <b style="color: #fff; margin-left: 6px; font-size: 15px;">${stats[k] || 0}</b> ${tempStr}
                         </div>
-                        <div style="display: flex; gap: 3px;">
-                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 3px; width: 16px; height: 16px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 10px;">-</button>
-                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 3px; width: 16px; height: 16px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 10px;">+</button>
+                        <div style="display: flex; gap: 6px;">
+                            <button ${tempAdded > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', -1)" style="background: #e74c3c; color: #fff; border: none; border-radius: 5px; width: 26px; height: 26px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px;">-</button>
+                            <button ${remainingPoints > 0 ? '' : 'disabled'} onclick="window.adjustTempPoint('${k}', 1)" style="background: #2ecc71; color: #fff; border: none; border-radius: 5px; width: 26px; height: 26px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 16px;">+</button>
                         </div>
                     </div>
                 `;
@@ -538,17 +535,17 @@
             statsHtml += `</div>`;
 
             let coreFourHtml = `
-                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px;">
-                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.maxHp || 1000}</b></div>
-                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.atk || 100}</b></div>
-                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.def || 50}</b></div>
-                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 11px;">${(currentUnit.speed || 8).toFixed(1)}</b></div>
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px;">
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.maxHp || 1000}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.atk || 100}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${currentUnit.def || 50}</b></div>
+                    <div style="background: #1a1c29; padding: 6px; border-radius: 8px; border: 1px solid #333; text-align: center;"><span style="font-size:11px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 13px; margin-top: 2px;">${(currentUnit.speed || 8).toFixed(1)}</b></div>
                 </div>
             `;
             dynamicBox.innerHTML = statsHtml + coreFourHtml;
         } else {
             dynamicBox.innerHTML = `
-                <div style="color: #3498db; font-size: 14px; font-weight: bold; margin-bottom: 8px;">📦 角色裝備槽位</div>
+                <div style="color: #3498db; font-size: 15px; font-weight: bold; margin-bottom: 8px;">📦 角色裝備槽位</div>
                 <div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"></div>
             `;
             renderEquipSlots();
@@ -569,7 +566,6 @@
         `;
     }
 
-    // 🌟 3. 預加點與預減點微調
     window.adjustTempPoint = function(statKey, delta) {
         let sumTemp = Object.values(tempAllocated).reduce((a, b) => a + b, 0);
         let remaining = (selectedChar.freePoints || 0) - sumTemp;
@@ -581,7 +577,6 @@
         refreshLeftPanel();
     };
 
-    // 🌟 3. 正式點擊「確認分配」按鈕生效
     window.confirmPointAllocation = function() {
         let sumTemp = Object.values(tempAllocated).reduce((a, b) => a + b, 0);
         if (sumTemp <= 0) return;
@@ -599,7 +594,6 @@
         window.showToast('✅ 意境屬性點數分配成功！', '#2ecc71');
     };
 
-    // 🌟 3. 重置意境時增加確認提示
     window.resetCharacterStats = function() {
         if (!selectedChar) return;
         if (!selectedChar.allocatedStats) return;
@@ -653,17 +647,17 @@
 
             const div = document.createElement('div');
             div.className = 'equip-slot' + (inst ? '' : ' empty');
-            div.style.cssText = "height: 60px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            div.style.cssText = "height: 65px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
             
             if (inst && tpl) {
                 div.innerHTML = `
-                    <div class="eq-icon" style="font-size: 22px;">${tpl.icon || '📦'}</div>
-                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 11px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 3px;">${tpl.name}</div>
+                    <div class="eq-icon" style="font-size: 24px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 12px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 3px;">${tpl.name}</div>
                 `;
                 div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
                 div.style.borderColor = qColors[inst.quality];
             } else {
-                div.innerHTML = `<span style="font-size:12px; color:#777;">${slot.name}</span>`;
+                div.innerHTML = `<span style="font-size:13px; color:#777;">${slot.name}</span>`;
             }
             container.appendChild(div);
         });
