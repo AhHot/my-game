@@ -186,6 +186,7 @@ function loadAllData() {
   window.gameLevels = gameLevels;
   window.inventory = inventory;
   window.globalData = globalData;
+  window.CONFIG = globalData.config;
 
   window.CHARACTERS = gameChars;
   window.INVENTORY = inventory;
