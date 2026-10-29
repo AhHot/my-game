@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：完整人物與背包系統 (character_system.js) - 全域變數綁定修復版
+// 模組：完整人物與背包系統 (character_system.js) - 完整修復版
 // ============================================================
 (function() {
     let selectedChar = null;
@@ -21,25 +21,25 @@
         uiDiv.innerHTML = `
             <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="position: absolute; top: 30px; right: 40px; font-size: 40px; color: #aaa; cursor: pointer; z-index: 9999;">✖</div>
 
-            <!-- 左侧基础面板 (宽度固定 420px) -->
-            <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+            <!-- 左侧基础面板 (宽度固定 420px，注意移除 overflow:hidden 以確保箭頭可見) -->
+            <div id="left-panel" style="width: 420px; height: 100%; background: linear-gradient(135deg, #1a1c29 0%, #0f0f15 100%); border-right: 2px solid #333; display: flex; flex-direction: column; position: relative;">
                 
                 <!-- 顶部铜币显示栏 -->
                 <div id="ui-currency-bar" style="background: rgba(0,0,0,0.6); padding: 8px 15px; display: flex; justify-content: flex-end; align-items: center; gap: 15px; border-bottom: 1px solid #333; font-size: 16px; font-weight: bold; z-index: 10; flex-shrink: 0;">
                     <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
                 </div>
 
-                <!-- 立繪區域 (固定高度 280px) -->
+                <!-- 立繪區域 (固定高度 380px) -->
                 <div class="char-portrait" style="height: 280px; width: 420px; background: url('https://images.unsplash.com/photo-1542385151-efd9000785a0?q=80&w=600&auto=format&fit=crop') top center/cover; position: relative; flex-shrink: 0;"></div>
                 
-                <!-- 左側動態內容區 (屬性與成長模型) -->
+                <!-- 左側動態內容區 (屬性與裝備槽) -->
                 <div id="left-dynamic-content" style="flex: 1; padding: 10px 15px; overflow-y: auto; background: #12141c; display: flex; flex-direction: column; gap: 8px;"></div>
 
                 <!-- 底部头像切换列 (固定高度 85px) -->
                 <div class="char-list-area" id="ui-char-list" style="background: #111; padding: 10px 15px; border-top: 1px solid #333; display: flex; gap: 15px; overflow-x: auto; height: 85px; flex-shrink: 0; align-items: center;"></div>
                 
                 <!-- 小箭头弹出详细信息按鈕 -->
-                <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 45%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020;">▶</div>
+                <div class="expand-btn" onclick="window.showDetailCard()" style="position: absolute; top: 45%; right: -25px; width: 25px; height: 80px; background: #2c3e50; border: 2px solid #444; border-left: none; border-radius: 0 10px 10px 0; cursor: pointer; display: flex; justify-content: center; align-items: center; color: #f1c40f; font-size: 20px; z-index: 9020; box-shadow: 4px 0 10px rgba(0,0,0,0.5);">▶</div>
             </div>
 
             <!-- 右侧区域 -->
@@ -85,10 +85,41 @@
                 <div class="detail-title" style="font-size: 22px; color: #f1c40f; border-bottom: 2px solid #333; margin: 20px 0 15px 0; padding-bottom:8px;">【克制与特殊】</div>
                 <div class="detail-grid" id="detail-special" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 20px;"></div>
             </div>
+
+            <!-- 🌟 全局確認提示框 Modal -->
+            <div id="custom-confirm-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 30px; z-index: 9800; width: 420px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
+                <h3 id="confirm-title" style="color: #f1c40f; margin-bottom: 15px; font-size: 24px;">提示</h3>
+                <p id="confirm-msg" style="color: #ddd; font-size: 18px; margin-bottom: 25px; line-height: 1.6;"></p>
+                <div style="display: flex; gap: 20px; justify-content: center;">
+                    <button id="confirm-yes-btn" style="flex: 1; padding: 12px; background: #27ae60; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px;">是</button>
+                    <button id="confirm-no-btn" onclick="window.hideConfirmDialog()" style="flex: 1; padding: 12px; background: #c0392b; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 18px;">否</button>
+                </div>
+            </div>
         `;
         
         scaleContainer.appendChild(uiDiv);
     }
+
+    // 🌟 彈出確認提示框輔助函數
+    window.showConfirmDialog = function(title, msg, onYesCallback) {
+        const modal = document.getElementById('custom-confirm-modal');
+        const titleEl = document.getElementById('confirm-title');
+        const msgEl = document.getElementById('confirm-msg');
+        const yesBtn = document.getElementById('confirm-yes-btn');
+        if (!modal) return;
+        titleEl.innerText = title;
+        msgEl.innerHTML = msg;
+        modal.style.display = 'block';
+        yesBtn.onclick = () => {
+            modal.style.display = 'none';
+            if (onYesCallback) onYesCallback();
+        };
+    };
+
+    window.hideConfirmDialog = function() {
+        const modal = document.getElementById('custom-confirm-modal');
+        if (modal) modal.style.display = 'none';
+    };
 
     function getFinalStatsForUI(char) {
         let baseStats = JSON.parse(JSON.stringify(char.stats || { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }));
@@ -159,6 +190,7 @@
         return leveledUp;
     }
 
+    // 🌟 角色等級突破（加入「是／否」確認提示框）
     window.handleCharacterBreakthrough = function(char) {
         let lv = char.level;
         let reqPills = 0;
@@ -196,19 +228,26 @@
             return;
         }
 
-        pillItem.count -= reqPills;
-        if (pillItem.count <= 0) {
-            let idx = window.INVENTORY.indexOf(pillItem);
-            if (idx !== -1) window.INVENTORY.splice(idx, 1);
-        }
-        window.globalData.currency.copper -= reqCopper;
+        window.showConfirmDialog(
+            '角色突破確認',
+            `確定要消耗 <span style="color:#e67e22;"><b>${reqPills}個突破丹</b></span> 及 <span style="color:#f1c40f;"><b>${reqCopper}銅幣</b></span> 進行 Lv.${lv} 突破嗎？`,
+            () => {
+                pillItem.count -= reqPills;
+                if (pillItem.count <= 0) {
+                    let idx = window.INVENTORY.indexOf(pillItem);
+                    if (idx !== -1) window.INVENTORY.splice(idx, 1);
+                }
+                window.globalData.currency.copper -= reqCopper;
 
-        char.breakthroughStage = targetStage;
-        saveGameData();
-        window.showToast(`🎉 突破成功！解鎖更高等級上限！`, '#2ecc71');
-        selectCharacter(char);
+                char.breakthroughStage = targetStage;
+                saveGameData();
+                window.showToast(`🎉 突破成功！解鎖更高等級上限！`, '#2ecc71');
+                selectCharacter(char);
+            }
+        );
     };
 
+    // 🌟 技能升級（加入「是／否」確認提示框）
     window.upgradeCharacterSkill = function(char, skillId) {
         if (!char.skillLevels) char.skillLevels = {};
         let currentLv = char.skillLevels[skillId] || 1;
@@ -260,18 +299,25 @@
             return;
         }
 
-        bookItem.count -= reqBookCount;
-        if (bookItem.count <= 0) window.INVENTORY.splice(window.INVENTORY.indexOf(bookItem), 1);
+        let bookName = reqBookId === 'item_skill_book_low' ? '初級秘籍' : (reqBookId === 'item_skill_book_mid' ? '中級秘籍' : '高級秘籍');
+        let msg = `提升技能等級需消耗 <span style="color:#3498db;"><b>${reqBookCount}本${bookName}</b></span>`;
+        if (needTianShu) msg += ` 及 <span style="color:#f1c40f;"><b>1本無字天書</b></span>`;
+        msg += `，是否確認升級？`;
 
-        if (needTianShu && tianShuItem) {
-            tianShuItem.count -= 1;
-            if (tianShuItem.count <= 0) window.INVENTORY.splice(window.INVENTORY.indexOf(tianShuItem), 1);
-        }
+        window.showConfirmDialog('技能升級確認', msg, () => {
+            bookItem.count -= reqBookCount;
+            if (bookItem.count <= 0) window.INVENTORY.splice(window.INVENTORY.indexOf(bookItem), 1);
 
-        char.skillLevels[skillId] = currentLv + 1;
-        saveGameData();
-        window.showToast(`✨ 技能成功升至 Lv.${char.skillLevels[skillId]}！`, '#2ecc71');
-        selectCharacter(char);
+            if (needTianShu && tianShuItem) {
+                tianShuItem.count -= 1;
+                if (tianShuItem.count <= 0) window.INVENTORY.splice(window.INVENTORY.indexOf(tianShuItem), 1);
+            }
+
+            char.skillLevels[skillId] = currentLv + 1;
+            saveGameData();
+            window.showToast(`✨ 技能成功升至 Lv.${char.skillLevels[skillId]}！`, '#2ecc71');
+            selectCharacter(char);
+        });
     };
 
     window.openCharacterUI = function() {
@@ -436,37 +482,45 @@
         let dynamicBox = document.getElementById('left-dynamic-content');
         if (!dynamicBox) return;
 
-        const fp = selectedChar.freePoints || 0;
-        const stats = getFinalStatsForUI(selectedChar);
-        const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
-        
-        let statsHtml = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-                <div style="color: #f1c40f; font-size: 12px; font-weight: bold;">剩余点数: ${fp}</div>
-                <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: bold;">重置意境</button>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-        `;
-        Object.keys(statNames).forEach(k => {
-            statsHtml += `
-                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 3px 6px; border-radius: 6px; border: 1px solid #333;">
-                    <div><span style="color: #888; font-size: 11px;">${statNames[k]}</span><b style="color: #fff; margin-left: 4px; font-size: 12px;">${stats[k] || 0}</b></div>
-                    <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 18px; height: 18px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 11px;">+</button>
+        // 🌟 核心修復：根據當前 Tab 正確切換左側顯示內容 (技能頁顯示屬性點，背包頁顯示裝備槽)
+        if (currentTab === 'skill') {
+            const fp = selectedChar.freePoints || 0;
+            const stats = getFinalStatsForUI(selectedChar);
+            const statNames = { fengRui: '锋锐', hunHou: '浑厚', lingDong: '灵动', jianRen: '坚韧', guiMi: '诡秘', jueQing: '绝情' };
+            
+            let statsHtml = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                    <div style="color: #f1c40f; font-size: 12px; font-weight: bold;">剩余点数: ${fp}</div>
+                    <button onclick="window.resetCharacterStats()" style="background: #c0392b; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: bold;">重置意境</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+            `;
+            Object.keys(statNames).forEach(k => {
+                statsHtml += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 3px 6px; border-radius: 6px; border: 1px solid #333;">
+                        <div><span style="color: #888; font-size: 11px;">${statNames[k]}</span><b style="color: #fff; margin-left: 4px; font-size: 12px;">${stats[k] || 0}</b></div>
+                        <button ${fp > 0 ? '' : 'disabled'} onclick="window.allocatePoint('${k}')" style="background: #2ecc71; color: #fff; border: none; border-radius: 4px; width: 18px; height: 18px; font-weight: bold; cursor: pointer; line-height: 1; font-size: 11px;">+</button>
+                    </div>
+                `;
+            });
+            statsHtml += `</div>`;
+
+            let coreFourHtml = `
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px;">
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.maxHp || 1000}</b></div>
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.atk || 100}</b></div>
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.def || 50}</b></div>
+                    <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 11px;">${(currentUnit.speed || 8).toFixed(1)}</b></div>
                 </div>
             `;
-        });
-        statsHtml += `</div>`;
-
-        let coreFourHtml = `
-            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 2px;">
-                <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">气血</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.maxHp || 1000}</b></div>
-                <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">攻击</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.atk || 100}</b></div>
-                <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">防御</span><b style="display: block; color: #e74c3c; font-size: 11px;">${currentUnit.def || 50}</b></div>
-                <div style="background: #1a1c29; padding: 4px; border-radius: 6px; border: 1px solid #333; text-align: center;"><span style="font-size:9px; color:#888;">速度</span><b style="display: block; color: #e74c3c; font-size: 11px;">${(currentUnit.speed || 8).toFixed(1)}</b></div>
-            </div>
-        `;
-
-        dynamicBox.innerHTML = statsHtml + coreFourHtml;
+            dynamicBox.innerHTML = statsHtml + coreFourHtml;
+        } else {
+            dynamicBox.innerHTML = `
+                <div style="color: #3498db; font-size: 14px; font-weight: bold; margin-bottom: 8px;">📦 角色裝備槽位</div>
+                <div id="ui-equip-slots" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"></div>
+            `;
+            renderEquipSlots();
+        }
 
         document.getElementById('detail-atk').innerHTML = `
             <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #2a2a35; padding-bottom: 5px;"><span style="color: #888;">暴击率</span> <b style="color: #fff;">${((currentUnit.critRate || 0.05) * 100).toFixed(1)}%</b></div>
@@ -513,6 +567,45 @@
             window.showToast('当前没有手动分配的意境点数', '#888');
         }
     };
+
+    function renderEquipSlots() {
+        const container = document.getElementById('ui-equip-slots');
+        if(!container) return;
+        container.innerHTML = '';
+        
+        const slots = [
+            { key: 'weapon', name: '武器' },
+            { key: 'head', name: '头部' },
+            { key: 'body', name: '衣服' },
+            { key: 'legs', name: '腿部' },
+            { key: 'ring', name: '戒指' },
+            { key: 'necklace', name: '项链' }
+        ];
+        const qColors = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+        const itemsDict = window.ITEMS || {};
+
+        slots.forEach(slot => {
+            const uid = selectedChar.equipment ? selectedChar.equipment[slot.key] : '';
+            const inst = uid ? (window.INVENTORY || []).find(i => i.uid === uid) : null;
+            const tpl = inst ? itemsDict[inst.itemId] : null;
+
+            const div = document.createElement('div');
+            div.className = 'equip-slot' + (inst ? '' : ' empty');
+            div.style.cssText = "height: 60px; background: #1a1c29; border: 2px solid #333; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; position: relative;";
+            
+            if (inst && tpl) {
+                div.innerHTML = `
+                    <div class="eq-icon" style="font-size: 22px;">${tpl.icon || '📦'}</div>
+                    <div class="eq-name" style="color:${qColors[inst.quality]}; font-size: 11px; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: absolute; bottom: 3px;">${tpl.name}</div>
+                `;
+                div.onclick = (e) => { e.stopPropagation(); window.showTooltip(inst, tpl, true); };
+                div.style.borderColor = qColors[inst.quality];
+            } else {
+                div.innerHTML = `<span style="font-size:12px; color:#777;">${slot.name}</span>`;
+            }
+            container.appendChild(div);
+        });
+    }
 
     function refreshRightPanel() {
         if (currentTab === 'inv') {
@@ -759,38 +852,45 @@
         tooltip.style.display = 'block';
     };
 
+    // 🌟 消耗品使用（加入「是／否」確認提示框）
     window.useItem = function(inst, itemTpl) {
-        let leveledUp = false;
-        
-        if (itemTpl.useEffect === 'AddExp') {
-            leveledUp = addCharacterExp(selectedChar, itemTpl.useValue || 0);
-            window.showToast(`获得 ${itemTpl.useValue} 点经验！`, '#3498db');
-        } 
-        else if (itemTpl.useEffect === 'AddStat') {
-            if (!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
-            const key = itemTpl.useStatKey;
-            if (key) {
-                selectedChar.stats[key] = (selectedChar.stats[key] || 0) + (itemTpl.useValue || 1);
-                const statName = {fengRui:'锋锐', hunHou:'浑厚', lingDong:'灵动', jianRen:'坚韧', guiMi:'诡秘', jueQing:'绝情'}[key] || key;
-                window.showToast(`${statName} 永久 +${itemTpl.useValue || 1}`, '#f1c40f');
+        window.showConfirmDialog(
+            '使用道具確認',
+            `確定要使用 <span style="color:#f1c40f;"><b>${itemTpl.name}</b></span> 嗎？`,
+            () => {
+                let leveledUp = false;
+                
+                if (itemTpl.useEffect === 'AddExp') {
+                    leveledUp = addCharacterExp(selectedChar, itemTpl.useValue || 0);
+                    window.showToast(`获得 ${itemTpl.useValue} 点经验！`, '#3498db');
+                } 
+                else if (itemTpl.useEffect === 'AddStat') {
+                    if (!selectedChar.stats) selectedChar.stats = { fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 };
+                    const key = itemTpl.useStatKey;
+                    if (key) {
+                        selectedChar.stats[key] = (selectedChar.stats[key] || 0) + (itemTpl.useValue || 1);
+                        const statName = {fengRui:'锋锐', hunHou:'浑厚', lingDong:'灵动', jianRen:'坚韧', guiMi:'诡秘', jueQing:'绝情'}[key] || key;
+                        window.showToast(`${statName} 永久 +${itemTpl.useValue || 1}`, '#f1c40f');
+                    }
+                }
+
+                const inv = window.INVENTORY || [];
+                if (inst.count && inst.count > 1) {
+                    inst.count -= 1;
+                } else {
+                    const idx = inv.findIndex(i => i.uid === inst.uid);
+                    if (idx !== -1) inv.splice(idx, 1);
+                }
+
+                saveGameData();
+                window.hideTooltip();
+                selectCharacter(selectedChar);
+                
+                if(leveledUp) {
+                    setTimeout(() => window.showToast(`LEVEL UP! 升级到 Lv.${selectedChar.level}，获得 3 点意境点！`, '#f1c40f'), 1000);
+                }
             }
-        }
-
-        const inv = window.INVENTORY || [];
-        if (inst.count && inst.count > 1) {
-            inst.count -= 1;
-        } else {
-            const idx = inv.findIndex(i => i.uid === inst.uid);
-            if (idx !== -1) inv.splice(idx, 1);
-        }
-
-        saveGameData();
-        window.hideTooltip();
-        selectCharacter(selectedChar);
-        
-        if(leveledUp) {
-            setTimeout(() => window.showToast(`LEVEL UP! 升级到 Lv.${selectedChar.level}，获得 3 点意境点！`, '#f1c40f'), 1000);
-        }
+        );
     };
 
     window.hideTooltip = function() {
