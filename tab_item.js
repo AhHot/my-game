@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：物品與裝備模板管理 (tab_item.js) - 完整功能版 (含最大堆疊與發送功能)
+// 模組：物品與裝備模板管理 (tab_item.js) - 完整分類 Tab 版
 // ==========================================
 
 window.renderTabItem = function(container) {
@@ -7,10 +7,23 @@ window.renderTabItem = function(container) {
     window.gameItems = [];
   }
 
+  // 記錄當前分類篩選狀態
+  if (window._currentItemTab === undefined) window._currentItemTab = 'all';
+
   container.innerHTML = `
     <div class="card">
       <h3 style="color:#f1c40f; margin-bottom:15px;">🎒 物品與裝備模板管理</h3>
       <p style="color:#aaa; font-size:12px; margin-bottom:15px;">在此管理所有道具、裝備、消耗品及突破/升級材料的屬性、最大堆疊數與發送測試。</p>
+      
+      <!-- 物品分類 Tab 列 -->
+      <div class="sub-tabs" style="display: flex; gap: 8px; margin-bottom: 15px;">
+        <div class="sub-tab ${window._currentItemTab === 'all' ? 'active' : ''}" onclick="window.switchItemTab('all')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'all' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">全部</div>
+        <div class="sub-tab ${window._currentItemTab === 'equip' ? 'active' : ''}" onclick="window.switchItemTab('equip')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'equip' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">裝備</div>
+        <div class="sub-tab ${window._currentItemTab === 'consumable' ? 'active' : ''}" onclick="window.switchItemTab('consumable')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'consumable' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">消耗品</div>
+        <div class="sub-tab ${window._currentItemTab === 'material' ? 'active' : ''}" onclick="window.switchItemTab('material')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'material' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">材料</div>
+        <div class="sub-tab ${window._currentItemTab === 'quest' ? 'active' : ''}" onclick="window.switchItemTab('quest')" style="flex:1; padding:8px; text-align:center; background:${window._currentItemTab === 'quest' ? '#e74c3c' : '#0f3460'}; border-radius:4px; cursor:pointer; font-size:13px; font-weight:bold;">任務</div>
+      </div>
+
       <div id="item-editor-list"></div>
       <button class="btn" style="background:#3498db; width:100%; margin-top:15px;" onclick="window.addNewItemTemplate()">➕ 新增物品模板</button>
     </div>
@@ -20,12 +33,27 @@ window.renderTabItem = function(container) {
   renderItemList();
 };
 
+window.switchItemTab = function(tab) {
+  window._currentItemTab = tab;
+  const container = document.getElementById('app-content');
+  if (container && window.renderTabItem) window.renderTabItem(container);
+};
+
 function renderItemList() {
   const list = document.getElementById('item-editor-list');
   if (!list) return;
   list.innerHTML = '';
 
-  window.gameItems.forEach((item, index) => {
+  let filteredItems = window.gameItems.filter(item => {
+    let tab = window._currentItemTab || 'all';
+    if (tab === 'all') return true;
+    if (tab === 'equip') return ['weapon', 'armor', 'accessory'].includes(item.category);
+    return item.category === tab;
+  });
+
+  filteredItems.forEach((item) => {
+    // 找出該物品在全局 gameItems 中的真實索引
+    const index = window.gameItems.findIndex(i => i.id === item.id);
     let isEquip = ['weapon', 'armor', 'accessory'].includes(item.category);
     let isConsumable = item.category === 'consumable';
 
