@@ -1094,7 +1094,9 @@
     function saveGameData() {
         const chars = window.CHARACTERS || window.gameChars || [];
         const inv = window.INVENTORY || [];
-
+        if (window.globalData) {
+        localStorage.setItem('my_game_config', JSON.stringify(window.globalData));
+    }
         localStorage.setItem('my_game_characters', JSON.stringify(chars));
         localStorage.setItem('my_game_inventory_sync', JSON.stringify(inv));
 
