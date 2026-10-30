@@ -90,6 +90,7 @@
     <div class="tab" data-tab="main_ui" onclick="switchTab('main_ui')">🖼️ 主頁UI</div>
     <div class="tab" data-tab="ui_editor" onclick="switchTab('ui_editor')">🎨 劇本UI佈局</div>
     <div class="tab" data-tab="chapter_map" onclick="switchTab('chapter_map')">🎨 章節UI佈局</div>
+    <div class="tab" data-tab="idle" onclick="switchTab('idle')">⏳ 挂机产出</div>
   </div>
 
   <div id="app-content"></div>
@@ -112,6 +113,8 @@
   <script src="tab_main_ui.js"></script>
   <script src="tab_ui_editor.js"></script>
   <script src="tab_chapter_map.js"></script>
+  <script src="idle_system.js"></script>
+  <script src="tab_idle.js"></script>
 
   <script>
     let currentTab = 'char';
@@ -137,6 +140,7 @@
       else if (tab === 'main_ui' && window.renderTabMainUI) window.renderTabMainUI(container);
       else if (tab === 'ui_editor' && window.renderTabUIEditor) window.renderTabUIEditor(container);
       else if (tab === 'chapter_map' && window.renderTabChapterMap) window.renderTabChapterMap(container);
+      else if (tab === 'idle' && window.renderTabIdle) window.renderTabIdle(container);
     }
 
     window.exportGameData = function() {
