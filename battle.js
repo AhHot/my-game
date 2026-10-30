@@ -50,9 +50,15 @@ if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse
 
 try {
   const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
-  window.DROP_RATES = gc.dropRates; window.GLOBAL_AFFIX_POOLS = gc.affixPools; window.GLOBAL_AFFIX_VALUES = gc.affixValues;
-  window.EXP_TABLE = gc.expTable || []; window.GROWTH_MODELS = gc.growthModels || []; window.ART_CONFIG = gc.artConfig || {}; 
-} catch(e) { window.ART_CONFIG = {}; }
+  window.DROP_RATES = gc.dropRates; 
+  window.GLOBAL_AFFIX_POOLS = gc.affixPools; 
+  window.GLOBAL_AFFIX_VALUES = gc.affixValues;
+  window.EXP_TABLE = gc.expTable || []; 
+  window.GROWTH_MODELS = gc.growthModels || []; 
+  window.ART_CONFIG = gc.artConfig || {}; 
+} catch(e) { 
+  window.ART_CONFIG = {}; 
+}
 
 // ============================================================
 // ★ 技能等級成長曲線（維持不變）
@@ -518,13 +524,20 @@ function generateRandomInstance(templateId) {
   const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
-  let pool = t.category === 'armor' ? [...(window.GLOBAL_AFFIX_POOLS?.armor||[])] : (t.category === 'weapon' ? [...(window.GLOBAL_AFFIX_POOLS?.weapon||[])] : [...(window.GLOBAL_AFFIX_POOLS?.accessory||[])]);
+  
+  // 修復: 替換 ?. 語法
+  let armorPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.armor) || [];
+  let weaponPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.weapon) || [];
+  let accPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.accessory) || [];
+  let pool = t.category === 'armor' ? [...armorPool] : (t.category === 'weapon' ? [...weaponPool] : [...accPool]);
+  
   const extras = []; const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
   for (let i = 0; i < n; i++) {
     if(pool.length === 0) break;
     const idx = Math.floor(Math.random() * pool.length);
     const stat = pool.splice(idx, 1)[0];
-    const cfg = window.GLOBAL_AFFIX_VALUES?.[stat] || { min: 0, max: 0 };
+    // 修復: 替換 ?. 語法
+    const cfg = (window.GLOBAL_AFFIX_VALUES && window.GLOBAL_AFFIX_VALUES[stat]) || { min: 0, max: 0 };
     let val = cfg.max >= cfg.min ? Math.random() * (cfg.max - cfg.min) + cfg.min : cfg.min;
     if (intTypes.includes(stat)) val = Math.round(val); else val = Math.round((val / 100) * 100) / 100;
     extras.push({ stat, value: val });
@@ -673,8 +686,9 @@ class BattleScene extends Phaser.Scene {
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   preload() {
-    const art = window.ART_CONFIG || {};
-    if (art.boardBg && art.boardBg.url) this.load.image('art_boardBg', art.boardBg.url);
+    // 修復: 替換 ?. 語法
+    const art = (window.ART_CONFIG && window.ART_CONFIG.boardBg) || {};
+    if (art && art.url) this.load.image('art_boardBg', art.url);
   }
   create() {
     this.allUnits = []; this.unitViews = new Map(); this.drawBattlefield();
@@ -703,14 +717,15 @@ class BattleScene extends Phaser.Scene {
 
   drawBattlefield() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
-    const art = window.ART_CONFIG?.boardBg;
+    // 修復: 替換 ?. 語法
+    const art = (window.ART_CONFIG && window.ART_CONFIG.boardBg);
     if (this.textures.exists('art_boardBg')) {
       const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.4);
       const iw = bgImg.width, ih = bgImg.height;
       const boxW = CONFIG.WIDTH, boxH = CONFIG.HEIGHT;
-      const drawW = boxW * (art.scale || 1); const drawH = drawW * (ih / iw);
+      const drawW = boxW * ((art && art.scale) || 1); const drawH = drawW * (ih / iw);
       bgImg.setDisplaySize(drawW, drawH);
-      let offsetX = (boxW - drawW) * ((art.posX ?? 50) / 100); let offsetY = (boxH - drawH) * ((art.posY ?? 50) / 100);
+      let offsetX = (boxW - drawW) * (((art && art.posX) ?? 50) / 100); let offsetY = (boxH - drawH) * (((art && art.posY) ?? 50) / 100);
       bgImg.setPosition(offsetX, offsetY);
     }
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
@@ -755,7 +770,7 @@ class BattleScene extends Phaser.Scene {
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
     
-    const bw = Math.min(cell * scale * 0.85, 100); 
+    const bw = Math.max(40, Math.min(cell * scale * 0.85, 100)); 
     const hpBg = this.add.rectangle(-bw/2, r + 32, bw + 4, 10, 0x000000, 0.8).setOrigin(0, 0.5).setStrokeStyle(1, 0x555555);
     const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, 0xFF4444).setOrigin(0, 0.5);
     hpBar.maxWidth = bw;
@@ -792,7 +807,17 @@ class BattleScene extends Phaser.Scene {
 
   execute(actor) {
     if (this.battleEnded) return;
-    if (actor.skipTurn) { actor.skipTurn = false; const i = actor.statuses.findIndex(s => STATUSES[s.id]?.isStun); if (i !== -1) actor.statuses.splice(i, 1); this.updateUnitView(actor); this.addLog(`${actor.name} 眩晕跳过`, '#f1c40f'); const c = this.unitViews.get(actor).container; this.tweens.add({ targets: c, angle: 10, yoyo: true, repeat: 3, duration: 100 }); return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction()); }
+    if (actor.skipTurn) { 
+      actor.skipTurn = false; 
+      // 修復: 替換 ?. 語法
+      const i = actor.statuses.findIndex(s => STATUSES[s.id] && STATUSES[s.id].isStun); 
+      if (i !== -1) actor.statuses.splice(i, 1); 
+      this.updateUnitView(actor); 
+      this.addLog(`${actor.name} 眩晕跳过`, '#f1c40f'); 
+      const c = this.unitViews.get(actor).container; 
+      this.tweens.add({ targets: c, angle: 10, yoyo: true, repeat: 3, duration: 100 }); 
+      return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction()); 
+    }
     const sk = BattleLogic.chooseSkill(actor, this.allUnits);
     if (!sk) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     const targets = BattleLogic.selectTargets(actor, sk, this.allUnits);
@@ -832,7 +857,12 @@ class BattleScene extends Phaser.Scene {
           else { let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u.side !== actor.side && u.isAlive()) : eff.targetSide === 'player' ? this.allUnits.filter(u => u.side === actor.side && u.isAlive()) : [actor]; if (eff.targetRule === 'all') et = pool; else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); } else et = [pool[0]]; }
           et.forEach(t => {
             if (!t || !t.isAlive()) return;
-            if (eff.type === 'status') { t.addStatus(eff.value); this.showFloat(t, `+${STATUSES[eff.value]?.name || ''}`, '#0ff'); this.updateUnitView(t); }
+            if (eff.type === 'status') { 
+              t.addStatus(eff.value); 
+              // 修復: 替換 ?. 語法
+              this.showFloat(t, `+${(STATUSES[eff.value] && STATUSES[eff.value].name) || ''}`, '#0ff'); 
+              this.updateUnitView(t); 
+            }
             else if (eff.type === 'heal_pct') { const h = Math.round(actor.atk * eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
             else if (eff.type === 'heal_flat') { const h = Math.round(eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
             else if (eff.type === 'shield_pct') { const s = Math.round(actor.atk * eff.value); t.addShield(s); this.showFloat(t, `盾+${s}`, '#ddd'); this.updateUnitView(t); }
@@ -899,16 +929,22 @@ class BattleScene extends Phaser.Scene {
     v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
-    v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => STATUSES[s.id]?.name.substring(0,1) || '?').join('')}]` : '');
+    // 修復: 替換 ?. 語法
+    v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => (STATUSES[s.id] && STATUSES[s.id].name) ? STATUSES[s.id].name.substring(0,1) : '?').join('')}]` : '');
     if (!u.isAlive()) { v.container.setAlpha(0.25); }
   }
 
   fastForward() {
+    // 修復: 防止重複啟動場景
+    if (this._ffEnded) return;
+    
     for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+        this._ffEnded = true;
         this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
       }
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+        this._ffEnded = true;
         this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
       }
 
@@ -918,10 +954,13 @@ class BattleScene extends Phaser.Scene {
         u.tickStatuses();
       });
 
+      // 修復: 補上 DOT 致死檢查
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+        this._ffEnded = true;
         this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
       }
       if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+        this._ffEnded = true;
         this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
       }
 
@@ -931,7 +970,8 @@ class BattleScene extends Phaser.Scene {
         this.allUnits.forEach(u => u.applyAura(this.allUnits));
         if (a.skipTurn) {
           a.skipTurn = false;
-          const i = a.statuses.findIndex(s => STATUSES[s.id]?.isStun);
+          // 修復: 替換 ?. 語法
+          const i = a.statuses.findIndex(s => STATUSES[s.id] && STATUSES[s.id].isStun);
           if (i !== -1) a.statuses.splice(i, 1);
           continue;
         }
@@ -940,13 +980,16 @@ class BattleScene extends Phaser.Scene {
         BattleLogic.simulateSkill(a, sk, this.allUnits);
 
         if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+          this._ffEnded = true;
           this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
         }
         if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+          this._ffEnded = true;
           this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
         }
       }
     }
+    this._ffEnded = true;
     this.scene.start('ResultScene', { type: 'timeout', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex });
   }
 
@@ -975,10 +1018,17 @@ class ResultScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
-     if (this.resultType === 'victory' && window.IdleSystem && window.IdleSystem.onStageCleared) {
-        window.IdleSystem.onStageCleared(this.currentLevelIndex);
 
     if (this.resultType === 'victory') {
+      // ★ 新增：通知掛機系統關卡已通關
+      if (window.IdleSystem && typeof window.IdleSystem.onStageCleared === 'function') {
+          try {
+              window.IdleSystem.onStageCleared(this.currentLevelIndex);
+          } catch (e) {
+              console.warn('IdleSystem.onStageCleared 呼叫失敗:', e);
+          }
+      }
+
       const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
       if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
       if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
