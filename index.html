@@ -204,8 +204,7 @@
                  if (cardEl) {
             if (mainConfig.stageCard.bgUrl && mainConfig.stageCard.bgUrl.trim() !== '') {
                 let url = encodeURI(mainConfig.stageCard.bgUrl.trim());
-                // 加上深色漸層遮罩，確保文字清晰度
-                cardEl.style.background = `linear-gradient(to bottom, rgba(15, 15, 26, 0.6), rgba(15, 15, 26, 0.95)), url('${url}') center/cover`;
+               
             } else {
                 // 若清空則恢復預設深藍色底
                 cardEl.style.background = 'rgba(22, 33, 62, 0.85)';
