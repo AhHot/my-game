@@ -975,6 +975,8 @@ class ResultScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#1a1a2e');
     const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+     if (this.resultType === 'victory' && window.IdleSystem && window.IdleSystem.onStageCleared) {
+        window.IdleSystem.onStageCleared(this.currentLevelIndex);
 
     if (this.resultType === 'victory') {
       const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
