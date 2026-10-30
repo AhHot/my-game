@@ -209,6 +209,9 @@
 
   function initUI() {
     if (document.getElementById('idle-panel')) return;
+     if (!document.getElementById('game-scale-container')) {
+        return; 
+    }
     const parent = document.getElementById('game-scale-container') || document.body;
 
     const panel = document.createElement('div');
