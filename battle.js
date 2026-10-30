@@ -225,7 +225,15 @@ class Unit {
     if (ex) ex.duration = STATUSES[id].duration; else this.statuses.push({ id, duration: STATUSES[id].duration });
   }
 }
-
+// ★ 核心修復：補上缺失的屬性克制計算函數
+function getElementMultiplier(atkElement, defElement) {
+    if (!window.globalData || !window.globalData.elementMatrix) return 1.0;
+    const matrix = window.globalData.elementMatrix;
+    if (matrix[atkElement] && matrix[atkElement][defElement] !== undefined) {
+        return matrix[atkElement][defElement];
+    }
+    return 1.0;
+}
 const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
     let pool = [];
