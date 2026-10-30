@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：放置型掛機資源系統 (idle_system.js)
+// 模組：放置型掛機資源系統 (idle_system.js) - 計時與浮窗版
 // 完全獨立，只透過 window.IdleSystem.* 對外
 // ============================================================
 (function () {
@@ -124,7 +124,7 @@
         if (typeof window.generateRandomInstance === 'function') inst = window.generateRandomInstance(tplId);
       } catch (e) { inst = null; }
       if (!inst) {
-        if (!getItemTpl(tplId)) continue; // 找不到模板就跳過
+        if (!getItemTpl(tplId)) continue;
         inst = {
           uid: 'inst_' + Date.now() + Math.floor(Math.random() * 1e4) + '_' + i,
           itemId: tplId, quality: 'white', baseAtk: 0, baseDef: 0, baseHp: 0,
@@ -142,6 +142,11 @@
     const data = getData();
     const now = Date.now();
     const pending = calcPending(cfg, data, now);
+
+    // ★ 新增：不足 15 分鐘 (0.25小時) 無法領取
+    if (pending.hours < 0.25) {
+      return { ok: false, msg: '累計少於15分鐘無法領取' };
+    }
 
     const grants = {
       copper:           Math.floor(pending.copper),
@@ -168,7 +173,7 @@
     if (grants.breakthroughPill > 0) grantItem(cfg.itemMappings.breakthroughPill, grants.breakthroughPill);
     if (grants.equipment > 0)        grantEquipment(grants.equipment, cfg.equipmentPool);
 
-    // 通知其他系統刷新（角色背包打開時會用到）
+    // 通知其他系統刷新
     if (window.IdleSystem && window.IdleSystem.onReward) window.IdleSystem.onReward(grants);
 
     return { ok: true, grants };
@@ -209,10 +214,48 @@
 
   function initUI() {
     if (document.getElementById('idle-panel')) return;
-     if (!document.getElementById('game-scale-container')) {
-        return; 
-    }
+
+    // ★ 檢查當前頁面是否有主畫面的容器，沒有則不顯示
+    if (!document.getElementById('game-scale-container')) return; 
+
     const parent = document.getElementById('game-scale-container') || document.body;
+
+    // ★ 插入浮窗的 CSS
+    if (!document.getElementById('idle-system-styles')) {
+      let style = document.createElement('style');
+      style.id = 'idle-system-styles';
+      style.innerHTML = `
+        #idle-tooltip {
+          position: fixed;
+          display: none;
+          background: rgba(22, 33, 62, 0.85);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255,255,255,0.25);
+          border-radius: 8px;
+          padding: 12px 16px;
+          color: #fff;
+          font-size: 14px;
+          z-index: 9999;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+          pointer-events: none;
+          line-height: 1.8;
+          font-family: "Microsoft YaHei", sans-serif;
+          white-space: nowrap;
+        }
+        #idle-panel .idle-title {
+          cursor: pointer;
+          color: #f1c40f;
+          font-size: 16px;
+          font-weight: bold;
+          transition: color 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        #idle-panel .idle-title:hover { color: #f39c12; }
+      `;
+      document.head.appendChild(style);
+    }
 
     const panel = document.createElement('div');
     panel.id = 'idle-panel';
@@ -234,8 +277,8 @@
     `;
     panel.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:8px;">
-        <div style="font-size:16px; font-weight:bold; color:#f1c40f;">⏳ 江湖歷練</div>
-        <div id="idle-progress-tag" style="font-size:11px; color:#aaa; background:#1a1c29; padding:2px 8px; border-radius:10px;">已歷練 0h</div>
+        <div class="idle-title" id="idle-title-btn" title="點擊查看每小時產出">⏳ 江湖歷練</div>
+        <div id="idle-progress-tag" style="font-size:13px; color:#2ecc71; background:rgba(46,204,113,0.15); padding:2px 8px; border-radius:10px; font-family: monospace; font-weight: bold;">00:00:00</div>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:13px; margin-bottom:12px;">
         <div style="display:flex; align-items:center; gap:6px;"><span>🪙</span><span id="idle-copper" style="color:#f1c40f; font-weight:bold;">0</span></div>
@@ -249,6 +292,48 @@
       </button>
     `;
     parent.appendChild(panel);
+
+    // 添加浮窗元素
+    if (!document.getElementById('idle-tooltip')) {
+      const tooltip = document.createElement('div');
+      tooltip.id = 'idle-tooltip';
+      document.body.appendChild(tooltip); // 添加到 body 擺脫縮放影響
+    }
+
+    // 綁定浮窗點擊事件
+    const titleBtn = panel.querySelector('#idle-title-btn');
+    const tooltip = document.getElementById('idle-tooltip');
+    
+    titleBtn.onclick = function(e) {
+      e.stopPropagation(); // 阻止冒泡
+      const cfg = getConfig();
+      const data = getData();
+      const rates = calcRates(cfg, data);
+
+      tooltip.innerHTML = `
+        <div style="color:#f1c40f; font-weight:bold; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:4px;">📊 每小時產出總量</div>
+        <div>🪙 銅幣：<span style="color:#f1c40f;">${rates.copper.toFixed(1)}</span></div>
+        <div>💊 經驗丹：<span style="color:#3498db;">${rates.expPill.toFixed(2)}</span></div>
+        <div>🧪 突破丹：<span style="color:#2ecc71;">${rates.breakthroughPill.toFixed(2)}</span></div>
+        <div>⚔️ 裝備：<span style="color:#e67e22;">${rates.equipment.toFixed(2)}</span></div>
+      `;
+
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX + 15) + 'px';
+      tooltip.style.top = (e.clientY + 15) + 'px';
+      
+      // 防超出螢幕邊界
+      const rect = tooltip.getBoundingClientRect();
+      if (rect.right > window.innerWidth) tooltip.style.left = (e.clientX - rect.width - 15) + 'px';
+      if (rect.bottom > window.innerHeight) tooltip.style.top = (e.clientY - rect.height - 15) + 'px';
+    };
+
+    // 點擊其他地方關閉浮窗
+    document.addEventListener('click', function() {
+      if (tooltip && tooltip.style.display === 'block') {
+        tooltip.style.display = 'none';
+      }
+    });
 
     panel.querySelector('#idle-collect-btn').onclick = () => {
       const res = collect();
@@ -274,19 +359,24 @@
     const data = getData();
     const pending = calcPending(cfg, data);
 
+    // 將小時轉換為 HH:MM:SS
+    const totalSeconds = Math.floor(pending.hours * 3600);
+    const hh = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+    const mm = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+    const ss = (totalSeconds % 60).toString().padStart(2, '0');
+
     const set = (id, v) => { const el = panel.querySelector('#' + id); if (el) el.innerText = v; };
-    set('idle-progress-tag', `已歷練 ${pending.hours.toFixed(1)}h`);
+    set('idle-progress-tag', `${hh}:${mm}:${ss}`);
     set('idle-copper',           Math.floor(pending.copper).toLocaleString());
     set('idle-expPill',          Math.floor(pending.expPill).toString());
     set('idle-breakthroughPill', Math.floor(pending.breakthroughPill).toString());
     set('idle-equipment',        Math.floor(pending.equipment).toString());
 
     const btn = panel.querySelector('#idle-collect-btn');
-    const has = Math.floor(pending.copper) + Math.floor(pending.expPill)
-              + Math.floor(pending.breakthroughPill) + Math.floor(pending.equipment) > 0;
-    btn.disabled = !has;
-    btn.style.opacity = has ? '1' : '0.5';
-    btn.style.cursor  = has ? 'pointer' : 'not-allowed';
+    // 確保按鈕永遠是可點擊狀態，讓玩家自己點擊看提示
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor  = 'pointer';
   }
 
   // ---------------- 對外 API ----------------
@@ -299,7 +389,7 @@
     DEFAULT_CONFIG
   };
 
-  // 自動初始化（頁面載入時就掛上面板）
+  // 自動初始化
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initUI);
   } else {
