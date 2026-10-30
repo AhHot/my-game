@@ -1,6 +1,5 @@
 // ============================================================
-// 模組：放置型掛機資源系統 (idle_system.js) - 計時與浮窗版
-// 完全獨立，只透過 window.IdleSystem.* 對外
+// 模組：放置型掛機資源系統 (idle_system.js) - 計時修復與提示優化版
 // ============================================================
 (function () {
   'use strict';
@@ -16,7 +15,7 @@
     equipmentPool: ['item_sword']
   };
 
-  // ---------------- 讀寫 ----------------
+  // ---------------- 讀寫 (★ 修復：確保有初始資料) ----------------
   function getConfig() {
     let c = {};
     try { c = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}'); } catch (e) { c = {}; }
@@ -33,11 +32,28 @@
   function saveConfig(cfg) { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)); }
 
   function getData() {
-    let d = {};
-    try { d = JSON.parse(localStorage.getItem(DATA_KEY) || '{}'); } catch (e) { d = {}; }
+    let d = null;
+    try {
+        const str = localStorage.getItem(DATA_KEY);
+        if (str) d = JSON.parse(str);
+    } catch (e) { d = null; }
+    
+    // ★ 修復：如果沒有存檔或存檔損壞，強制初始化並寫入，確保時間能開始走
+    if (!d || typeof d !== 'object') {
+        d = {
+            lastCollectTime: Date.now(),
+            clearedCount: 0,
+            pendingFractions: {}
+        };
+        saveData(d);
+    } else if (typeof d.lastCollectTime !== 'number') {
+        d.lastCollectTime = Date.now();
+        saveData(d);
+    }
+    
     return {
-      lastCollectTime: typeof d.lastCollectTime === 'number' ? d.lastCollectTime : Date.now(),
-      clearedCount:    typeof d.clearedCount    === 'number' ? d.clearedCount    : 0,
+      lastCollectTime: d.lastCollectTime,
+      clearedCount: typeof d.clearedCount === 'number' ? d.clearedCount : 0,
       pendingFractions: d.pendingFractions || {}
     };
   }
@@ -143,7 +159,7 @@
     const now = Date.now();
     const pending = calcPending(cfg, data, now);
 
-    // ★ 新增：不足 15 分鐘 (0.25小時) 無法領取
+    // 不足 15 分鐘 (0.25小時) 無法領取
     if (pending.hours < 0.25) {
       return { ok: false, msg: '累計少於15分鐘無法領取' };
     }
@@ -194,33 +210,28 @@
   // ---------------- UI ----------------
   let _refreshTimer = null;
 
-  function toast(msg, color) {
-    if (typeof window.showToast === 'function' && window.showToast !== toast) {
-      window.showToast(msg, color);
-      return;
-    }
-    let t = document.getElementById('global-toast');
+  // ★ 自定義全螢幕提示 (防止被其他 UI 遮擋且支援換行)
+  function toast(msg, color, duration = 3000) {
+    let t = document.getElementById('idle-toast');
     if (!t) {
       t = document.createElement('div');
-      t.id = 'global-toast';
-      t.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);padding:15px 30px;border-radius:10px;font-size:20px;font-weight:bold;z-index:99999;color:#fff;display:none;';
+      t.id = 'idle-toast';
+      t.style.cssText = 'position:fixed;top:20%;left:50%;transform:translateX(-50%);padding:15px 30px;border-radius:10px;font-size:22px;font-weight:bold;z-index:9999999;color:#fff;display:none;text-align:center;line-height:1.6;white-space:pre-line;box-shadow:0 10px 30px rgba(0,0,0,0.6);';
       document.body.appendChild(t);
     }
     t.innerText = msg;
     t.style.background = color || '#2ecc71';
     t.style.display = 'block';
-    setTimeout(() => t.style.display = 'none', 2000);
+    if (t._timeout) clearTimeout(t._timeout);
+    t._timeout = setTimeout(() => t.style.display = 'none', duration);
   }
 
   function initUI() {
     if (document.getElementById('idle-panel')) return;
-
-    // ★ 檢查當前頁面是否有主畫面的容器，沒有則不顯示
     if (!document.getElementById('game-scale-container')) return; 
 
     const parent = document.getElementById('game-scale-container') || document.body;
 
-    // ★ 插入浮窗的 CSS
     if (!document.getElementById('idle-system-styles')) {
       let style = document.createElement('style');
       style.id = 'idle-system-styles';
@@ -293,19 +304,17 @@
     `;
     parent.appendChild(panel);
 
-    // 添加浮窗元素
     if (!document.getElementById('idle-tooltip')) {
       const tooltip = document.createElement('div');
       tooltip.id = 'idle-tooltip';
-      document.body.appendChild(tooltip); // 添加到 body 擺脫縮放影響
+      document.body.appendChild(tooltip);
     }
 
-    // 綁定浮窗點擊事件
     const titleBtn = panel.querySelector('#idle-title-btn');
     const tooltip = document.getElementById('idle-tooltip');
     
     titleBtn.onclick = function(e) {
-      e.stopPropagation(); // 阻止冒泡
+      e.stopPropagation();
       const cfg = getConfig();
       const data = getData();
       const rates = calcRates(cfg, data);
@@ -322,28 +331,28 @@
       tooltip.style.left = (e.clientX + 15) + 'px';
       tooltip.style.top = (e.clientY + 15) + 'px';
       
-      // 防超出螢幕邊界
       const rect = tooltip.getBoundingClientRect();
       if (rect.right > window.innerWidth) tooltip.style.left = (e.clientX - rect.width - 15) + 'px';
       if (rect.bottom > window.innerHeight) tooltip.style.top = (e.clientY - rect.height - 15) + 'px';
     };
 
-    // 點擊其他地方關閉浮窗
     document.addEventListener('click', function() {
       if (tooltip && tooltip.style.display === 'block') {
         tooltip.style.display = 'none';
       }
     });
 
+    // ★ 優化領取成功的反饋
     panel.querySelector('#idle-collect-btn').onclick = () => {
       const res = collect();
       if (!res.ok) { toast(res.msg, '#e67e22'); return; }
       const g = res.grants, parts = [];
-      if (g.copper)           parts.push(`銅幣+${g.copper}`);
-      if (g.expPill)          parts.push(`經驗丹+${g.expPill}`);
-      if (g.breakthroughPill) parts.push(`突破丹+${g.breakthroughPill}`);
-      if (g.equipment)        parts.push(`裝備+${g.equipment}`);
-      toast(`✅ 收穫：${parts.join('，')}`, '#2ecc71');
+      if (g.copper)           parts.push(`🪙 銅幣 +${g.copper}`);
+      if (g.expPill)          parts.push(`💊 經驗丹 +${g.expPill}`);
+      if (g.breakthroughPill) parts.push(`🧪 突破丹 +${g.breakthroughPill}`);
+      if (g.equipment)        parts.push(`⚔️ 裝備 +${g.equipment}`);
+      
+      toast(`✅ 領取成功！\n\n${parts.join('\n')}`, '#2ecc71', 3000);
       refreshUI();
     };
 
@@ -359,7 +368,6 @@
     const data = getData();
     const pending = calcPending(cfg, data);
 
-    // 將小時轉換為 HH:MM:SS
     const totalSeconds = Math.floor(pending.hours * 3600);
     const hh = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
     const mm = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
@@ -373,7 +381,6 @@
     set('idle-equipment',        Math.floor(pending.equipment).toString());
 
     const btn = panel.querySelector('#idle-collect-btn');
-    // 確保按鈕永遠是可點擊狀態，讓玩家自己點擊看提示
     btn.disabled = false;
     btn.style.opacity = '1';
     btn.style.cursor  = 'pointer';
@@ -389,7 +396,6 @@
     DEFAULT_CONFIG
   };
 
-  // 自動初始化
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initUI);
   } else {
