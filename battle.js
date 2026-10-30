@@ -2,6 +2,8 @@ if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
 if (typeof LEVELS === 'undefined') { window.LEVELS = []; }
 if (typeof INVENTORY === 'undefined') { window.INVENTORY = []; }
+if (typeof SKILLS === 'undefined') { window.SKILLS = {}; }
+if (typeof CHARACTERS === 'undefined') { window.CHARACTERS = []; }
 
 // ★ 核心修復：防止資料損壞導致的黑屏
 (function initData() {
