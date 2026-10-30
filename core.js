@@ -243,6 +243,7 @@ function loadAllData() {
   gameSkills.forEach(sk => { window.SKILLS[sk.id] = sk; });
   window.STATUSES = {};
   gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
+  window.LEVELS = gameLevels;
 
   saveData(); 
 }
@@ -280,6 +281,7 @@ function saveData() {
   gameSkills.forEach(sk => { window.SKILLS[sk.id] = sk; });
   window.STATUSES = {};
   gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
+  window.LEVELS = gameLevels;
 }
 
 function getElementOptions(selectedId) {
