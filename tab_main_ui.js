@@ -1,16 +1,19 @@
-// tab_main_ui.js - 主畫面 UI 配置模組 (支援動態新增/刪除/編輯左側按鈕)
+// tab_main_ui.js - 主畫面 UI 配置模組 (支援卡片背景圖編輯)
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {};
 
-  // 確保結構完整，預設將左側劇本按鈕改為「坊市入口」避免重複
+  // 確保結構完整
   if (!mainConfig.bgList) {
     mainConfig.bgList = [
       { id: 'bg_01', name: '破廟夜色', url: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop', unlocked: true }
     ];
   }
   if (!mainConfig.stageCard) {
-    mainConfig.stageCard = { tag: '當前江湖主線', title: '第一章：青城山變', desc: '探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。' };
+    mainConfig.stageCard = { tag: '當前江湖主線', title: '第一章：青城山變', desc: '探索江湖風雲，解鎖沉浸式武俠劇本與策略戰棋關卡。', bgUrl: '' };
+  } else if (mainConfig.stageCard.bgUrl === undefined) {
+    mainConfig.stageCard.bgUrl = ''; // 兼容舊存檔
   }
+  
   if (!mainConfig.buttons || Object.keys(mainConfig.buttons).length === 0) {
     mainConfig.buttons = {
       character: { title: '角色與背包', icon: '👥', active: true, action: 'character' },
@@ -18,7 +21,6 @@ window.renderTabMainUI = function(container) {
       settings: { title: '系統設置', icon: '⚙️', active: true, action: 'settings' }
     };
   } else {
-    // 若已有舊設定，自動把劇本動作換成坊市入口或確保坊市存在
     if (mainConfig.buttons.story) {
       mainConfig.buttons.shop = { title: '坊市入口', icon: '🛒', active: true, action: 'shop' };
       delete mainConfig.buttons.story;
@@ -38,7 +40,7 @@ window.renderTabMainUI = function(container) {
       </p>
 
       <!-- 背景圖管理區 -->
-      <div class="sub-title" style="margin-top:10px;">🏞️ 可解鎖背景圖庫管理</div>
+      <div class="sub-title" style="margin-top:10px;">🏞️ 可解鎖背景圖庫管理 (全螢幕背景)</div>
       <div id="bg-list-editor" style="display:flex; flex-direction:column; gap:10px; margin-top:8px;"></div>
       <button class="btn" style="background:#3498db; margin-top:10px; font-size:12px;" onclick="addBgImage()">➕ 新增解鎖背景圖</button>
 
@@ -61,6 +63,13 @@ window.renderTabMainUI = function(container) {
           <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">說明文字 (Description)</label>
           <textarea id="stage-card-desc" rows="2" style="background:#16213e; color:#aaa; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px; resize:vertical;" oninput="updateStageCardField('desc', this.value)">${mainConfig.stageCard.desc || ''}</textarea>
         </div>
+        
+        <!-- ★ 新增：卡片專屬背景圖 URL -->
+        <div style="margin-top: 5px; padding-top: 8px; border-top: 1px dashed #333;">
+          <label style="font-size:11px; color:#e67e22; font-weight:bold; display:block; margin-bottom:2px;">卡片背景圖片 URL (選填)</label>
+          <input type="text" id="stage-card-bg" value="${mainConfig.stageCard.bgUrl || ''}" placeholder="留空則使用預設深色底。建議填入 assets/ 路徑" style="background:#16213e; color:#e67e22; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px;" oninput="updateStageCardField('bgUrl', this.value)">
+        </div>
+
       </div>
 
       <hr style="border:none; border-top:1px solid #333; margin:20px 0;">
