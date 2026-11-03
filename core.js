@@ -217,7 +217,7 @@ function loadAllData() {
     }
   });
 
-  gameChars.forEach(c => {
+   gameChars.forEach(c => {
     if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
     if (!c.skillLevels) c.skillLevels = {};
@@ -226,6 +226,22 @@ function loadAllData() {
     if (c.freePoints === undefined) c.freePoints = 0;
     if (!c.growthModel) c.growthModel = 'm1';
     if (c.breakthroughStage === undefined) c.breakthroughStage = 0;
+
+    // ★ 核心迁移：把旧版本的 normal / skill 等自动转换为 slot1~5
+    if (c.skillSlots && (c.skillSlots.normal !== undefined || c.skillSlots.slot1 === undefined)) {
+        const old = c.skillSlots || {};
+        c.skillSlots = {
+            slot1: old.normal || '',
+            slot2: old.skill || '',
+            slot3: old.ultimate || '',
+            slot4: old.followup || '',
+            slot5: old.learned || ''
+        };
+    }
+    if (!c.skillSlots) c.skillSlots = {};
+    ['slot1','slot2','slot3','slot4','slot5'].forEach(k => { 
+        if (c.skillSlots[k] === undefined) c.skillSlots[k] = ''; 
+    });
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
