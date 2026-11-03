@@ -816,17 +816,38 @@
         }
     }
 
-    function renderSkills() {
+        function renderSkills() {
         const box = document.getElementById('skill-container');
         if(!box) return;
         box.innerHTML = '';
         
         const slots = selectedChar.skillSlots || {};
-        const slotNames = { normal: '普攻', skill: '招式', ultimate: '絕技', followup: '追打', learned: '學習' };
+        const slotNames = { normal: '普攻', skill: '招式', ultimate: '绝技', followup: '追打', learned: '学习' };
         if (!selectedChar.skillLevels) selectedChar.skillLevels = {};
         
         const skillsDict = window.SKILLS || {};
         const statusesDict = window.STATUSES || {};
+
+        // ==========================================
+        // ★ 映射字典：把编辑器里的英文字段翻译成中文
+        // ==========================================
+        const elementDict = { fire: '🔥 火', water: '💧 水', wind: '🌪️ 风', light: '✨ 光', dark: '🌑 暗' };
+        const targetSideDict = { enemy: '敌方', player: '我方', self: '自身' };
+        const targetRuleDict = {
+            'frontRow': '前排整排', 'backRow': '后排整排', 
+            'frontRowSingle': '前排单体', 'backRowSingle': '后排单体',
+            'lowestHp': '血量最低', 'highestHp': '血量最高',
+            'highestAtk': '攻击力最高', 'lowestAtk': '攻击力最低',
+            'highestDef': '防御力最高', 'lowestDef': '防御力最低',
+            'random': '随机目标', 'all': '全体',
+            'splash1': '周围1格溅射', 'splash2': '周围2格轰炸',
+            'line': '直线贯穿', 'pierce': '穿透(主目标+背后)',
+            'sameAsMain': '跟随主目标'
+        };
+        const comboTagDict = {
+            'po_shi': '破势', 'zhen_chan': '震颤', 'zhi_qi': '滞气',
+            'feng_hou': '封喉', 'te_shu': '特殊'
+        };
 
         let hasSkill = false;
         for (let key in slots) {
@@ -837,51 +858,134 @@
 
             let skillId = sk.id;
             let currentSkillLv = selectedChar.skillLevels[skillId] || 1;
+            const lvFactor = 1 + getSkillBonus(sk, currentSkillLv);
 
+            // ==========================================
+            // ★ 动态生成完整的技能描述
+            // ==========================================
+            let descLines = [];
+            
+            // 1. 核心描述（元素、目标、伤害/治疗/被动）
+            let mainDesc = '';
+            if (sk.element && sk.type !== 'passive') {
+                mainDesc += `【${elementDict[sk.element] || sk.element}】`;
+            }
+            
+            if (sk.type !== 'passive') {
+                if (sk.targetSide && sk.targetRule) {
+                    let sideStr = targetSideDict[sk.targetSide] || sk.targetSide;
+                    let ruleStr = targetRuleDict[sk.targetRule] || sk.targetRule;
+                    mainDesc += `对<b style="color:#f1c40f;">${sideStr}${ruleStr}</b>`;
+                }
+
+                if (sk.multiplier > 0) {
+                    const basePct = (sk.multiplier * 100).toFixed(0);
+                    const nowPct  = (sk.multiplier * lvFactor * 100).toFixed(0);
+                    mainDesc += `造成 <b style="color:#e74c3c;">${nowPct}%</b> 攻击力伤害`;
+                    if (currentSkillLv > 1) mainDesc += ` <span style="color:#2ecc71; font-size:12px;">(Lv.1: ${basePct}%)</span>`;
+                } else if (sk.healMultiplier > 0) {
+                    const basePct = (sk.healMultiplier * 100).toFixed(0);
+                    const nowPct  = (sk.healMultiplier * lvFactor * 100).toFixed(0);
+                    mainDesc += `恢复 <b style="color:#2ecc71;">${nowPct}%</b> 攻击力生命`;
+                    if (currentSkillLv > 1) mainDesc += ` <span style="color:#2ecc71; font-size:12px;">(Lv.1: ${basePct}%)</span>`;
+                } else if (sk.shieldMultiplier > 0) {
+                    const basePct = (sk.shieldMultiplier * 100).toFixed(0);
+                    const nowPct  = (sk.shieldMultiplier * lvFactor * 100).toFixed(0);
+                    mainDesc += `附加 <b style="color:#3498db;">${nowPct}%</b> 攻击力护盾`;
+                    if (currentSkillLv > 1) mainDesc += ` <span style="color:#2ecc71; font-size:12px;">(Lv.1: ${basePct}%)</span>`;
+                }
+            } else {
+                // 被动技能描述
+                const basePct = (sk.passiveValue * 100).toFixed(1);
+                const nowPct  = (sk.passiveValue * lvFactor * 100).toFixed(1);
+                let passiveTypeStr = '攻击力';
+                if (sk.passiveType === 'hpAdd') passiveTypeStr = '生命值';
+                if (sk.passiveType === 'defAdd') passiveTypeStr = '防御力';
+                if (sk.passiveType === 'speedAdd') passiveTypeStr = '速度';
+                
+                if (sk.isAura) {
+                    mainDesc += `产生光环，<b style="color:#f1c40f;">${sk.auraRange || 0}</b> 格范围内的友军 ${passiveTypeStr} +<b style="color:#f1c40f;">${nowPct}%</b>`;
+                } else {
+                    mainDesc += `被动获得 ${passiveTypeStr} +<b style="color:#f1c40f;">${nowPct}%</b>`;
+                }
+                if (currentSkillLv > 1) mainDesc += ` <span style="color:#2ecc71; font-size:12px;">(Lv.1: ${basePct}%)</span>`;
+            }
+            if (mainDesc) descLines.push(mainDesc + "。");
+
+            // 2. 后续效果 (Effects)
+            if (sk.effects && sk.effects.length > 0) {
+                sk.effects.forEach(e => {
+                    let effDesc = '';
+                    // 概率
+                    if (e.chance < 1) {
+                        effDesc += `<b style="color:#f1c40f;">${(e.chance * 100).toFixed(0)}%</b> 概率`;
+                    }
+                    // 对象
+                    if (e.targetSide !== 'sameAsMain' || e.targetRule !== 'sameAsMain') {
+                        let sSide = targetSideDict[e.targetSide] || e.targetSide;
+                        let sRule = targetRuleDict[e.targetRule] || e.targetRule;
+                        if (e.targetSide === 'enemy') effDesc += `对敌方`;
+                        else if (e.targetSide === 'player') effDesc += `对我方`;
+                        else if (e.targetSide === 'self') effDesc += `对自身`;
+                        
+                        if (e.targetRule && e.targetRule !== 'sameAsMain' && e.targetRule !== 'frontRow') {
+                            effDesc += `(${sRule})`;
+                        }
+                    } else {
+                        effDesc += `对目标`;
+                    }
+
+                    // 类型
+                    if (e.type === 'status') {
+                        let stName = (statusesDict[e.value] && statusesDict[e.value].name) ? statusesDict[e.value].name : e.value;
+                        effDesc += `附加 <b style="color:#9b59b6;">[${stName}]</b>`;
+                    } else if (e.type === 'heal_pct') {
+                        effDesc += `恢复 <b style="color:#2ecc71;">${(e.value * 100).toFixed(0)}%</b> 攻击力生命`;
+                    } else if (e.type === 'heal_flat') {
+                        effDesc += `恢复 <b style="color:#2ecc71;">${e.value}</b> 点生命`;
+                    } else if (e.type === 'shield_pct') {
+                        effDesc += `附加 <b style="color:#3498db;">${(e.value * 100).toFixed(0)}%</b> 攻击力护盾`;
+                    } else if (e.type === 'shield_flat') {
+                        effDesc += `附加 <b style="color:#3498db;">${e.value}</b> 点护盾`;
+                    } else if (e.type === 'mp') {
+                        effDesc += `恢复 <b style="color:#3498db;">${e.value}%</b> 内力`;
+                    }
+                    
+                    if (effDesc) descLines.push(effDesc + "。");
+                });
+            }
+
+            // 3. 追打机制 (Combo)
+            if (sk.comboTagOut) {
+                let tagName = comboTagDict[sk.comboTagOut] || sk.comboTagOut;
+                descLines.push(`<span style="color:#e67e22;">施放后触发</span> <b style="color:#e67e22;">【${tagName}】</b> 标签。`);
+            }
+            if (sk.comboTagIn) {
+                let tagName = comboTagDict[sk.comboTagIn] || sk.comboTagIn;
+                descLines.push(`<span style="color:#e67e22;">响应</span> <b style="color:#e67e22;">【${tagName}】</b> 标签进行追打。`);
+            }
+
+            // 4. 消耗与冷却
+            let costStr = [];
+            if (sk.mpCost > 0) costStr.push(`消耗内力 <b style="color:#3498db;">${sk.mpCost}%</b>`);
+            if (sk.cooldown > 0) costStr.push(`冷却 <b style="color:#3498db;">${sk.cooldown}</b> 回合`);
+            if (costStr.length > 0) {
+                descLines.push(`<span style="color:#aaa; font-size: 13px;">${costStr.join('，')}。</span>`);
+            }
+            
+            // 5. 自定义描述 (如果有配置)
+            if (sk.desc) {
+                descLines.push(`<span style="color:#f39c12; font-style:italic; font-size: 13px;">“${sk.desc}”</span>`);
+            }
+            
+            let finalDesc = descLines.join('<br>');
+
+            // ==========================================
+            // ★ 渲染 UI
+            // ==========================================
             const div = document.createElement('div');
             div.className = 'skill-card';
             div.style.cssText = "background: #1a1c29; border: 1px solid #333; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px;";
-
-            const lvFactor = 1 + getSkillBonus(sk, currentSkillLv);
-
-            let desc = '';
-            if (sk.multiplier > 0) {
-                const basePct = (sk.multiplier * 100).toFixed(0);
-                const nowPct  = (sk.multiplier * lvFactor * 100).toFixed(0);
-                desc += currentSkillLv > 1
-                    ? `造成 ${nowPct}% 攻擊力傷害 <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
-                    : `造成 ${basePct}% 攻擊力傷害。 `;
-            }
-            if (sk.healMultiplier > 0) {
-                const basePct = (sk.healMultiplier * 100).toFixed(0);
-                const nowPct  = (sk.healMultiplier * lvFactor * 100).toFixed(0);
-                desc += currentSkillLv > 1
-                    ? `恢復 ${nowPct}% 攻擊力的生命 <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
-                    : `恢復 ${basePct}% 攻擊力的生命。 `;
-            }
-            if (sk.shieldMultiplier > 0) {
-                const basePct = (sk.shieldMultiplier * 100).toFixed(0);
-                const nowPct  = (sk.shieldMultiplier * lvFactor * 100).toFixed(0);
-                desc += currentSkillLv > 1
-                    ? `附加 ${nowPct}% 攻擊力的護盾 <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
-                    : `附加 ${basePct}% 攻擊力的護盾。 `;
-            }
-            if (sk.type === 'passive' && sk.passiveValue) {
-                const basePct = (sk.passiveValue * 100).toFixed(1);
-                const nowPct  = (sk.passiveValue * lvFactor * 100).toFixed(1);
-                desc += currentSkillLv > 1
-                    ? `被動加成 ${nowPct}% <span style="color:#2ecc71; font-size:13px;">(Lv.1: ${basePct}%)</span>。 `
-                    : `被動加成 ${basePct}%。 `;
-            }
-            if (sk.mpCost > 0) desc += `消耗內力: ${sk.mpCost}%。 `;
-            if (sk.cooldown > 0) desc += `冷卻: ${sk.cooldown} 回合。 `;
-            
-            let effectsStr = '';
-            if (sk.effects && sk.effects.length > 0) {
-                sk.effects.forEach(e => {
-                    if (e.type === 'status') effectsStr += `附加[${statusesDict[e.value]?.name || e.value}] `;
-                });
-            }
 
             let upgradeCostInfo = '';
             if (currentSkillLv < 10) {
@@ -911,7 +1015,7 @@
                     <span>[${slotNames[key] || key}] ${sk.name}</span>
                     <span style="color:#2ecc71; font-size:15px; background: rgba(46,204,113,0.1); padding: 2px 8px; border-radius: 4px;">Lv. ${currentSkillLv} / 10</span>
                 </div>
-                <div class="skill-desc" style="font-size: 15px; color: #bbb; line-height: 1.4;">${desc}<br>${effectsStr}</div>
+                <div class="skill-desc" style="font-size: 14px; color: #bbb; line-height: 1.6; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px;">${finalDesc}</div>
                 ${upgradeCostInfo}
             `;
             box.appendChild(div);
