@@ -218,11 +218,11 @@ window.filterCharList = function() {
         <div class="form-item full">
           <label>技能装配</label>
           <div class="skill-slot">
-            <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">普攻:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'normal', this.value)">${window.getSkillOptions(char.skillSlots.normal)}</select></div>
-            <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">招式:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'skill', this.value)">${window.getSkillOptions(char.skillSlots.skill)}</select></div>
-            <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">绝技:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'ultimate', this.value)">${window.getSkillOptions(char.skillSlots.ultimate)}</select></div>
-            <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px; color:#e74c3c;">追打:</span><select style="flex:1; border-color:#e74c3c;" onchange="window.updateSkillSlot(${index}, 'followup', this.value)">${window.getSkillOptions(char.skillSlots.followup)}</select></div>
-            <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px; color:#f1c40f;">学习:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'learned', this.value)">${window.getSkillOptions(char.skillSlots.learned)}</select></div>
+           <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">技能1:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'slot1', this.value)">${window.getSkillOptions(char.skillSlots.slot1)}</select></div>
+          <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">技能2:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'slot2', this.value)">${window.getSkillOptions(char.skillSlots.slot2)}</select></div>
+          <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">技能3:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'slot3', this.value)">${window.getSkillOptions(char.skillSlots.slot3)}</select></div>
+          <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">技能4:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'slot4', this.value)">${window.getSkillOptions(char.skillSlots.slot4)}</select></div>
+          <div style="display:flex; gap:5px; margin-bottom:5px;"><span style="width:50px;">技能5:</span><select style="flex:1;" onchange="window.updateSkillSlot(${index}, 'slot5', this.value)">${window.getSkillOptions(char.skillSlots.slot5)}</select></div>
           </div>
         </div>
       </div>`;
@@ -280,7 +280,7 @@ window.addNewChar = function() {
     critRate:0.1, 
     critDmg:1.5, 
     stats:{ fengRui:0, hunHou:0, lingDong:0, jianRen:0, guiMi:0, jueQing:0 }, 
-    skillSlots:{normal:'',skill:'',ultimate:'',followup:'',learned:''}, 
+    skillSlots:{slot1:'',slot2:'',slot3:'',slot4:'',slot5:''}, 
     equipment:{weapon:'',head:'',body:'',legs:'',ring:'',necklace:''} 
   }); 
   saveData(); 
