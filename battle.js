@@ -9,7 +9,6 @@ if (typeof CHARACTERS === 'undefined') { window.CHARACTERS = []; }
 (function initData() {
     try {
         let loadedChars = null;
-        // 1. 優先讀取玩家存檔
         const c1 = localStorage.getItem('my_game_characters');
         if (c1) {
             try {
@@ -17,7 +16,6 @@ if (typeof CHARACTERS === 'undefined') { window.CHARACTERS = []; }
                 if (Array.isArray(p) && p.length > 0) loadedChars = p;
             } catch(e) {}
         }
-        // 2. 如果玩家存檔為空，回退到系統配置
         if (!loadedChars) {
             const c2 = localStorage.getItem('my_game_data_v22');
             if (c2) {
@@ -27,14 +25,12 @@ if (typeof CHARACTERS === 'undefined') { window.CHARACTERS = []; }
                 } catch(e) {}
             }
         }
-        // 3. 如果都沒有，強制使用內建預設角色，確保遊戲不卡死
         if (!loadedChars) {
             loadedChars = [
                 { id: 'p_warrior', name: '战士', side: 'player', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '⚔️', element: 'fire', maxHp: 1000, atk: 100, def: 50, speed: 8, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.5, hitRate: 0, dodgeRate: 0, critResist: 0, lifesteal: 0, stats: { fengRui: 10, hunHou: 10, lingDong: 10, jianRen: 10, guiMi: 10, jueQing: 10 }, skillSlots: { normal: 'skill_slash', skill: 'skill_fireball', ultimate: '', followup: 'skill_follow_1', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } },
                 { id: 'e_skeleton', name: '骷髅兵', side: 'enemy', level: 1, exp: 0, freePoints: 0, growthModel: 'm1', emoji: '💀', element: 'dark', maxHp: 1000, atk: 100, def: 50, speed: 7, sizeX: 1, sizeY: 1, critRate: 0.05, critDmg: 1.4, hitRate: 0, dodgeRate: 0.05, critResist: 0, lifesteal: 0, stats: { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 }, skillSlots: { normal: 'skill_slash', skill: '', ultimate: '', followup: '', learned: '' }, equipment: { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' } }
             ];
         }
-        
         if (typeof CHARACTERS !== 'undefined') {
             CHARACTERS.length = 0;
             CHARACTERS.push(...loadedChars);
@@ -172,7 +168,11 @@ class Unit {
       if (sk.passiveType === 'defAdd') { this.def += this.baseDef * sk.passiveValue; this.baseDef += this.baseDef * sk.passiveValue; }
       if (sk.passiveType === 'speedAdd') { this.speed += this.baseSpeed * sk.passiveValue; this.baseSpeed += this.baseSpeed * sk.passiveValue; }
     });
-    this.hp = this.maxHp; this.maxMp = 100; this.mp = 100; this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; this.shield = 0; this.skipTurn = false;
+
+    // ★ 新增：记录最大生命的基础值（含被动加成），用于状态中的 hp% 修饰还原
+    this.baseMaxHp = this.maxHp;
+
+    this.hp = this.maxHp; this.maxMp = 100; this.mp = 100; this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; this.shield = 0;
   }
   isAlive() { return this.hp > 0; }
   gainMp(a) { this.mp = Math.min(100, this.mp + a); }
@@ -185,10 +185,30 @@ class Unit {
   }
   heal(a) { if (this.isAlive()) this.hp = Math.min(this.maxHp, this.hp + a); }
   addShield(a) { if (this.isAlive()) this.shield += a; }
-  reduceCooldowns() { for (let k in this.cooldowns) if (this.cooldowns[k] > 0) this.cooldowns[k]--; }
+
+  // ★ 冷却修改：支持 cooldown 状态带来的加速/减速
+  reduceCooldowns() {
+    let cdMod = 0;
+    this.statuses.forEach(st => {
+      const c = STATUSES[st.id];
+      if (c && c.statMod === 'cooldown') cdMod += c.statValue;
+    });
+    for (let k in this.cooldowns) {
+      if (this.cooldowns[k] > 0) {
+        this.cooldowns[k] = Math.max(0, this.cooldowns[k] - 1 - cdMod);
+      }
+    }
+  }
+
   resetFollowups() { this.followupCounts = {}; }
+
+  // ★ 光环 + 状态属性修饰（含 hp%）
   applyAura(allUnits) {
-    this.atk = this.baseAtk; this.def = this.baseDef; this.speed = this.baseSpeed;
+    this.atk = this.baseAtk;
+    this.def = this.baseDef;
+    this.speed = this.baseSpeed;
+    this.maxHp = this.baseMaxHp;
+
     allUnits.forEach(ally => {
       if (ally.side !== this.side || !ally.isAlive()) return;
       ally.passives.forEach(baseSk => {
@@ -202,29 +222,62 @@ class Unit {
         }
       });
     });
+
     this.statuses.forEach(st => {
       const c = STATUSES[st.id]; if (!c) return;
-      if (c.statMod === 'atk') this.atk += this.baseAtk * c.statValue;
-      if (c.statMod === 'def') this.def += this.baseDef * c.statValue;
+      if (c.statMod === 'atk')   this.atk   += this.baseAtk   * c.statValue;
+      if (c.statMod === 'def')   this.def   += this.baseDef   * c.statValue;
       if (c.statMod === 'speed') this.speed += this.baseSpeed * c.statValue;
+      if (c.statMod === 'hp')    this.maxHp += this.baseMaxHp * c.statValue;   // ★ 新增
     });
-    this.atk = Math.max(1, Math.floor(this.atk)); this.def = Math.max(0, Math.floor(this.def)); this.speed = Math.max(1, Math.floor(this.speed));
+
+    this.atk = Math.max(1, Math.floor(this.atk));
+    this.def = Math.max(0, Math.floor(this.def));
+    this.speed = Math.max(1, Math.floor(this.speed));
+    this.maxHp = Math.max(1, Math.floor(this.maxHp));   // ★ 新增
     if (this.hp > this.maxHp) this.hp = this.maxHp;
   }
+
+  // ★ 状态 tick：支持 6 种 DOT 伤害来源
   tickStatuses() {
     for (let i = this.statuses.length - 1; i >= 0; i--) {
-      const st = this.statuses[i]; const c = STATUSES[st.id];
-      if (c && c.isDot && c.dotValue > 0) this.takeDamage(c.dotValue);
-      st.duration--; if (st.duration <= 0) this.statuses.splice(i, 1);
+      const st = this.statuses[i];
+      const c = STATUSES[st.id];
+      if (!c) { this.statuses.splice(i, 1); continue; }
+
+      const isDot = (c.type === 'dot') || (c.isDot === true && c.dotValue > 0);
+      if (isDot) {
+        let dmg = 0;
+        const src = c.dotSource || 'fixed';
+        const caster = st.caster;
+        if (src === 'casterAtk'    && caster) dmg = Math.round(caster.atk    * c.dotValue);
+        else if (src === 'casterDef'    && caster) dmg = Math.round(caster.def    * c.dotValue);
+        else if (src === 'casterHp'     && caster) dmg = Math.round(caster.maxHp  * c.dotValue);
+        else if (src === 'targetMaxHp')            dmg = Math.round(this.maxHp    * c.dotValue);
+        else if (src === 'targetCurHp')            dmg = Math.round(this.hp       * c.dotValue);
+        else if (src === 'fixed')                  dmg = Math.round(c.dotValue || 0);
+        if (dmg > 0) this.takeDamage(dmg);
+      }
+
+      st.duration--;
+      if (st.duration <= 0) this.statuses.splice(i, 1);
     }
   }
-  addStatus(id) {
+
+  // ★ 添加状态：记录施法者，方便 DOT 按施法者属性计算
+  addStatus(id, caster) {
     if (!id || !STATUSES[id]) return;
-    if (STATUSES[id].isStun) { this.skipTurn = true; if (!this.statuses.find(s => s.id === id)) this.statuses.push({ id, duration: 1 }); return; }
+    const cfg = STATUSES[id];
     const ex = this.statuses.find(s => s.id === id);
-    if (ex) ex.duration = STATUSES[id].duration; else this.statuses.push({ id, duration: STATUSES[id].duration });
+    if (ex) {
+      ex.duration = cfg.duration;
+      if (caster) ex.caster = caster;
+    } else {
+      this.statuses.push({ id, duration: cfg.duration, caster: caster || null });
+    }
   }
 }
+
 // ★ 核心修復：補上缺失的屬性克制計算函數
 function getElementMultiplier(atkElement, defElement) {
     if (!window.globalData || !window.globalData.elementMatrix) return 1.0;
@@ -234,6 +287,7 @@ function getElementMultiplier(atkElement, defElement) {
     }
     return 1.0;
 }
+
 const BattleLogic = {
   selectTargets(actor, skill, allUnits) {
     let pool = [];
@@ -339,22 +393,53 @@ const BattleLogic = {
     const d = Math.round(dmg);
     return { damage: d, isCrit, isMiss: false, lifestealAmount: Math.round(d * actor.lifesteal) };
   },
+
+  // ★ 選技：純數據驅動的控制判斷（禁普攻/禁招式/禁絕技/禁追打）
   chooseSkill(actor, allUnits) {
     const slots = actor.skillSlots || {};
-    let avail = Object.values(slots).filter(id => id && SKILLS[id] && !['passive', 'followup'].includes(SKILLS[id].type)).map(id => SKILLS[id]);
+    const dis = { normal: false, skill: false, ultimate: false };
+    actor.statuses.forEach(st => {
+      const c = STATUSES[st.id];
+      if (!c) return;
+      if (c.disableNormal)   dis.normal   = true;
+      if (c.disableSkill)    dis.skill    = true;
+      if (c.disableUltimate) dis.ultimate = true;
+    });
+
+    let avail = Object.values(slots)
+      .filter(id => id && SKILLS[id] && !['passive', 'followup'].includes(SKILLS[id].type))
+      .map(id => SKILLS[id]);
+
+    avail = avail.filter(sk => {
+      if (sk.type === 'normal'   && dis.normal)   return false;
+      if (sk.type === 'skill'    && dis.skill)    return false;
+      if (sk.type === 'ultimate' && dis.ultimate) return false;
+      return true;
+    });
+
     let usable = avail.filter(sk => {
       const cd = actor.cooldowns[sk.id] || 0;
       if (actor.mp < (sk.mpCost || 0) || cd > 0) return false;
-      if (sk.healMultiplier > 0 && sk.multiplier === 0) { if (!allUnits.filter(u => u.side === actor.side && u.isAlive()).some(u => u.hp < u.maxHp)) return false; }
+      if (sk.healMultiplier > 0 && sk.multiplier === 0) {
+        if (!allUnits.filter(u => u.side === actor.side && u.isAlive()).some(u => u.hp < u.maxHp)) return false;
+      }
       return true;
     });
+
     const w = { ultimate: 3, skill: 2, normal: 1 };
     usable.sort((a, b) => (w[b.type] || 0) - (w[a.type] || 0));
     if (usable.length > 0) return getEffectiveSkill(actor, usable[0]);
-    const fb = Object.values(SKILLS).find(s => s.type === 'normal');
-    if (fb) return getEffectiveSkill(actor, fb);
-    return getEffectiveSkill(actor, { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] });
+
+    // 兜底：角色没装备普攻且普攻未被禁用时，给全局普攻
+    const hasNormalEquipped = Object.values(slots).some(id => SKILLS[id] && SKILLS[id].type === 'normal');
+    if (!dis.normal && !hasNormalEquipped) {
+      const fb = Object.values(SKILLS).find(s => s.type === 'normal');
+      if (fb) return getEffectiveSkill(actor, fb);
+      return getEffectiveSkill(actor, { id: 'default_atk', name: '普通攻击', type: 'normal', multiplier: 1, mpCost: 0, targetRule: 'frontRow', targetSide: 'enemy', element: 'fire', healMultiplier: 0, effects: [] });
+    }
+    return null;
   },
+
   buildActionOrder(units) { return [...units].filter(u => u.isAlive()).sort((a, b) => b.speed - a.speed); },
 
   simulateSkill(actor, sk, allUnits) {
@@ -381,14 +466,17 @@ const BattleLogic = {
         let et = [];
         if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') { et = targets; }
         else {
-          let pool = eff.targetSide === 'enemy' ? allUnits.filter(u => u.side !== actor.side && u.isAlive()) : allUnits.filter(u => u.side === actor.side && u.isAlive());
+          let pool;
+          if (eff.targetSide === 'enemy') pool = allUnits.filter(u => u.side !== actor.side && u.isAlive());
+          else if (eff.targetSide === 'self') pool = [actor];
+          else pool = allUnits.filter(u => u.side === actor.side && u.isAlive());
           if (eff.targetRule === 'all') et = pool;
           else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
           else et = [pool[0]];
         }
         et.forEach(t => {
           if (!t || !t.isAlive()) return;
-          if (eff.type === 'status') t.addStatus(eff.value);
+          if (eff.type === 'status') t.addStatus(eff.value, actor);   // ★ 传施法者
           else if (eff.type === 'heal_pct') t.heal(Math.round(actor.atk * eff.value));
           else if (eff.type === 'heal_flat') t.heal(Math.round(eff.value));
           else if (eff.type === 'shield_pct') t.addShield(Math.round(actor.atk * eff.value));
@@ -413,6 +501,9 @@ const BattleLogic = {
     });
 
     for (let u of cand) {
+      // ★ 禁止追打判断
+      if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;
+
       const fid = u.skillSlots.followup;
       if (!fid || !SKILLS[fid]) continue;
       if (SKILLS[fid].comboTagIn === tag) {
@@ -535,7 +626,6 @@ function generateRandomInstance(templateId) {
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
   
-  // 修復: 替換 ?. 語法
   let armorPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.armor) || [];
   let weaponPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.weapon) || [];
   let accPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.accessory) || [];
@@ -546,7 +636,6 @@ function generateRandomInstance(templateId) {
     if(pool.length === 0) break;
     const idx = Math.floor(Math.random() * pool.length);
     const stat = pool.splice(idx, 1)[0];
-    // 修復: 替換 ?. 語法
     const cfg = (window.GLOBAL_AFFIX_VALUES && window.GLOBAL_AFFIX_VALUES[stat]) || { min: 0, max: 0 };
     let val = cfg.max >= cfg.min ? Math.random() * (cfg.max - cfg.min) + cfg.min : cfg.min;
     if (intTypes.includes(stat)) val = Math.round(val); else val = Math.round((val / 100) * 100) / 100;
@@ -696,7 +785,6 @@ class BattleScene extends Phaser.Scene {
     this.navNodeIndex = (data && data.nodeIndex !== undefined) ? data.nodeIndex : 0;
   }
   preload() {
-    // 修復: 替換 ?. 語法
     const art = (window.ART_CONFIG && window.ART_CONFIG.boardBg) || {};
     if (art && art.url) this.load.image('art_boardBg', art.url);
   }
@@ -727,7 +815,6 @@ class BattleScene extends Phaser.Scene {
 
   drawBattlefield() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
-    // 修復: 替換 ?. 語法
     const art = (window.ART_CONFIG && window.ART_CONFIG.boardBg);
     if (this.textures.exists('art_boardBg')) {
       const bgImg = this.add.image(0, 0, 'art_boardBg').setOrigin(0, 0).setDepth(-10).setAlpha(0.4);
@@ -815,21 +902,19 @@ class BattleScene extends Phaser.Scene {
     this.allUnits.forEach(u => u.applyAura(this.allUnits)); this.allUnits.forEach(u => this.updateUnitView(u)); this.execute(actor);
   }
 
+  // ★ 完全重写：控制判断由 chooseSkill 数据驱动，无法行动则跳过
   execute(actor) {
     if (this.battleEnded) return;
-    if (actor.skipTurn) { 
-      actor.skipTurn = false; 
-      // 修復: 替換 ?. 語法
-      const i = actor.statuses.findIndex(s => STATUSES[s.id] && STATUSES[s.id].isStun); 
-      if (i !== -1) actor.statuses.splice(i, 1); 
-      this.updateUnitView(actor); 
-      this.addLog(`${actor.name} 眩晕跳过`, '#f1c40f'); 
-      const c = this.unitViews.get(actor).container; 
-      this.tweens.add({ targets: c, angle: 10, yoyo: true, repeat: 3, duration: 100 }); 
-      return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction()); 
-    }
+
     const sk = BattleLogic.chooseSkill(actor, this.allUnits);
-    if (!sk) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
+    if (!sk) {
+      this.updateUnitView(actor);
+      this.addLog(`${actor.name} 无法行动`, '#f1c40f');
+      const v = this.unitViews.get(actor);
+      if (v) this.tweens.add({ targets: v.container, angle: 10, yoyo: true, repeat: 3, duration: 100 });
+      return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
+    }
+
     const targets = BattleLogic.selectTargets(actor, sk, this.allUnits);
     if (targets.length === 0) return this.time.delayedCall(CONFIG.ACTION_DELAY / this.speedMultiplier, () => this.nextAction());
     const v = this.unitViews.get(actor);
@@ -864,12 +949,19 @@ class BattleScene extends Phaser.Scene {
           if (Math.random() > eff.chance) return;
           let et = [];
           if (eff.targetSide === 'sameAsMain' && eff.targetRule === 'sameAsMain') et = targets;
-          else { let pool = eff.targetSide === 'enemy' ? this.allUnits.filter(u => u.side !== actor.side && u.isAlive()) : eff.targetSide === 'player' ? this.allUnits.filter(u => u.side === actor.side && u.isAlive()) : [actor]; if (eff.targetRule === 'all') et = pool; else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); } else et = [pool[0]]; }
+          else {
+            let pool;
+            if (eff.targetSide === 'enemy') pool = this.allUnits.filter(u => u.side !== actor.side && u.isAlive());
+            else if (eff.targetSide === 'self') pool = [actor];
+            else pool = this.allUnits.filter(u => u.side === actor.side && u.isAlive());
+            if (eff.targetRule === 'all') et = pool;
+            else if (eff.targetRule === 'lowestHp') { const m = Math.min(...pool.map(u => u.hp)); et = pool.filter(u => u.hp === m); }
+            else et = [pool[0]];
+          }
           et.forEach(t => {
             if (!t || !t.isAlive()) return;
             if (eff.type === 'status') { 
-              t.addStatus(eff.value); 
-              // 修復: 替換 ?. 語法
+              t.addStatus(eff.value, actor);   // ★ 传施法者
               this.showFloat(t, `+${(STATUSES[eff.value] && STATUSES[eff.value].name) || ''}`, '#0ff'); 
               this.updateUnitView(t); 
             }
@@ -889,6 +981,7 @@ class BattleScene extends Phaser.Scene {
     });
   }
 
+  // ★ 追打检查：目标禁止追打时跳过
   checkFollowup(tag, original) {
     let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original); 
     cand.sort((a, b) => {
@@ -897,6 +990,7 @@ class BattleScene extends Phaser.Scene {
     });
 
     for (let u of cand) {
+      if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;   // ★ 禁止追打
       const fid = u.skillSlots.followup; if (!fid || !SKILLS[fid]) continue;
       if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0; if (used < (SKILLS[fid].maxTriggers || 1)) { u.followupCounts[fid] = used + 1; this.doFollowup(u, getEffectiveSkill(u, SKILLS[fid])); break; }
@@ -939,13 +1033,12 @@ class BattleScene extends Phaser.Scene {
     v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
-    // 修復: 替換 ?. 語法
     v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => (STATUSES[s.id] && STATUSES[s.id].name) ? STATUSES[s.id].name.substring(0,1) : '?').join('')}]` : '');
     if (!u.isAlive()) { v.container.setAlpha(0.25); }
   }
 
+  // ★ 快速战斗：跳过无法行动者，其它流程保持
   fastForward() {
-    // 修復: 防止重複啟動場景
     if (this._ffEnded) return;
     
     for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
@@ -964,7 +1057,6 @@ class BattleScene extends Phaser.Scene {
         u.tickStatuses();
       });
 
-      // 修復: 補上 DOT 致死檢查
       if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
         this._ffEnded = true;
         this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
@@ -978,15 +1070,10 @@ class BattleScene extends Phaser.Scene {
       for (let a of order) {
         if (!a.isAlive()) continue;
         this.allUnits.forEach(u => u.applyAura(this.allUnits));
-        if (a.skipTurn) {
-          a.skipTurn = false;
-          // 修復: 替換 ?. 語法
-          const i = a.statuses.findIndex(s => STATUSES[s.id] && STATUSES[s.id].isStun);
-          if (i !== -1) a.statuses.splice(i, 1);
-          continue;
-        }
+
         const sk = BattleLogic.chooseSkill(a, this.allUnits);
-        if (!sk) continue;
+        if (!sk) continue;   // ★ 无法行动（被控制）直接跳过
+
         BattleLogic.simulateSkill(a, sk, this.allUnits);
 
         if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
@@ -1030,7 +1117,6 @@ class ResultScene extends Phaser.Scene {
     this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
 
     if (this.resultType === 'victory') {
-      // ★ 新增：通知掛機系統關卡已通關
       if (window.IdleSystem && typeof window.IdleSystem.onStageCleared === 'function') {
           try {
               window.IdleSystem.onStageCleared(this.currentLevelIndex);
