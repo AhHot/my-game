@@ -46,8 +46,8 @@ const DEFAULT_SKILLS = [
 ];
 
 const DEFAULT_STATUS = [ 
-  { id: 'status_burn', name: '灼烧', type: 'debuff', duration: 3, statMod: 'none', statValue: 0, isDot: true, dotValue: 200, isStun: false },
-  { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, isDot: false, dotValue: 0, isStun: true }
+  { id: 'status_burn', name: '灼烧', type: 'dot', duration: 3, statMod: 'none', statValue: 0, controlType: '', dotSource: 'fixed', dotValue: 200 },
+  { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, controlType: 'stun', dotSource: '', dotValue: 0 }
 ];
 
 const DEFAULT_ITEMS = [ 
@@ -242,7 +242,20 @@ function loadAllData() {
   window.SKILLS = {};
   gameSkills.forEach(sk => { window.SKILLS[sk.id] = sk; });
   window.STATUSES = {};
-  gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
+    gameStatuses.forEach(st => {
+  if (!st.type) st.type = 'debuff';
+  // 旧版「控制眩晕」→ 新版 controlType
+  if (st.type === 'control' && st.isStun && !st.controlType) st.controlType = 'stun';
+  // 旧版「isDot = true」→ 新版 type = 'dot' + dotSource = 'fixed'
+  if (st.isDot && st.type !== 'dot') {
+    st.type = 'dot';
+    if (!st.dotSource) st.dotSource = 'fixed';
+  }
+  // 保底字段
+  if (st.controlType === undefined) st.controlType = '';
+  if (st.dotSource === undefined)  st.dotSource = '';
+  if (st.dotValue === undefined)   st.dotValue = 0;
+});
   window.LEVELS = gameLevels;
 
   saveData(); 
