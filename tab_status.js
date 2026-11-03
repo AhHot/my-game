@@ -1,5 +1,6 @@
 // ==========================================
-// 模块：状态面板 (tab_status.js) —— 四分类版
+// 模块：状态面板 (tab_status.js) —— 四分类数据驱动版
+// 未来新增状态，直接编辑器操作，不改任何代码
 // ==========================================
 let currentStatusSubTab = 'buff';
 
@@ -21,18 +22,13 @@ window.renderTabStatus = function(container) {
     { val: 'speed',    label: '速度(%)' },
     { val: 'cooldown', label: '技能冷却(回合)' }
   ];
-  const controlTypeOptions = [
-    { val: 'stun',    label: '晕眩 (无法行动)' },
-    { val: 'silence', label: '沉默 (无法使用普攻以外技能)' },
-    { val: 'disarm',  label: '缴械 (无法普攻)' }
-  ];
   const dotSourceOptions = [
-    { val: 'casterAtk',    label: '施法者攻击力%' },
-    { val: 'casterDef',    label: '施法者防御力%' },
-    { val: 'casterHp',     label: '施法者生命上限%' },
-    { val: 'targetMaxHp',  label: '目标最大生命%' },
-    { val: 'targetCurHp',  label: '目标当前生命%' },
-    { val: 'fixed',        label: '固定值' }
+    { val: 'fixed',       label: '固定值' },
+    { val: 'casterAtk',   label: '施法者攻击力%' },
+    { val: 'casterDef',   label: '施法者防御力%' },
+    { val: 'casterHp',    label: '施法者生命上限%' },
+    { val: 'targetMaxHp', label: '目标最大生命%' },
+    { val: 'targetCurHp', label: '目标当前生命%' }
   ];
 
   container.innerHTML = `
@@ -61,11 +57,9 @@ window.renderTabStatus = function(container) {
 
       let bodyHtml = '';
 
+      // ---------- 增益 / 减益 ----------
       if (currentStatusSubTab === 'buff' || currentStatusSubTab === 'debuff') {
         const isCooldown = st.statMod === 'cooldown';
-        const displayCooldown = Math.abs(st.statValue || 0);
-        const displayPct = Math.abs((st.statValue || 0) * 100);
-
         bodyHtml = `
           <div class="form-item">
             <label>修改属性</label>
@@ -74,24 +68,48 @@ window.renderTabStatus = function(container) {
             </select>
           </div>
           <div class="form-item">
-            <label>${isCooldown ? '冷却变化 (回合，正=更快，负=更慢)' : '变化数值 (百分比)'}</label>
+            <label>${isCooldown ? '冷却变化(回合)' : '变化数值(%)'}</label>
             ${isCooldown
-              ? `<input type="number" step="1" value="${displayCooldown}" onchange="window.updateStatusCooldown(${index}, this.value)">`
-              : `<input type="number" step="1" value="${displayPct}" onchange="window.updateStatusPct(${index}, this.value)">`
+              ? `<input type="number" step="1" value="${Math.abs(st.statValue || 0)}" onchange="window.updateStatusCooldown(${index}, this.value)">`
+              : `<input type="number" step="1" value="${(Math.abs(st.statValue || 0) * 100).toFixed(1)}" onchange="window.updateStatusPct(${index}, this.value)">`
             }
           </div>
         `;
-      } else if (currentStatusSubTab === 'control') {
+      }
+      // ---------- 控制 ----------
+      else if (currentStatusSubTab === 'control') {
         bodyHtml = `
-          <div class="form-item">
-            <label>控制类型</label>
-            <select onchange="window.updateStatus(${index}, 'controlType', this.value)">
-              ${controlTypeOptions.map(o => `<option value="${o.val}" ${st.controlType === o.val ? 'selected' : ''}>${o.label}</option>`).join('')}
-            </select>
+          <div class="form-item full" style="grid-column:span 2;">
+            <label style="color:#e67e22; font-weight:bold;">禁用行动（可多选，勾了就不能用）</label>
           </div>
-          <div class="form-item"></div>
+          <div class="form-item">
+            <label>
+              <input type="checkbox" ${st.disableNormal ? 'checked' : ''} onchange="window.updateStatus(${index}, 'disableNormal', this.checked)">
+              禁止普通攻击
+            </label>
+          </div>
+          <div class="form-item">
+            <label>
+              <input type="checkbox" ${st.disableSkill ? 'checked' : ''} onchange="window.updateStatus(${index}, 'disableSkill', this.checked)">
+              禁止招式
+            </label>
+          </div>
+          <div class="form-item">
+            <label>
+              <input type="checkbox" ${st.disableUltimate ? 'checked' : ''} onchange="window.updateStatus(${index}, 'disableUltimate', this.checked)">
+              禁止绝技
+            </label>
+          </div>
+          <div class="form-item">
+            <label>
+              <input type="checkbox" ${st.disableFollowup ? 'checked' : ''} onchange="window.updateStatus(${index}, 'disableFollowup', this.checked)">
+              禁止追打（不响应追击）
+            </label>
+          </div>
         `;
-      } else if (currentStatusSubTab === 'dot') {
+      }
+      // ---------- 持续伤害 ----------
+      else if (currentStatusSubTab === 'dot') {
         const isFixed = st.dotSource === 'fixed';
         bodyHtml = `
           <div class="form-item">
@@ -101,9 +119,9 @@ window.renderTabStatus = function(container) {
             </select>
           </div>
           <div class="form-item">
-            <label>${isFixed ? '固定伤害值' : '伤害百分比 (例: 10 = 10%)'}</label>
+            <label>${isFixed ? '固定伤害值' : '伤害百分比(%)'}</label>
             ${isFixed
-              ? `<input type="number" value="${st.dotValue || 0}" onchange="window.updateStatus(${index}, 'dotValue', parseFloat(this.value) || 0)">`
+              ? `<input type="number" step="1" value="${st.dotValue || 0}" onchange="window.updateStatus(${index}, 'dotValue', parseFloat(this.value) || 0)">`
               : `<input type="number" step="1" value="${((st.dotValue || 0) * 100).toFixed(1)}" onchange="window.updateStatusDotPct(${index}, this.value)">`
             }
           </div>
@@ -138,7 +156,7 @@ window.renderTabStatus = function(container) {
 window.updateStatus = function(index, key, value) {
   gameStatuses[index][key] = value;
   saveData();
-  if (['statMod', 'controlType', 'dotSource'].includes(key)) {
+  if (['statMod', 'dotSource'].includes(key)) {
     window.filterStatusList();
   }
 };
@@ -151,7 +169,7 @@ window.updateStatusPct = function(index, value) {
   saveData();
 };
 
-// 增益/减益 —— 冷却回合（正负号由用户决定）
+// 增益/减益 —— 冷却回合
 window.updateStatusCooldown = function(index, value) {
   const st = gameStatuses[index];
   const num = Math.abs(parseFloat(value) || 0);
@@ -175,13 +193,14 @@ window.addNewStatus = function() {
     duration: 1,
     statMod: 'none',
     statValue: 0,
-    controlType: '',
+    disableNormal: false,
+    disableSkill: false,
+    disableUltimate: false,
+    disableFollowup: false,
     dotSource: '',
     dotValue: 0
   };
-  if (currentStatusSubTab === 'control') base.controlType = 'stun';
-  if (currentStatusSubTab === 'dot')     base.dotSource   = 'casterAtk';
-
+  if (currentStatusSubTab === 'dot') base.dotSource = 'casterAtk';
   gameStatuses.push(base);
   saveData();
   window.filterStatusList();
