@@ -45,9 +45,14 @@ const DEFAULT_SKILLS = [
   { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
 ];
 
+// ★ 新版默认状态：字段全是数据驱动，未来新增状态只用编辑器即可
 const DEFAULT_STATUS = [ 
-  { id: 'status_burn', name: '灼烧', type: 'dot', duration: 3, statMod: 'none', statValue: 0, controlType: '', dotSource: 'fixed', dotValue: 200 },
-  { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0, controlType: 'stun', dotSource: '', dotValue: 0 }
+  { id: 'status_burn', name: '灼烧', type: 'dot', duration: 3, statMod: 'none', statValue: 0,
+    disableNormal: false, disableSkill: false, disableUltimate: false, disableFollowup: false,
+    dotSource: 'fixed', dotValue: 200 },
+  { id: 'status_stun', name: '眩晕', type: 'control', duration: 1, statMod: 'none', statValue: 0,
+    disableNormal: true, disableSkill: true, disableUltimate: true, disableFollowup: true,
+    dotSource: '', dotValue: 0 }
 ];
 
 const DEFAULT_ITEMS = [ 
@@ -157,7 +162,6 @@ function loadAllData() {
             pChars.forEach(pc => {
               let bc = base.find(c => c.id === pc.id);
               if (bc) {
-                // 只合併玩家的進度字段，保留系統配置的最新改動
                 bc.level = pc.level !== undefined ? pc.level : bc.level;
                 bc.exp = pc.exp !== undefined ? pc.exp : bc.exp;
                 bc.freePoints = pc.freePoints !== undefined ? pc.freePoints : bc.freePoints;
@@ -165,7 +169,7 @@ function loadAllData() {
                 bc.breakthroughStage = pc.breakthroughStage !== undefined ? pc.breakthroughStage : (bc.breakthroughStage || 0);
                 bc.equipment = pc.equipment || bc.equipment || {};
                 bc.allocatedStats = pc.allocatedStats || bc.allocatedStats || {};
-                bc.stats = pc.stats || bc.stats; // 保留玩家可能修改的基礎屬性
+                bc.stats = pc.stats || bc.stats;
               }
             });
           }
@@ -182,7 +186,6 @@ function loadAllData() {
   try { gameItems = JSON.parse(localStorage.getItem('my_game_items_v22')) || JSON.parse(JSON.stringify(DEFAULT_ITEMS)); } catch(e) { gameItems = JSON.parse(JSON.stringify(DEFAULT_ITEMS)); }
   try { gameLevels = JSON.parse(localStorage.getItem('my_game_levels_v22')) || JSON.parse(JSON.stringify(DEFAULT_LEVELS)); } catch(e) { gameLevels = JSON.parse(JSON.stringify(DEFAULT_LEVELS)); }
 
-  // inventory 同理
   try {
     if (IS_EDITOR) {
       inventory = JSON.parse(localStorage.getItem('my_game_inventory_v22')) || [];
@@ -226,6 +229,41 @@ function loadAllData() {
   });
   gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
+  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+  // ★ 状态数据自动兼容迁移：把旧版本数据无缝转成新版数据驱动格式
+  // ★ 这样老存档不用手动改，切换新代码后运行一次即可
+  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+  gameStatuses.forEach(st => {
+    if (!st.type) st.type = 'debuff';
+
+    // 旧「控制-眩晕」→ 新版「禁用所有行动」
+    if (st.type === 'control' && st.isStun) {
+      st.disableNormal = true;
+      st.disableSkill = true;
+      st.disableUltimate = true;
+      st.disableFollowup = true;
+    }
+    // 旧「isDot=true」→ 新版「持续伤害-固定值」
+    if (st.isDot && st.type !== 'dot') {
+      st.type = 'dot';
+      if (!st.dotSource) st.dotSource = 'fixed';
+    }
+    // 保底字段
+    if (st.disableNormal === undefined)   st.disableNormal = false;
+    if (st.disableSkill === undefined)    st.disableSkill = false;
+    if (st.disableUltimate === undefined) st.disableUltimate = false;
+    if (st.disableFollowup === undefined) st.disableFollowup = false;
+    if (st.dotSource === undefined)       st.dotSource = '';
+    if (st.dotValue === undefined)        st.dotValue = 0;
+    if (st.type === 'buff' || st.type === 'debuff') {
+      if (!st.statMod) st.statMod = 'none';
+      if (st.statValue === undefined) st.statValue = 0;
+    }
+    // 移除旧字段（不再使用）
+    delete st.isStun;
+    delete st.isDot;
+  });
+
   window.gameChars = gameChars;
   window.gameSkills = gameSkills;
   window.gameStatuses = gameStatuses;
@@ -242,20 +280,7 @@ function loadAllData() {
   window.SKILLS = {};
   gameSkills.forEach(sk => { window.SKILLS[sk.id] = sk; });
   window.STATUSES = {};
-    gameStatuses.forEach(st => {
-  if (!st.type) st.type = 'debuff';
-  // 旧版「控制眩晕」→ 新版 controlType
-  if (st.type === 'control' && st.isStun && !st.controlType) st.controlType = 'stun';
-  // 旧版「isDot = true」→ 新版 type = 'dot' + dotSource = 'fixed'
-  if (st.isDot && st.type !== 'dot') {
-    st.type = 'dot';
-    if (!st.dotSource) st.dotSource = 'fixed';
-  }
-  // 保底字段
-  if (st.controlType === undefined) st.controlType = '';
-  if (st.dotSource === undefined)  st.dotSource = '';
-  if (st.dotValue === undefined)   st.dotValue = 0;
-});
+  gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
   window.LEVELS = gameLevels;
 
   saveData(); 
@@ -263,7 +288,6 @@ function loadAllData() {
 
 function saveData() {
   if (IS_EDITOR) {
-    // 編輯器：只存初始配置
     localStorage.setItem('my_game_data_v22', JSON.stringify(gameChars));
     localStorage.setItem('my_game_skills_v22', JSON.stringify(gameSkills));
     localStorage.setItem('my_game_statuses_v22', JSON.stringify(gameStatuses));
@@ -272,12 +296,10 @@ function saveData() {
     localStorage.setItem('my_game_inventory_v22', JSON.stringify(inventory));
     localStorage.setItem('my_game_config', JSON.stringify(globalData));
   } else {
-    // 遊戲環境：只存玩家進度
     localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
     localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
   }
 
-  // 同步更新 window 映射
   window.gameChars = gameChars;
   window.gameSkills = gameSkills;
   window.gameStatuses = gameStatuses;
