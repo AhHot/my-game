@@ -504,8 +504,9 @@ const BattleLogic = {
       // ★ 禁止追打判断
       if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;
 
-      const fid = u.skillSlots.followup;
-      if (!fid || !SKILLS[fid]) continue;
+      const followupSkillId = Object.values(u.skillSlots).find(id => id && SKILLS[id] && SKILLS[id].type === 'followup');
+if (!followupSkillId) continue;
+const fid = followupSkillId;
       if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0;
         if (used < (SKILLS[fid].maxTriggers || 1)) {
@@ -991,7 +992,9 @@ class BattleScene extends Phaser.Scene {
 
     for (let u of cand) {
       if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;   // ★ 禁止追打
-      const fid = u.skillSlots.followup; if (!fid || !SKILLS[fid]) continue;
+      const followupSkillId = Object.values(u.skillSlots).find(id => id && SKILLS[id] && SKILLS[id].type === 'followup');
+if (!followupSkillId) continue;
+const fid = followupSkillId;
       if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0; if (used < (SKILLS[fid].maxTriggers || 1)) { u.followupCounts[fid] = used + 1; this.doFollowup(u, getEffectiveSkill(u, SKILLS[fid])); break; }
       }
