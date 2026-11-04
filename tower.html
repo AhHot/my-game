@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>摘星樓 - 爬塔</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
+  html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; position: relative; }
+
+  #tower-scale-container {
+    position: absolute; top: 0; left: 0;
+    width: 1280px; height: 720px;
+    transform-origin: 0 0;
+    background: #08090c;
+    overflow: hidden;
+    z-index: 10;
+  }
+
+  #tower-bg {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    filter: brightness(0.35);
+    z-index: 1;
+  }
+
+  #tower-top-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 60px;
+    background: rgba(15, 17, 23, 0.9);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0 30px;
+    z-index: 20;
+  }
+
+  .top-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #ccc;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    transition: all 0.2s;
+  }
+  .top-btn:hover { background: rgba(52,152,219,0.35); border-color: #3498db; color: #fff; }
+
+  .sweep-btn {
+    background: linear-gradient(135deg, #e67e22, #d35400);
+    border: none; color: #fff;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(230,126,34,0.4);
+    transition: all 0.2s;
+  }
+  .sweep-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(230,126,34,0.6); }
+  .sweep-btn:disabled {
+    background: #555;
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  #tower-main {
+    position: absolute; top: 70px; left: 0; right: 0; bottom: 0;
+    display: flex;
+    z-index: 10;
+  }
+
+  #tower-left {
+    width: 360px;
+    padding: 15px 15px 15px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    justify-content: center;
+  }
+
+  .floor-card {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 2px solid;
+    cursor: default;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: space-between;
+    font-weight: bold;
+    font-size: 14px;
+    position: relative;
+  }
+
+  .floor-card.unreached {
+    background: rgba(26, 26, 26, 0.6);
+    border-color: rgba(100, 100, 100, 0.3);
+    color: #666;
+  }
+
+  .floor-card.cleared {
+    background: rgba(50, 50, 50, 0.4);
+    border-color: rgba(80, 80, 80, 0.4);
+    color: #888;
+    opacity: 0.7;
+  }
+
+  .floor-card.current {
+    background: linear-gradient(135deg, rgba(230,126,34,0.9), rgba(211,84,0,0.9));
+    border-color: #e67e22;
+    color: #fff;
+    font-size: 16px;
+    box-shadow: 0 0 20px rgba(230,126,34,0.6);
+    animation: currentPulse 2s infinite;
+    cursor: pointer;
+  }
+
+  @keyframes currentPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(230,126,34,0.6); }
+    50% { box-shadow: 0 0 30px rgba(230,126,34,0.9); }
+  }
+
+  .floor-icon { font-size: 18px; margin-right: 8px; }
+  .floor-name { flex: 1; }
+  .floor-status {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+  }
+
+  .more-hint {
+    color: #555;
+    text-align: center;
+    font-size: 11px;
+    padding: 3px;
+  }
+
+  #tower-right {
+    flex: 1;
+    padding: 15px 30px 15px 15px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #detail-card {
+    background: linear-gradient(135deg, rgba(26, 28, 41, 0.95), rgba(15, 15, 21, 0.95));
+    border: 2px solid #e67e22;
+    border-radius: 12px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+    padding: 22px 28px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .detail-title {
+    color: #f1c40f;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  .detail-subtitle {
+    color: #888;
+    font-size: 13px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #333;
+  }
+
+  .reward-section {
+    margin-bottom: 14px;
+  }
+
+  .reward-title {
+    color: #f1c40f;
+    font-size: 15px;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+
+  .reward-list {
+    background: rgba(0,0,0,0.3);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 40px;
+  }
+
+  .reward-item {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #ddd;
+  }
+
+  .reward-item.exp { border-color: rgba(52,152,219,0.5); color: #3498db; }
+  .reward-item.acc-exp { border-color: rgba(241,196,15,0.5); color: #f1c40f; }
+
+  .challenge-btn {
+    margin-top: auto;
+    padding: 14px;
+    background: linear-gradient(135deg, #e67e22, #d35400);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(230,126,34,0.5);
+    transition: all 0.2s;
+    letter-spacing: 4px;
+  }
+  .challenge-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(230,126,34,0.7);
+  }
+
+  .modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(5,5,10,0.85);
+    z-index: 1000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+
+  .modal-box {
+    background: linear-gradient(135deg, #1a1c29, #0f0f15);
+    border: 2px solid #f1c40f;
+    border-radius: 12px;
+    padding: 30px 40px;
+    min-width: 400px;
+    max-width: 520px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+  }
+
+  .modal-title {
+    color: #f1c40f;
+    font-size: 22px;
+    font-weight: bold;
+    margin-bottom: 15px;
+  }
+
+  .modal-msg {
+    color: #ddd;
+    font-size: 16px;
+    line-height: 1.8;
+    margin-bottom: 25px;
+  }
+
+  .modal-btns { display: flex; gap: 15px; justify-content: center; }
+
+  .modal-btn {
+    padding: 10px 30px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .modal-btn.yes { background: #2ecc71; color: #fff; }
+  .modal-btn.no { background: #c0392b; color: #fff; }
+  .modal-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+
+  #tower-toast {
+    position: fixed;
+    top: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 15px 30px;
+    border-radius: 10px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff;
+    z-index: 99999;
+    display: none;
+    text-align: center;
+    line-height: 1.6;
+    white-space: pre-line;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    max-width: 80vw;
+  }
+
+  #lock-screen {
+    position: absolute; inset: 0;
+    background: rgba(5,5,10,0.95);
+    z-index: 5000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 40px;
+  }
+  #lock-screen.show { display: flex; }
+  .lock-icon { font-size: 80px; margin-bottom: 20px; }
+  .lock-title { color: #f1c40f; font-size: 32px; font-weight: bold; margin-bottom: 15px; }
+  .lock-msg { color: #ddd; font-size: 18px; line-height: 1.8; margin-bottom: 30px; white-space: pre-line; }
+  .lock-btn { padding: 12px 40px; background: #e67e22; color: #fff; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div id="tower-scale-container">
+    <div id="tower-bg"></div>
+
+    <div id="tower-top-bar">
+      <div style="display:flex; align-items:center; gap:20px;">
+        <button class="top-btn" onclick="window.location.href='index.html'">◀ 返回大廳</button>
+        <div style="color:#f1c40f; font-size:20px; font-weight:bold;">🏯 摘星樓</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:15px;">
+        <div style="color:#aaa; font-size:14px;">
+          帳號 <span id="acc-level" style="color:#f1c40f; font-weight:bold;">Lv.1</span>
+        </div>
+        <button id="sweep-btn" class="sweep-btn">🌀 掃蕩</button>
+      </div>
+    </div>
+
+    <div id="tower-main">
+      <div id="tower-left"></div>
+      <div id="tower-right"></div>
+    </div>
+
+    <div id="lock-screen">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-title">摘星樓未解鎖</div>
+      <div class="lock-msg" id="lock-msg"></div>
+      <button class="lock-btn" onclick="window.location.href='index.html'">返回大廳</button>
+    </div>
+
+    <div id="confirm-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div class="modal-title" id="confirm-title">確認</div>
+        <div class="modal-msg" id="confirm-msg"></div>
+        <div class="modal-btns">
+          <button class="modal-btn yes" id="confirm-yes">是</button>
+          <button class="modal-btn no" id="confirm-no">否</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tower-toast"></div>
+
+  <script src="core.js"></script>
+  <script src="account_system.js"></script>
+  <script>
+  (function () {
+    'use strict';
+
+    // ============ 自动缩放 ============
+    function autoScale() {
+      const c = document.getElementById('tower-scale-container');
+      if (!c) return;
+      const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+      c.style.transform = `scale(${scale})`;
+      c.style.left = (window.innerWidth - 1280 * scale) / 2 + 'px';
+      c.style.top = (window.innerHeight - 720 * scale) / 2 + 'px';
+    }
+    window.addEventListener('resize', autoScale);
+
+    // ============ 日期工具 ============
+    function todayStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    // ============ 基础数据 ============
+    function getAccount() {
+      if (window.gameAccount) return window.gameAccount;
+      try {
+        const s = localStorage.getItem('my_game_account');
+        if (s) return JSON.parse(s);
+      } catch (e) {}
+      return { level: 1, exp: 0, claimedRewards: {} };
+    }
+
+    function getTowerProgress() {
+      if (window.towerProgress) return window.towerProgress;
+      try {
+        const s = localStorage.getItem('my_game_tower_progress');
+        if (s) return JSON.parse(s);
+      } catch (e) {}
+      return { maxClearedFloor: 0, lastSweepDate: '', sweepUsedToday: false };
+    }
+
+    function saveTowerProgress(tp) {
+      window.towerProgress = tp;
+      try { localStorage.setItem('my_game_tower_progress', JSON.stringify(tp)); } catch (e) {}
+    }
+
+    function checkDailyReset(tp) {
+      const today = todayStr();
+      if (tp.lastSweepDate !== today) {
+        tp.lastSweepDate = today;
+        tp.sweepUsedToday = false;
+        saveTowerProgress(tp);
+        return true;
+      }
+      return false;
+    }
+
+    // ============ 塔数据 ============
+    function getTowerFloors() {
+      const floors = [];
+      const levels = window.LEVELS || [];
+      levels.forEach((lv, idx) => {
+        if (lv.category === 'tower' && (lv.towerFloor || 0) > 0) {
+          floors.push({ levelIdx: idx, lv, floor: lv.towerFloor });
+        }
+      });
+      floors.sort((a, b) => a.floor - b.floor);
+      return floors;
+    }
+
+    function getFloorInfo(floor) {
+      const levels = window.LEVELS || [];
+      for (let i = 0; i < levels.length; i++) {
+        const lv = levels[i];
+        if (lv.category === 'tower' && lv.towerFloor === floor) {
+          return { levelIdx: i, lv };
+        }
+      }
+      return null;
+    }
+
+    // ============ 奖励展示 ============
+    function getItemDisplay(itemId) {
+      const tpl = window.ITEMS && window.ITEMS[itemId];
+      if (!tpl) return { name: itemId, icon: '📦' };
+      return { name: tpl.name, icon: tpl.icon || '📦' };
+    }
+
+    function buildRewardTags(rewardCfg) {
+      const tags = [];
+      if (!rewardCfg) return tags;
+      if (rewardCfg.exp > 0) {
+        tags.push({ type: 'exp', text: `📈 角色經驗 +${rewardCfg.exp}` });
+      }
+      if (rewardCfg.accountExp > 0) {
+        tags.push({ type: 'acc-exp', text: `🎖️ 帳號經驗 +${rewardCfg.accountExp}` });
+      }
+      const drops = Array.isArray(rewardCfg.drops) ? rewardCfg.drops : [];
+      drops.forEach(drop => {
+        if (!drop || !drop.itemId) return;
+        const info = getItemDisplay(drop.itemId);
+        let text = `${info.icon} ${info.name}`;
+        if ((drop.count || 1) > 1) text += ` ×${drop.count}`;
+        if (!drop.guaranteed && drop.chance < 100) text += ` (${drop.chance}%)`;
+        tags.push({ type: 'item', text });
+      });
+      return tags;
+    }
+
+    function renderRewardList(tags) {
+      if (!tags || tags.length === 0) {
+        return '<div class="reward-list"><span style="color:#666; font-size:13px;">（無）</span></div>';
+      }
+      let html = '<div class="reward-list">';
+      tags.forEach(t => {
+        html += `<span class="reward-item ${t.type}">${t.text}</span>`;
+      });
+      html += '</div>';
+      return html;
+    }
+
+    // ============ 掉落发放 ============
+    function grantDrop(drop) {
+      if (!drop || !drop.itemId) return;
+      const tpl = window.ITEMS && window.ITEMS[drop.itemId];
+      if (!tpl) return;
+
+      if (!drop.guaranteed) {
+        const chance = typeof drop.chance === 'number' ? drop.chance : 100;
+        if (Math.random() * 100 >= chance) return;
+      }
+
+      const cnt = Math.max(1, parseInt(drop.count) || 1);
+      const isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
+
+      if (isEquip) {
+        for (let i = 0; i < cnt; i++) {
+          let inst = null;
+          try { inst = generateEquipInstance(drop.itemId, drop.qualityMin, drop.qualityMax); } catch (e) { inst = null; }
+          if (inst) window.INVENTORY.push(inst);
+        }
+      } else {
+        grantItemStack(drop.itemId, cnt);
+      }
+    }
+
+    function generateEquipInstance(itemId, qMin, qMax) {
+      const t = window.ITEMS[itemId];
+      if (!t) return null;
+
+      const qOrder = ['white', 'green', 'blue', 'purple', 'orange', 'red'];
+      let minIdx = qOrder.indexOf(qMin || 'white'); if (minIdx === -1) minIdx = 0;
+      let maxIdx = qOrder.indexOf(qMax || 'red');   if (maxIdx === -1) maxIdx = 5;
+      if (minIdx > maxIdx) { const tmp = minIdx; minIdx = maxIdx; maxIdx = tmp; }
+
+      const allRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
+      let pool = allRates.filter(d => {
+        const qi = qOrder.indexOf(d.q);
+        return qi >= minIdx && qi <= maxIdx;
+      });
+      if (pool.length === 0) pool = allRates;
+
+      const totalW = pool.reduce((s, d) => s + (d.max - d.min), 0);
+      let r = Math.random() * totalW;
+      let acc = 0, cfg = pool[0];
+      for (const d of pool) {
+        const w = d.max - d.min;
+        if (r >= acc && r < acc + w) { cfg = d; break; }
+        acc += w;
+      }
+
+      const q = cfg.q, m = cfg.m, n = cfg.n;
+      const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
+      const df = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
+      const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
+
+      const armorPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.armor) || [];
+      const weaponPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.weapon) || [];
+      const accPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.accessory) || [];
+      const affixPool = t.category === 'armor' ? [...armorPool] : (t.category === 'weapon' ? [...weaponPool] : [...accPool]);
+      const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
+      const extras = [];
+      for (let i = 0; i < n; i++) {
+        if (affixPool.length === 0) break;
+        const idx = Math.floor(Math.random() * affixPool.length);
+        const stat = affixPool.splice(idx, 1)[0];
+        const vcfg = (window.GLOBAL_AFFIX_VALUES && window.GLOBAL_AFFIX_VALUES[stat]) || { min: 0, max: 0 };
+        let v = vcfg.max >= vcfg.min ? Math.random() * (vcfg.max - vcfg.min) + vcfg.min : vcfg.min;
+        v = intTypes.includes(stat) ? Math.round(v) : Math.round((v/100)*100)/100;
+        extras.push({ stat, value: v });
+      }
+
+      return {
+        uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
+        itemId: t.id, quality: q,
+        baseAtk: a, baseDef: df, baseHp: h,
+        extras, equippedBy: '', count: 1
+      };
+    }
+
+    function grantItemStack(itemId, count) {
+      const tpl = window.ITEMS[itemId];
+      if (!tpl || count <= 0) return;
+      if (!window.INVENTORY) window.INVENTORY = [];
+      const maxStack = tpl.maxStack || 1;
+
+      const existingList = window.INVENTORY.filter(i => i.itemId === itemId && !i.equippedBy);
+      let remain = count;
+      existingList.forEach(ex => {
+        if (remain <= 0) return;
+        const curCount = ex.count || 1;
+        const canAdd = Math.max(0, maxStack - curCount);
+        const toAdd = Math.min(canAdd, remain);
+        if (toAdd > 0) { ex.count = curCount + toAdd; remain -= toAdd; }
+      });
+      while (remain > 0) {
+        const thisCount = Math.min(maxStack, remain);
+        window.INVENTORY.push({
+          uid: 'inst_' + Date.now() + Math.floor(Math.random()*1e4) + '_' + Math.random().toString(36).substr(2,4),
+          itemId, quality: 'white', count: thisCount, equippedBy: ''
+        });
+        remain -= thisCount;
+      }
+    }
+
+    function grantCharExp(amount) {
+      if (amount <= 0) return;
+      const chars = window.CHARACTERS || [];
+      const expTable = (window.globalData && window.globalData.expTable) || [];
+      chars.forEach(c => {
+        if (c.side !== 'player') return;
+        if (c.level >= 60) return;
+        c.exp = (c.exp || 0) + amount;
+        let curLv = c.level || 1;
+        let reqExp = expTable[curLv - 1] || 100;
+        while (c.exp >= reqExp && curLv < 60) {
+          c.exp -= reqExp;
+          curLv++;
+          c.freePoints = (c.freePoints || 0) + 3;
+          reqExp = expTable[curLv - 1] || 100;
+        }
+        c.level = curLv;
+      });
+      try { localStorage.setItem('my_game_characters', JSON.stringify(chars)); } catch (e) {}
+    }
+
+    // ============ Toast & Confirm ============
+    function toast(msg, color, duration) {
+      color = color || '#2ecc71';
+      duration = duration || 3000;
+      const t = document.getElementById('tower-toast');
+      t.innerText = msg;
+      t.style.background = color;
+      t.style.display = 'block';
+      if (t._timer) clearTimeout(t._timer);
+      t._timer = setTimeout(() => { t.style.display = 'none'; }, duration);
+    }
+
+    let _confirmCb = null;
+    function showConfirm(title, msg, cb) {
+      document.getElementById('confirm-title').innerText = title;
+      document.getElementById('confirm-msg').innerHTML = msg;
+      document.getElementById('confirm-modal').classList.add('show');
+      _confirmCb = cb;
+    }
+    function closeConfirm() {
+      document.getElementById('confirm-modal').classList.remove('show');
+      _confirmCb = null;
+    }
+    document.getElementById('confirm-yes').onclick = () => {
+      const cb = _confirmCb;
+      closeConfirm();
+      if (cb) cb();
+    };
+    document.getElementById('confirm-no').onclick = closeConfirm;
+
+    // ============ 渲染 ============
+    function render() {
+      autoScale();
+      const acc = getAccount();
+      const unlockLv = (window.globalData && window.globalData.account && window.globalData.account.towerUnlockLevel) || 10;
+
+      if (acc.level < unlockLv) {
+        document.getElementById('lock-screen').classList.add('show');
+        document.getElementById('lock-msg').innerText = `需要帳號等級達到 Lv.${unlockLv} 才能進入摘星樓。\n目前等級：Lv.${acc.level}`;
+        return;
+      }
+      document.getElementById('lock-screen').classList.remove('show');
+      document.getElementById('acc-level').innerText = 'Lv.' + acc.level;
+
+      const tp = getTowerProgress();
+      checkDailyReset(tp);
+
+      const floors = getTowerFloors();
+      const totalFloors = floors.length > 0 ? floors[floors.length - 1].floor : 0;
+      const maxCleared = tp.maxClearedFloor || 0;
+      const currentFloor = maxCleared + 1;
+      const allCleared = currentFloor > totalFloors;
+
+      renderLeftPanel(currentFloor, maxCleared, totalFloors, allCleared);
+      renderRightPanel(currentFloor, allCleared);
+      updateSweepButton(tp);
+    }
+
+    function renderLeftPanel(currentFloor, maxCleared, totalFloors, allCleared) {
+      const left = document.getElementById('tower-left');
+      if (totalFloors === 0) {
+        left.innerHTML = '<div style="color:#888; text-align:center; padding:40px; font-size:14px;">尚未配置任何樓層<br><span style="font-size:12px; color:#666;">（請在編輯器「關卡」Tab 的摘星樓分類中添加）</span></div>';
+        return;
+      }
+      const span = 5;
+      let startF = Math.max(1, currentFloor - span);
+      let endF = Math.min(totalFloors, currentFloor + span);
+      if (allCleared) {
+        startF = Math.max(1, totalFloors - span * 2);
+        endF = totalFloors;
+      }
+
+      let html = '';
+      if (endF < totalFloors) {
+        html += `<div class="more-hint">... 上方還有 ${totalFloors - endF} 層未到達 ...</div>`;
+      }
+
+      for (let f = endF; f >= startF; f--) {
+        let cls = 'floor-card';
+        let icon = '🏯';
+        let status = '';
+        if (f > currentFloor) {
+          cls += ' unreached'; icon = '🔒'; status = '未到達';
+        } else if (f === currentFloor && !allCleared) {
+          cls += ' current'; icon = '⚔️'; status = '待挑戰';
+        } else {
+          cls += ' cleared'; icon = '✅'; status = '已通關';
+        }
+        const clickAttr = (f === currentFloor && !allCleared) ? `onclick="window.challengeFloor(${f})"` : '';
+        html += `<div class="${cls}" ${clickAttr}><span class="floor-icon">${icon}</span><span class="floor-name">第 ${f} 層</span><span class="floor-status">${status}</span></div>`;
+      }
+
+      if (startF > 1) {
+        html += `<div class="more-hint">... 下方已通關 ${startF - 1} 層 ...</div>`;
+      }
+      left.innerHTML = html;
+    }
+
+    function renderRightPanel(currentFloor, allCleared) {
+      const right = document.getElementById('tower-right');
+      if (allCleared) {
+        right.innerHTML = `
+          <div id="detail-card" style="justify-content:center; align-items:center; text-align:center;">
+            <div style="font-size:60px; margin-bottom:20px;">🏆</div>
+            <div class="detail-title" style="justify-content:center;">摘星樓已全部通關！</div>
+            <div style="color:#aaa; font-size:14px; line-height:1.8; margin-top:10px;">
+              恭喜您征服了所有樓層<br>敬請期待更多樓層開放
+            </div>
+          </div>
+        `;
+        return;
+      }
+      const info = getFloorInfo(currentFloor);
+      if (!info) {
+        right.innerHTML = `<div style="color:#888; text-align:center; padding:40px;">第 ${currentFloor} 層尚未配置關卡</div>`;
+        return;
+      }
+      const lv = info.lv;
+      const firstTags = buildRewardTags(lv.firstClear || {});
+      const repeatTags = buildRewardTags(lv.repeatRewards || {});
+      right.innerHTML = `
+        <div id="detail-card">
+          <div class="detail-title">
+            <span>⚔️ 第 ${currentFloor} 層</span>
+            <span style="background:rgba(230,126,34,0.2); color:#e67e22; font-size:13px; padding:4px 12px; border-radius:12px;">待挑戰</span>
+          </div>
+          <div class="detail-subtitle">${lv.name || ('摘星樓 第 ' + currentFloor + ' 層')}</div>
+          <div class="reward-section">
+            <div class="reward-title">🏆 首通獎勵</div>
+            ${renderRewardList(firstTags)}
+          </div>
+          <div class="reward-section">
+            <div class="reward-title">🔁 重複獎勵（掃蕩）</div>
+            ${renderRewardList(repeatTags)}
+          </div>
+          <button class="challenge-btn" onclick="window.challengeFloor(${currentFloor})">⚔️ 挑 戰</button>
+        </div>
+      `;
+    }
+
+    function updateSweepButton(tp) {
+      const btn = document.getElementById('sweep-btn');
+      const maxCleared = tp.maxClearedFloor || 0;
+      if (maxCleared <= 0) {
+        btn.disabled = true;
+        btn.innerText = '🌀 掃蕩（無已通關）';
+        return;
+      }
+      if (tp.sweepUsedToday) {
+        btn.disabled = true;
+        btn.innerText = '🌀 掃蕩（今日已用）';
+      } else {
+        btn.disabled = false;
+        btn.innerText = '🌀 掃蕩（1次可用）';
+      }
+    }
+
+    // ============ 挑战 ============
+    window.challengeFloor = function (floor) {
+      const info = getFloorInfo(floor);
+      if (!info) { toast('此層尚未配置關卡', '#e74c3c'); return; }
+      const tp = getTowerProgress();
+      if (floor <= (tp.maxClearedFloor || 0)) { toast('此層已通關，無法再次挑戰', '#e74c3c'); return; }
+      if (floor > (tp.maxClearedFloor || 0) + 1) { toast('請先挑戰前一層', '#e74c3c'); return; }
+      localStorage.setItem('my_game_current_level_index', String(info.levelIdx));
+      window.location.href = 'index.html?autoFormation=1';
+    };
+
+    // ============ 扫荡 ============
+    document.getElementById('sweep-btn').onclick = function () {
+      const tp = getTowerProgress();
+      checkDailyReset(tp);
+      if (tp.sweepUsedToday) { toast('今日掃蕩次數已用完\n明天 00:00 重置', '#e67e22'); return; }
+      const maxCleared = tp.maxClearedFloor || 0;
+      if (maxCleared <= 0) { toast('尚未通關任何樓層', '#e67e22'); return; }
+      showConfirm('🌀 確認掃蕩',
+        `領取所有已通關樓層的獎勵（共 ${maxCleared} 層）<br>是否確定執行掃蕩？`,
+        () => executeSweep());
+    };
+
+    function executeSweep() {
+      const tp = getTowerProgress();
+      const maxCleared = tp.maxClearedFloor || 0;
+      let totalExp = 0;
+      let totalAccExp = 0;
+      let processedFloors = 0;
+
+      for (let f = 1; f <= maxCleared; f++) {
+        const info = getFloorInfo(f);
+        if (!info) continue;
+        processedFloors++;
+        const repeat = info.lv.repeatRewards || {};
+        if (repeat.exp > 0) totalExp += repeat.exp;
+        if (repeat.accountExp > 0) totalAccExp += repeat.accountExp;
+        const drops = Array.isArray(repeat.drops) ? repeat.drops : [];
+        drops.forEach(drop => grantDrop(drop));
+      }
+
+      if (totalExp > 0) grantCharExp(totalExp);
+
+      let accLevelUpMsg = '';
+      if (totalAccExp > 0 && window.AccountSystem && window.AccountSystem.addAccountExp) {
+        const beforeLv = (window.gameAccount && window.gameAccount.level) || 1;
+        try {
+          const res = window.AccountSystem.addAccountExp(totalAccExp);
+          if (res && res.leveledUp) {
+            const afterLv = (window.gameAccount && window.gameAccount.level) || beforeLv;
+            accLevelUpMsg = `\n🎉 帳號升級！Lv.${beforeLv} → Lv.${afterLv}`;
+          }
+        } catch (e) {}
+      }
+
+      tp.sweepUsedToday = true;
+      tp.lastSweepDate = todayStr();
+      saveTowerProgress(tp);
+      try { localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY)); } catch (e) {}
+
+      let msg = `✅ 掃蕩完成！\n共掃蕩 ${processedFloors} 層`;
+      if (totalExp > 0) msg += `\n📈 角色經驗 +${totalExp}`;
+      if (totalAccExp > 0) msg += `\n🎖️ 帳號經驗 +${totalAccExp}`;
+      msg += accLevelUpMsg;
+      toast(msg, '#2ecc71', 4000);
+
+      setTimeout(() => render(), 100);
+    }
+
+    // ============ 初始化 ============
+    function init() {
+      autoScale();
+      render();
+    }
+    window.onload = function () { setTimeout(init, 80); };
+  })();
+  </script>
+</body>
+</html>
