@@ -1,5 +1,5 @@
 // ============================================================
-// battle.js - 战斗场景 + 结果结算（支持首通/重复奖励/账号经验/摘星樓）
+// battle.js - 战斗场景 + 结果结算（修复重复通关幽灵经验）
 // ============================================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
@@ -1216,15 +1216,8 @@ class ResultScene extends Phaser.Scene {
       rewardCfg = lv.repeatRewards || { exp: 0, accountExp: 0, drops: [] };
     }
 
-    // 兼容：如果没有新格式字段，回退到旧字段
-    if ((!rewardCfg || (rewardCfg.exp === 0 && rewardCfg.accountExp === 0 && (!rewardCfg.drops || rewardCfg.drops.length === 0)))
-        && (lv.rewardExp > 0 || lv.rewardItemId)) {
-      rewardCfg = {
-        exp: lv.rewardExp || 0,
-        accountExp: 0,
-        drops: lv.rewardItemId ? [{ itemId: lv.rewardItemId, count: 1, chance: 100, qualityMin: 'white', qualityMax: 'red', guaranteed: true }] : []
-      };
-    }
+    // ★ 移除旧字段回退逻辑：只要编辑器里配了多少就是多少，不再因为旧字段而给奖励
+    // （core.js 的 migrateLevel 已经保证了 firstClear 和 repeatRewards 结构完整）
 
     // ===== 1. 角色经验 =====
     const totalExp = rewardCfg.exp || 0;
@@ -1406,8 +1399,8 @@ class ResultScene extends Phaser.Scene {
         }).setOrigin(0.5);
         y += 24;
       }
-    } else if (dropsEmptyHintNeeded(lv)) {
-      this.add.text(cx, y, '（本次無掉落）', {
+    } else if (totalExp === 0 && accExp === 0) {
+      this.add.text(cx, y, '（本次無掉落與經驗）', {
         fontSize: '16px', color: '#666', fontStyle: 'italic', stroke: '#000', strokeThickness: 2
       }).setOrigin(0.5);
       y += 26;
@@ -1484,10 +1477,6 @@ class ResultScene extends Phaser.Scene {
       else { window.location.href = 'index.html'; }
     });
   }
-}
-
-function dropsEmptyHintNeeded(lv) {
-  return false; // 简化：默认不显示
 }
 
 window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload(); } });
