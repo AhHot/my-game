@@ -8,13 +8,18 @@
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
   html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; position: relative; }
 
-  /* ★ Phaser 畫布容器：始終存在於底層，防止 0 寬高導致的引擎死鎖 */
+  /* ★ 基础状态：Phaser 画布在底层 */
   #game {
     position: absolute; top: 0; left: 0;
     width: 100vw; height: 100vh;
     z-index: 1;
     background: #0f0f1a;
-    pointer-events: auto;
+  }
+  
+  /* ★ 关键：如果在战斗模式，强制把 Phaser 画布顶到最前面，并恢复点击 */
+  body.in-tower-battle #game {
+    z-index: 99999;
+    pointer-events: auto !important;
   }
 
   #tower-scale-container {
@@ -23,7 +28,7 @@
     transform-origin: 0 0;
     background: #08090c;
     overflow: hidden;
-    z-index: 10000; /* 蓋在 Phaser 上面 */
+    z-index: 10000; /* 摘星楼 UI 盖在游戏上面 */
   }
 
   #tower-bg {
@@ -323,9 +328,10 @@
 </style>
 </head>
 <body>
-  <!-- ★ 修復：把 #game 放在最底層並且不給 display: none -->
+  <!-- Phaser 容器 -->
   <div id="game"></div>
 
+  <!-- 塔界面 UI -->
   <div id="tower-scale-container">
     <div id="tower-bg"></div>
 
@@ -368,7 +374,6 @@
 
   <div id="tower-toast"></div>
 
-  <!-- ★ 引入 Phaser 和戰鬥依賴 -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
   <script src="core.js"></script>
   <script src="account_system.js"></script>
@@ -378,7 +383,6 @@
   (function () {
     'use strict';
 
-    // ============ 自动缩放 ============
     function autoScale() {
       const c = document.getElementById('tower-scale-container');
       if (!c) return;
@@ -389,7 +393,6 @@
     }
     window.addEventListener('resize', autoScale);
 
-    // ============ 日期工具 ============
     function todayStr() {
       const d = new Date();
       const y = d.getFullYear();
@@ -398,7 +401,6 @@
       return `${y}-${m}-${day}`;
     }
 
-    // ============ 基础数据 ============
     function getAccount() {
       if (window.gameAccount) return window.gameAccount;
       try {
@@ -433,7 +435,6 @@
       return false;
     }
 
-    // ============ 塔数据 ============
     function getTowerFloors() {
       const floors = [];
       const levels = window.LEVELS || [];
@@ -457,7 +458,6 @@
       return null;
     }
 
-    // ============ 奖励展示 ============
     function getItemDisplay(itemId) {
       const tpl = window.ITEMS && window.ITEMS[itemId];
       if (!tpl) return { name: itemId, icon: '📦' };
@@ -467,12 +467,8 @@
     function buildRewardTags(rewardCfg) {
       const tags = [];
       if (!rewardCfg) return tags;
-      if (rewardCfg.exp > 0) {
-        tags.push({ type: 'exp', text: `📈 角色經驗 +${rewardCfg.exp}` });
-      }
-      if (rewardCfg.accountExp > 0) {
-        tags.push({ type: 'acc-exp', text: `🎖️ 帳號經驗 +${rewardCfg.accountExp}` });
-      }
+      if (rewardCfg.exp > 0) tags.push({ type: 'exp', text: `📈 角色經驗 +${rewardCfg.exp}` });
+      if (rewardCfg.accountExp > 0) tags.push({ type: 'acc-exp', text: `🎖️ 帳號經驗 +${rewardCfg.accountExp}` });
       const drops = Array.isArray(rewardCfg.drops) ? rewardCfg.drops : [];
       drops.forEach(drop => {
         if (!drop || !drop.itemId) return;
@@ -486,28 +482,21 @@
     }
 
     function renderRewardList(tags) {
-      if (!tags || tags.length === 0) {
-        return '<div class="reward-list"><span style="color:#666; font-size:13px;">（無）</span></div>';
-      }
+      if (!tags || tags.length === 0) return '<div class="reward-list"><span style="color:#666; font-size:13px;">（無）</span></div>';
       let html = '<div class="reward-list">';
-      tags.forEach(t => {
-        html += `<span class="reward-item ${t.type}">${t.text}</span>`;
-      });
+      tags.forEach(t => { html += `<span class="reward-item ${t.type}">${t.text}</span>`; });
       html += '</div>';
       return html;
     }
 
-    // ============ 掉落发放 ============
     function grantDrop(drop) {
       if (!drop || !drop.itemId) return;
       const tpl = window.ITEMS && window.ITEMS[drop.itemId];
       if (!tpl) return;
-
       if (!drop.guaranteed) {
         const chance = typeof drop.chance === 'number' ? drop.chance : 100;
         if (Math.random() * 100 >= chance) return;
       }
-
       const cnt = Math.max(1, parseInt(drop.count) || 1);
       const isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
 
@@ -525,19 +514,16 @@
     function generateEquipInstance(itemId, qMin, qMax) {
       const t = window.ITEMS[itemId];
       if (!t) return null;
-
       const qOrder = ['white', 'green', 'blue', 'purple', 'orange', 'red'];
       let minIdx = qOrder.indexOf(qMin || 'white'); if (minIdx === -1) minIdx = 0;
       let maxIdx = qOrder.indexOf(qMax || 'red');   if (maxIdx === -1) maxIdx = 5;
       if (minIdx > maxIdx) { const tmp = minIdx; minIdx = maxIdx; maxIdx = tmp; }
-
       const allRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
       let pool = allRates.filter(d => {
         const qi = qOrder.indexOf(d.q);
         return qi >= minIdx && qi <= maxIdx;
       });
       if (pool.length === 0) pool = allRates;
-
       const totalW = pool.reduce((s, d) => s + (d.max - d.min), 0);
       let r = Math.random() * totalW;
       let acc = 0, cfg = pool[0];
@@ -546,12 +532,10 @@
         if (r >= acc && r < acc + w) { cfg = d; break; }
         acc += w;
       }
-
       const q = cfg.q, m = cfg.m, n = cfg.n;
       const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
       const df = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
       const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
-
       const armorPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.armor) || [];
       const weaponPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.weapon) || [];
       const accPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.accessory) || [];
@@ -567,13 +551,7 @@
         v = intTypes.includes(stat) ? Math.round(v) : Math.round((v/100)*100)/100;
         extras.push({ stat, value: v });
       }
-
-      return {
-        uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
-        itemId: t.id, quality: q,
-        baseAtk: a, baseDef: df, baseHp: h,
-        extras, equippedBy: '', count: 1
-      };
+      return { uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000), itemId: t.id, quality: q, baseAtk: a, baseDef: df, baseHp: h, extras, equippedBy: '', count: 1 };
     }
 
     function grantItemStack(itemId, count) {
@@ -581,7 +559,6 @@
       if (!tpl || count <= 0) return;
       if (!window.INVENTORY) window.INVENTORY = [];
       const maxStack = tpl.maxStack || 1;
-
       const existingList = window.INVENTORY.filter(i => i.itemId === itemId && !i.equippedBy);
       let remain = count;
       existingList.forEach(ex => {
@@ -622,7 +599,6 @@
       try { localStorage.setItem('my_game_characters', JSON.stringify(chars)); } catch (e) {}
     }
 
-    // ============ Toast & Confirm ============
     function toast(msg, color, duration) {
       color = color || '#2ecc71';
       duration = duration || 3000;
@@ -645,14 +621,9 @@
       document.getElementById('confirm-modal').classList.remove('show');
       _confirmCb = null;
     }
-    document.getElementById('confirm-yes').onclick = () => {
-      const cb = _confirmCb;
-      closeConfirm();
-      if (cb) cb();
-    };
+    document.getElementById('confirm-yes').onclick = () => { const cb = _confirmCb; closeConfirm(); if (cb) cb(); };
     document.getElementById('confirm-no').onclick = closeConfirm;
 
-    // ============ 渲染 ============
     function render() {
       autoScale();
       const acc = getAccount();
@@ -693,30 +664,19 @@
         startF = Math.max(1, totalFloors - span * 2);
         endF = totalFloors;
       }
-
       let html = '';
-      if (endF < totalFloors) {
-        html += `<div class="more-hint">... 上方還有 ${totalFloors - endF} 層未到達 ...</div>`;
-      }
-
+      if (endF < totalFloors) html += `<div class="more-hint">... 上方還有 ${totalFloors - endF} 層未到達 ...</div>`;
       for (let f = endF; f >= startF; f--) {
         let cls = 'floor-card';
         let icon = '🏯';
         let status = '';
-        if (f > currentFloor) {
-          cls += ' unreached'; icon = '🔒'; status = '未到達';
-        } else if (f === currentFloor && !allCleared) {
-          cls += ' current'; icon = '⚔️'; status = '待挑戰';
-        } else {
-          cls += ' cleared'; icon = '✅'; status = '已通關';
-        }
+        if (f > currentFloor) { cls += ' unreached'; icon = '🔒'; status = '未到達'; }
+        else if (f === currentFloor && !allCleared) { cls += ' current'; icon = '⚔️'; status = '待挑戰'; }
+        else { cls += ' cleared'; icon = '✅'; status = '已通關'; }
         const clickAttr = (f === currentFloor && !allCleared) ? `onclick="window.challengeFloor(${f})"` : '';
         html += `<div class="${cls}" ${clickAttr}><span class="floor-icon">${icon}</span><span class="floor-name">第 ${f} 層</span><span class="floor-status">${status}</span></div>`;
       }
-
-      if (startF > 1) {
-        html += `<div class="more-hint">... 下方已通關 ${startF - 1} 層 ...</div>`;
-      }
+      if (startF > 1) html += `<div class="more-hint">... 下方已通關 ${startF - 1} 層 ...</div>`;
       left.innerHTML = html;
     }
 
@@ -727,9 +687,7 @@
           <div id="detail-card" style="justify-content:center; align-items:center; text-align:center;">
             <div style="font-size:60px; margin-bottom:20px;">🏆</div>
             <div class="detail-title" style="justify-content:center;">摘星樓已全部通關！</div>
-            <div style="color:#aaa; font-size:14px; line-height:1.8; margin-top:10px;">
-              恭喜您征服了所有樓層<br>敬請期待更多樓層開放
-            </div>
+            <div style="color:#aaa; font-size:14px; line-height:1.8; margin-top:10px;">恭喜您征服了所有樓層<br>敬請期待更多樓層開放</div>
           </div>
         `;
         return;
@@ -749,14 +707,8 @@
             <span style="background:rgba(230,126,34,0.2); color:#e67e22; font-size:13px; padding:4px 12px; border-radius:12px;">待挑戰</span>
           </div>
           <div class="detail-subtitle">${lv.name || ('摘星樓 第 ' + currentFloor + ' 層')}</div>
-          <div class="reward-section">
-            <div class="reward-title">🏆 首通獎勵</div>
-            ${renderRewardList(firstTags)}
-          </div>
-          <div class="reward-section">
-            <div class="reward-title">🔁 重複獎勵（掃蕩）</div>
-            ${renderRewardList(repeatTags)}
-          </div>
+          <div class="reward-section"><div class="reward-title">🏆 首通獎勵</div>${renderRewardList(firstTags)}</div>
+          <div class="reward-section"><div class="reward-title">🔁 重複獎勵（掃蕩）</div>${renderRewardList(repeatTags)}</div>
           <button class="challenge-btn" onclick="window.challengeFloor(${currentFloor})">⚔️ 挑 戰</button>
         </div>
       `;
@@ -765,21 +717,12 @@
     function updateSweepButton(tp) {
       const btn = document.getElementById('sweep-btn');
       const maxCleared = tp.maxClearedFloor || 0;
-      if (maxCleared <= 0) {
-        btn.disabled = true;
-        btn.innerText = '🌀 掃蕩（無已通關）';
-        return;
-      }
-      if (tp.sweepUsedToday) {
-        btn.disabled = true;
-        btn.innerText = '🌀 掃蕩（今日已用）';
-      } else {
-        btn.disabled = false;
-        btn.innerText = '🌀 掃蕩（1次可用）';
-      }
+      if (maxCleared <= 0) { btn.disabled = true; btn.innerText = '🌀 掃蕩（無已通關）'; return; }
+      if (tp.sweepUsedToday) { btn.disabled = true; btn.innerText = '🌀 掃蕩（今日已用）'; }
+      else { btn.disabled = false; btn.innerText = '🌀 掃蕩（1次可用）'; }
     }
 
-    // ============ 挑战（直接启动战斗引擎） ============
+    // ★ 核心：点击挑战，记录状态并重载页面
     window.challengeFloor = function (floor) {
       const info = getFloorInfo(floor);
       if (!info) { toast('此層尚未配置關卡', '#e74c3c'); return; }
@@ -787,45 +730,27 @@
       if (floor <= (tp.maxClearedFloor || 0)) { toast('此層已通關，無法再次挑戰', '#e74c3c'); return; }
       if (floor > (tp.maxClearedFloor || 0) + 1) { toast('請先挑戰前一層', '#e74c3c'); return; }
 
-      // ★ 直接把遮罩層（摘星樓）隱藏，底下已經加載好的 Phaser 畫面自然顯露出來
-      document.getElementById('tower-scale-container').style.display = 'none';
-
-      let attempts = 0;
-      const tryStart = () => {
-        if (window.game && window.game.scene) {
-          window.game.scene.stop('MainMenuScene');
-          // 直接傳入 from: 'tower'，打贏會自動刷新回摘星樓
-          window.game.scene.start('FormationScene', { levelIndex: info.levelIdx, from: 'tower' });
-          return;
-        }
-        if (attempts++ > 50) {
-          alert('遊戲引擎加載失敗，請刷新頁面重試。');
-          return;
-        }
-        setTimeout(tryStart, 100);
-      };
-      tryStart();
+      // 存入关卡索引，并标记塔战斗模式
+      localStorage.setItem('my_game_current_level_index', String(info.levelIdx));
+      localStorage.setItem('my_game_tower_battle_mode', '1');
+      
+      // 刷新页面，让 Phaser 引擎在纯净的环境下启动
+      window.location.reload();
     };
 
-    // ============ 扫荡 ============
     document.getElementById('sweep-btn').onclick = function () {
       const tp = getTowerProgress();
       checkDailyReset(tp);
       if (tp.sweepUsedToday) { toast('今日掃蕩次數已用完\n明天 00:00 重置', '#e67e22'); return; }
       const maxCleared = tp.maxClearedFloor || 0;
       if (maxCleared <= 0) { toast('尚未通關任何樓層', '#e67e22'); return; }
-      showConfirm('🌀 確認掃蕩',
-        `領取所有已通關樓層的獎勵（共 ${maxCleared} 層）<br>是否確定執行掃蕩？`,
-        () => executeSweep());
+      showConfirm('🌀 確認掃蕩', `領取所有已通關樓層的獎勵（共 ${maxCleared} 層）<br>是否確定執行掃蕩？`, () => executeSweep());
     };
 
     function executeSweep() {
       const tp = getTowerProgress();
       const maxCleared = tp.maxClearedFloor || 0;
-      let totalExp = 0;
-      let totalAccExp = 0;
-      let processedFloors = 0;
-
+      let totalExp = 0, totalAccExp = 0, processedFloors = 0;
       for (let f = 1; f <= maxCleared; f++) {
         const info = getFloorInfo(f);
         if (!info) continue;
@@ -836,7 +761,6 @@
         const drops = Array.isArray(repeat.drops) ? repeat.drops : [];
         drops.forEach(drop => grantDrop(drop));
       }
-
       if (totalExp > 0) grantCharExp(totalExp);
 
       let accLevelUpMsg = '';
@@ -850,7 +774,6 @@
           }
         } catch (e) {}
       }
-
       tp.sweepUsedToday = true;
       tp.lastSweepDate = todayStr();
       saveTowerProgress(tp);
@@ -861,15 +784,47 @@
       if (totalAccExp > 0) msg += `\n🎖️ 帳號經驗 +${totalAccExp}`;
       msg += accLevelUpMsg;
       toast(msg, '#2ecc71', 4000);
-
       setTimeout(() => render(), 100);
     }
 
-    // ============ 初始化 ============
+    // ★ 初始化检查
     function init() {
       autoScale();
+      
+      // 如果标记了塔战斗模式，说明刚点了挑战刷新过来
+      if (localStorage.getItem('my_game_tower_battle_mode') === '1') {
+        document.body.classList.add('in-tower-battle');
+        localStorage.removeItem('my_game_tower_battle_mode');
+        const levelIdxStr = localStorage.getItem('my_game_current_level_index');
+        localStorage.removeItem('my_game_current_level_index');
+
+        if (levelIdxStr) {
+          const levelIdx = parseInt(levelIdxStr);
+          document.getElementById('tower-scale-container').style.display = 'none';
+          
+          let attempts = 0;
+          const tryStart = () => {
+            if (window.game && window.game.scene) {
+              window.game.scene.stop('MainMenuScene');
+              window.game.scene.start('FormationScene', { levelIndex: levelIdx, from: 'tower' });
+              return;
+            }
+            if (attempts++ > 50) {
+              alert('遊戲引擎加載失敗，請刷新重試');
+              window.location.reload();
+              return;
+            }
+            setTimeout(tryStart, 100);
+          };
+          tryStart();
+          return; // 直接结束，不渲染塔界面
+        }
+      }
+
+      // 正常渲染塔界面
       render();
     }
+    
     window.onload = function () { setTimeout(init, 80); };
   })();
   </script>
