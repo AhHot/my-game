@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：帳號等級與經驗編輯器 (tab_account.js)
+// 模組：帳號等級與經驗編輯器 (tab_account.js) - 無跳回頂端優化版
 // ==========================================
 (function () {
   'use strict';
@@ -33,6 +33,19 @@
     } catch (e) {
       console.warn('保存账号配置失败:', e);
     }
+  }
+
+  // 辅助：保留滚动条位置重绘
+  function refreshView() {
+    const container = document.getElementById('app-content');
+    if (!container) return;
+    const scrollBox = container.querySelector('.card');
+    const scrollTop = scrollBox ? scrollBox.scrollTop : 0;
+    
+    window.renderTabAccount(container);
+    
+    const newScrollBox = container.querySelector('.card');
+    if (newScrollBox) newScrollBox.scrollTop = scrollTop;
   }
 
   function buildItemSelect(selectedId) {
@@ -315,7 +328,7 @@
     window.globalData.account[field] = value;
     persistAccountConfig();
     if (field === 'expGrowthFactor') {
-      window.renderTabAccount(document.getElementById('app-content'));
+      refreshView();
     }
   };
 
@@ -334,7 +347,7 @@
     const next = Math.floor(last * (acc.expGrowthFactor || 1.8));
     acc.expTable.push(next);
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.removeLastExpTableRow = function () {
@@ -346,7 +359,7 @@
     if (!confirm(`確定刪除經驗表的最後一級（Lv.${acc.expTable.length}）？\n注意：若該等級有配獎勵，獎勵仍會保留（顯示為表外獎勵）`)) return;
     acc.expTable.pop();
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.batchGenerateExpTable = function () {
@@ -360,7 +373,7 @@
     }
     acc.expTable = newTable;
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.toggleRewardEditor = function (lv) {
@@ -374,7 +387,7 @@
         persistAccountConfig();
       }
     }
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.updateLevelCopper = function (lv, value) {
@@ -390,7 +403,7 @@
     if (!Array.isArray(acc.levelRewards[lv].items)) acc.levelRewards[lv].items = [];
     acc.levelRewards[lv].items.push({ itemId: '', count: 1 });
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.removeRewardItem = function (lv, idx) {
@@ -398,7 +411,7 @@
     if (acc.levelRewards[lv] && Array.isArray(acc.levelRewards[lv].items)) {
       acc.levelRewards[lv].items.splice(idx, 1);
       persistAccountConfig();
-      window.renderTabAccount(document.getElementById('app-content'));
+      refreshView();
     }
   };
 
@@ -416,7 +429,7 @@
     delete acc.levelRewards[lv];
     delete window._expandedRewardLevels[lv];
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.addExtraLevelReward = function () {
@@ -432,7 +445,7 @@
     if (!acc.levelRewards[lv]) acc.levelRewards[lv] = { copper: 0, items: [] };
     window._expandedRewardLevels[lv] = true;
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.removeExtraLevelReward = function (lv) {
@@ -441,7 +454,7 @@
     delete acc.levelRewards[lv];
     delete window._expandedRewardLevels[lv];
     persistAccountConfig();
-    window.renderTabAccount(document.getElementById('app-content'));
+    refreshView();
   };
 
   window.saveAccountConfigNow = function () {
