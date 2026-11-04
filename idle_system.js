@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：放置型掛機資源系統 (idle_system.js) - 支持固定帳號經驗版
+// 模組：放置型掛機資源系統 (idle_system.js) - 支持按時間比例發放帳號經驗
 // ============================================================
 (function () {
   'use strict';
@@ -150,11 +150,11 @@
     try { localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY)); } catch (e) {}
   }
 
-  // ★ 新增：發放固定帳號經驗
-  function grantIdleAccountExp() {
+  // ★ 新增：按時間比例發放帳號經驗
+  function grantIdleAccountExp(hours) {
     if (!window.globalData || !window.globalData.account) return 0;
-    const flat = window.globalData.account.idleAccountExpFlat;
-    const amount = Math.max(0, Math.floor(typeof flat === 'number' ? flat : 0));
+    const perHour = window.globalData.account.idleAccountExpFlat || 0;
+    const amount = Math.floor(hours * perHour);
     if (amount <= 0) return 0;
     if (window.AccountSystem && typeof window.AccountSystem.addAccountExp === 'function') {
       try { window.AccountSystem.addAccountExp(amount); } catch (e) { console.warn('掛機帳號經驗發放失敗:', e); }
@@ -180,7 +180,13 @@
       equipment:        Math.floor(pending.equipment)
     };
     const total = grants.copper + grants.expPill + grants.breakthroughPill + grants.equipment;
-    if (total <= 0) return { ok: false, msg: '暫無資源可領取，先去冒險吧！' };
+    if (total <= 0 && pending.hours < 1) { // 如果资源为0，且不足1小时，且没账号经验，可以拒绝。但为了以防万一，如果有账号经验，也允许领。
+        let accCheck = 0;
+        if (window.globalData && window.globalData.account && window.globalData.account.idleAccountExpFlat > 0) {
+            accCheck = Math.floor(pending.hours * window.globalData.account.idleAccountExpFlat);
+        }
+        if (accCheck <= 0) return { ok: false, msg: '暫無資源可領取，先去冒險吧！' };
+    }
 
     data.pendingFractions = {
       copper:           pending.copper           - grants.copper,
@@ -196,8 +202,8 @@
     if (grants.breakthroughPill > 0) grantItem(cfg.itemMappings.breakthroughPill, grants.breakthroughPill);
     if (grants.equipment > 0)        grantEquipment(grants.equipment, cfg.equipmentPool);
 
-    // ★ 固定帳號經驗（每次收資源固定給，不按銅幣比例）
-    const accExpGranted = grantIdleAccountExp();
+    // ★ 按時間比例發放帳號經驗
+    const accExpGranted = grantIdleAccountExp(pending.hours);
     grants.accountExp = accExpGranted;
 
     if (window.IdleSystem && window.IdleSystem.onReward) window.IdleSystem.onReward(grants);
@@ -328,21 +334,18 @@
       const data = getData();
       const rates = calcRates(cfg, data);
 
-      // ★ 增加每小時帳號經驗
       let accPerHour = 0;
       if (window.globalData && window.globalData.account && typeof window.globalData.account.idleAccountExpFlat === 'number') {
-        const flat = window.globalData.account.idleAccountExpFlat;
-        const maxHours = cfg.maxOfflineHours || 24;
-        if (maxHours > 0 && flat > 0) accPerHour = flat / 1; // 每次領取=1份，這裡顯示單次
+        accPerHour = window.globalData.account.idleAccountExpFlat;
       }
-      // 顯示資訊
+
       tooltip.innerHTML = `
         <div style="color:#f1c40f; font-weight:bold; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:4px;">📊 每小時產出總量</div>
         <div>🪙 銅幣：<span style="color:#f1c40f;">${rates.copper.toFixed(1)}</span></div>
         <div>💊 經驗丹：<span style="color:#3498db;">${rates.expPill.toFixed(2)}</span></div>
         <div>🧪 突破丹：<span style="color:#2ecc71;">${rates.breakthroughPill.toFixed(2)}</span></div>
         <div>⚔️ 裝備：<span style="color:#e67e22;">${rates.equipment.toFixed(2)}</span></div>
-        <div style="color:#aaa; font-size:12px; margin-top:6px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">🎖️ 每次領取固定給予帳號經驗 ${(window.globalData && window.globalData.account && window.globalData.account.idleAccountExpFlat) || 0} 點</div>
+        <div style="color:#aaa; font-size:12px; margin-top:6px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">🎖️ 每小時帳號經驗：${accPerHour} 點</div>
       `;
 
       tooltip.style.display = 'block';
