@@ -191,13 +191,17 @@
             white-space: pre-line;
         }
 
-        /* ★ 战斗模式下隐藏主界面 UI */
+        /* ★ 战斗模式下隐藏主界面 UI，并提升游戏画布层级 */
         body.in-battle .top-bar-overlay,
         body.in-battle .left-sidebar,
         body.in-battle .main-right-section,
         body.in-battle #main-bg,
         body.in-battle #idle-panel {
             display: none !important;
+        }
+        body.in-battle #game {
+            z-index: 9999 !important; /* 确保画布在最顶层 */
+            pointer-events: auto !important; /* 恢复点击 */
         }
     </style>
 </head>
@@ -514,8 +518,7 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             resizeGameUI();
-
-            // ★ 无论如何，先初始化主界面数据，保证 DOM 元素完整，避免超时后看到纯黑画面
+            // 1. 无论如何先初始化大厅数据，保证不黑屏
             initIndexMainUI();
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -527,45 +530,42 @@
                 const targetLevelIdx = parseInt(targetLevelIdxStr);
 
                 if (isNaN(targetLevelIdx)) {
-                    console.warn("無效的關卡索引，取消自動戰鬥");
                     localStorage.removeItem('my_game_current_level_index');
                     return;
                 }
 
-                // 隐藏主界面 UI
+                // 添加类以隐藏 UI 并确保画布置顶
                 document.body.classList.add('in-battle');
 
                 let isStarted = false;
                 let attempts = 0;
 
+                // 2. 采用状态检测，避免打断 Phaser 的场景初始化
                 const tryStartBattle = () => {
                     attempts++;
                     if (isStarted) return;
 
-                    // ★ 只要 game 和 scene 管理器存在，就尝试启动
                     if (window.game && window.game.scene) {
-                        try {
-                            // 停掉主菜单
-                            if (window.game.scene.getScene('MainMenuScene')) {
-                                window.game.scene.stop('MainMenuScene');
+                        // 等待 MainMenuScene 完全启动后再无缝切入
+                        if (window.game.scene.isActive('MainMenuScene')) {
+                            try {
+                                localStorage.removeItem('my_game_current_level_index');
+                                window.game.scene.start('FormationScene', { 
+                                    levelIndex: targetLevelIdx,
+                                    from: fromParam
+                                });
+                                isStarted = true;
+                                return;
+                            } catch (e) {
+                                console.error("启动战斗场景异常:", e);
                             }
-                            // 启动布阵
-                            window.game.scene.start('FormationScene', { 
-                                levelIndex: targetLevelIdx,
-                                from: fromParam
-                            });
-                            isStarted = true;
-                            localStorage.removeItem('my_game_current_level_index');
-                            return;
-                        } catch (e) {
-                            console.error("尝试启动战斗场景失败:", e);
                         }
                     }
 
-                    if (attempts > 100) { // 10秒超时
+                    // 最多等待 10 秒
+                    if (attempts > 100) {
                         console.error("Phaser 初始化超时");
-                        // ★ 修复：超时后强制恢复 UI 并提示，绝不黑屏卡死
-                        document.body.classList.remove('in-battle');
+                        document.body.classList.remove('in-battle'); // 恢复 UI 绝不黑屏
                         showToast("遊戲引擎加載超時，請刷新重試", "#e74c3c");
                         return;
                     }
