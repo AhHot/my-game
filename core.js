@@ -1,5 +1,5 @@
 // ==========================================
-// 公共數據核心：負責數據的讀寫與持久化 (徹底隔離版)
+// 公共數據核心：負責數據的讀寫與持久化 (v2 - 支持分類關卡 / 多掉落 / 首通重複 / 帳號系統 / 摘星樓)
 // ==========================================
 
 const FOLLOWUP_TAGS = [
@@ -45,7 +45,6 @@ const DEFAULT_SKILLS = [
   { id: 'skill_follow_1', name: '追打·烈焰斩', type: 'followup', element: 'fire', targetSide: 'enemy', targetRule: 'lowestHp', multiplier: 2.0, healMultiplier: 0, shieldMultiplier: 0, mpCost: 0, cooldown: 0, comboTagOut: '', comboTagIn: 'po_shi', maxTriggers: 1, effects: [] }
 ];
 
-// ★ 新版默认状态：字段全是数据驱动，未来新增状态只用编辑器即可
 const DEFAULT_STATUS = [ 
   { id: 'status_burn', name: '灼烧', type: 'dot', duration: 3, statMod: 'none', statValue: 0,
     disableNormal: false, disableSkill: false, disableUltimate: false, disableFollowup: false,
@@ -65,7 +64,31 @@ const DEFAULT_ITEMS = [
   { id: 'item_tian_shu', name: '无字天书', category: 'material', icon: '📜', desc: '技能突破10级满级时不可或缺的神書', maxStack: 99, useEffect: 'None', useValue: 0 }
 ];
 
-const DEFAULT_LEVELS = [ { id: 'lv_1', name: '第 1 关', enemyList: [], rewardItemId: '', rewardExp: 100 } ];
+// ★ 关卡新格式（默认）
+const DEFAULT_LEVELS = [
+  {
+    id: 'lv_1',
+    name: '第 1 关',
+    category: 'main',         // main / side / event / daily / tower
+    towerFloor: 0,            // 摘星樓层数（非塔为 0）
+    countsForIdle: true,      // 是否计入挂机累积
+    enemyList: [],
+    firstClear: { exp: 100, accountExp: 50, drops: [] },
+    repeatRewards: { exp: 50, accountExp: 0, drops: [] },
+    // 兼容旧 battle.js 的字段（迁移期间保留）
+    rewardItemId: '',
+    rewardExp: 100
+  }
+];
+
+// ★ 新增：账号配置默认值
+const DEFAULT_ACCOUNT_CONFIG = {
+  expTable: [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200],
+  expGrowthFactor: 1.8,
+  idleAccountExpFlat: 10,
+  towerUnlockLevel: 10,
+  levelRewards: {}          // { "5": { copper: 5000, items: [...] }, ... }
+};
 
 const DEFAULT_DROP_RATES = [
   { q: 'white', min: 0, max: 30, m: 1.0, n: 0, tier: 1 },
@@ -135,15 +158,61 @@ const DEFAULT_GLOBAL_CONFIG = {
     wind: { water: 1.5, fire: 0.7 },
     light: { dark: 1.5 },
     dark: { light: 1.5 }
-  }
+  },
+  account: JSON.parse(JSON.stringify(DEFAULT_ACCOUNT_CONFIG))   // ★ 新增账号配置
 };
 
 // --- 全局變數與 Window 顯式掛載 ---
 let gameChars, gameSkills, gameStatuses, gameItems, gameLevels, inventory, globalData;
+let gameAccount, clearedStages, towerProgress;   // ★ 新增账号/已通关/摘星楼进度
 let editingElementIds = new Set();
 
-// 判斷當前是否在編輯器環境（非常重要，防止數據互相污染）
+// 判斷當前是否在編輯器環境
 const IS_EDITOR = window.location.pathname.includes('editor.html') || window.location.href.includes('editor.html');
+
+// ★ 新增：旧关卡 → 新关卡格式迁移（幂等）
+function migrateLevel(lv) {
+  if (!lv || typeof lv !== 'object') return lv;
+
+  // 已是新格式：仅补全缺失字段
+  if (lv.firstClear && lv.repeatRewards) {
+    if (lv.category === undefined) lv.category = 'main';
+    if (lv.towerFloor === undefined) lv.towerFloor = 0;
+    if (lv.countsForIdle === undefined) lv.countsForIdle = (lv.category === 'main');
+    if (!Array.isArray(lv.firstClear.drops)) lv.firstClear.drops = [];
+    if (!Array.isArray(lv.repeatRewards.drops)) lv.repeatRewards.drops = [];
+    if (typeof lv.firstClear.exp !== 'number') lv.firstClear.exp = 0;
+    if (typeof lv.firstClear.accountExp !== 'number') lv.firstClear.accountExp = 0;
+    if (typeof lv.repeatRewards.exp !== 'number') lv.repeatRewards.exp = 0;
+    if (typeof lv.repeatRewards.accountExp !== 'number') lv.repeatRewards.accountExp = 0;
+    return lv;
+  }
+
+  // 旧格式 → 新格式
+  const oldExp = typeof lv.rewardExp === 'number' ? lv.rewardExp : 0;
+  const oldItemId = lv.rewardItemId || '';
+  const drops = [];
+  if (oldItemId) {
+    drops.push({
+      itemId: oldItemId,
+      count: 1,
+      chance: 100,
+      qualityMin: 'white',
+      qualityMax: 'red',
+      guaranteed: true
+    });
+  }
+
+  lv.category = lv.category || 'main';
+  lv.towerFloor = lv.towerFloor || 0;
+  lv.countsForIdle = lv.countsForIdle !== undefined ? lv.countsForIdle : (lv.category === 'main');
+  lv.firstClear = { exp: oldExp, accountExp: 0, drops: drops };
+  lv.repeatRewards = { exp: 0, accountExp: 0, drops: [] };
+  // 保留 rewardItemId / rewardExp 作为兼容字段（后续 battle.js 更新后可清理）
+  if (lv.rewardExp === undefined) lv.rewardExp = oldExp;
+  if (lv.rewardItemId === undefined) lv.rewardItemId = oldItemId;
+  return lv;
+}
 
 function loadAllData() {
   try {
@@ -217,7 +286,23 @@ function loadAllData() {
     }
   });
 
-   gameChars.forEach(c => {
+  // ★ 账号配置补全
+  if (!globalData.account) {
+    globalData.account = JSON.parse(JSON.stringify(DEFAULT_ACCOUNT_CONFIG));
+  } else {
+    if (!Array.isArray(globalData.account.expTable) || globalData.account.expTable.length === 0)
+      globalData.account.expTable = JSON.parse(JSON.stringify(DEFAULT_ACCOUNT_CONFIG.expTable));
+    if (typeof globalData.account.expGrowthFactor !== 'number')
+      globalData.account.expGrowthFactor = 1.8;
+    if (typeof globalData.account.idleAccountExpFlat !== 'number')
+      globalData.account.idleAccountExpFlat = 10;
+    if (typeof globalData.account.towerUnlockLevel !== 'number')
+      globalData.account.towerUnlockLevel = 10;
+    if (!globalData.account.levelRewards || typeof globalData.account.levelRewards !== 'object')
+      globalData.account.levelRewards = {};
+  }
+
+  gameChars.forEach(c => {
     if (!c.stats) c.stats = { fengRui: 0, hunHou: 0, lingDong: 0, jianRen: 0, guiMi: 0, jueQing: 0 };
     if (!c.equipment) c.equipment = { weapon: '', head: '', body: '', legs: '', ring: '', necklace: '' };
     if (!c.skillLevels) c.skillLevels = {};
@@ -227,44 +312,42 @@ function loadAllData() {
     if (!c.growthModel) c.growthModel = 'm1';
     if (c.breakthroughStage === undefined) c.breakthroughStage = 0;
 
-    // ★ 核心迁移：把旧版本的 normal / skill 等自动转换为 slot1~5
     if (c.skillSlots && (c.skillSlots.normal !== undefined || c.skillSlots.slot1 === undefined)) {
-        const old = c.skillSlots || {};
-        c.skillSlots = {
-            slot1: old.normal || '',
-            slot2: old.skill || '',
-            slot3: old.ultimate || '',
-            slot4: old.followup || '',
-            slot5: old.learned || ''
-        };
+      const old = c.skillSlots || {};
+      c.skillSlots = {
+        slot1: old.normal || '',
+        slot2: old.skill || '',
+        slot3: old.ultimate || '',
+        slot4: old.followup || '',
+        slot5: old.learned || ''
+      };
     }
     if (!c.skillSlots) c.skillSlots = {};
     ['slot1','slot2','slot3','slot4','slot5'].forEach(k => { 
-        if (c.skillSlots[k] === undefined) c.skillSlots[k] = ''; 
+      if (c.skillSlots[k] === undefined) c.skillSlots[k] = ''; 
     });
   });
-  gameLevels.forEach(lv => { if (!lv.enemyList) lv.enemyList = []; });
 
-  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-  // ★ 状态数据自动兼容迁移：把旧版本数据无缝转成新版数据驱动格式
-  // ★ 这样老存档不用手动改，切换新代码后运行一次即可
-  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+  // ★ 关卡补全 + 迁移
+  gameLevels.forEach(lv => {
+    if (!lv.enemyList) lv.enemyList = [];
+    migrateLevel(lv);
+  });
+
+  // ★ 状态数据兼容迁移
   gameStatuses.forEach(st => {
     if (!st.type) st.type = 'debuff';
 
-    // 旧「控制-眩晕」→ 新版「禁用所有行动」
     if (st.type === 'control' && st.isStun) {
       st.disableNormal = true;
       st.disableSkill = true;
       st.disableUltimate = true;
       st.disableFollowup = true;
     }
-    // 旧「isDot=true」→ 新版「持续伤害-固定值」
     if (st.isDot && st.type !== 'dot') {
       st.type = 'dot';
       if (!st.dotSource) st.dotSource = 'fixed';
     }
-    // 保底字段
     if (st.disableNormal === undefined)   st.disableNormal = false;
     if (st.disableSkill === undefined)    st.disableSkill = false;
     if (st.disableUltimate === undefined) st.disableUltimate = false;
@@ -275,10 +358,36 @@ function loadAllData() {
       if (!st.statMod) st.statMod = 'none';
       if (st.statValue === undefined) st.statValue = 0;
     }
-    // 移除旧字段（不再使用）
     delete st.isStun;
     delete st.isDot;
   });
+
+  // ★ 加载账号数据
+  try {
+    const accRaw = localStorage.getItem('my_game_account');
+    gameAccount = accRaw ? JSON.parse(accRaw) : { level: 1, exp: 0, claimedRewards: {} };
+    if (typeof gameAccount.level !== 'number') gameAccount.level = 1;
+    if (typeof gameAccount.exp !== 'number') gameAccount.exp = 0;
+    if (!gameAccount.claimedRewards || typeof gameAccount.claimedRewards !== 'object') gameAccount.claimedRewards = {};
+  } catch(e) {
+    gameAccount = { level: 1, exp: 0, claimedRewards: {} };
+  }
+
+  try {
+    const csRaw = localStorage.getItem('my_game_cleared_stages');
+    clearedStages = csRaw ? JSON.parse(csRaw) : [];
+    if (!Array.isArray(clearedStages)) clearedStages = [];
+  } catch(e) { clearedStages = []; }
+
+  try {
+    const tpRaw = localStorage.getItem('my_game_tower_progress');
+    towerProgress = tpRaw ? JSON.parse(tpRaw) : { maxClearedFloor: 0, lastSweepDate: '', sweepUsedToday: false };
+    if (typeof towerProgress.maxClearedFloor !== 'number') towerProgress.maxClearedFloor = 0;
+    if (typeof towerProgress.lastSweepDate !== 'string') towerProgress.lastSweepDate = '';
+    if (typeof towerProgress.sweepUsedToday !== 'boolean') towerProgress.sweepUsedToday = false;
+  } catch(e) {
+    towerProgress = { maxClearedFloor: 0, lastSweepDate: '', sweepUsedToday: false };
+  }
 
   window.gameChars = gameChars;
   window.gameSkills = gameSkills;
@@ -299,6 +408,13 @@ function loadAllData() {
   gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
   window.LEVELS = gameLevels;
 
+  // ★ 新增挂载
+  window.gameAccount = gameAccount;
+  window.clearedStages = clearedStages;
+  window.towerProgress = towerProgress;
+  window.migrateLevel = migrateLevel;
+  window.DEFAULT_ACCOUNT_CONFIG = DEFAULT_ACCOUNT_CONFIG;
+
   saveData(); 
 }
 
@@ -315,6 +431,11 @@ function saveData() {
     localStorage.setItem('my_game_characters', JSON.stringify(gameChars));
     localStorage.setItem('my_game_inventory_sync', JSON.stringify(inventory));
   }
+
+  // ★ 账号/通关记录/摘星楼进度：两个环境共用
+  try { if (gameAccount) localStorage.setItem('my_game_account', JSON.stringify(gameAccount)); } catch(e) {}
+  try { if (Array.isArray(clearedStages)) localStorage.setItem('my_game_cleared_stages', JSON.stringify(clearedStages)); } catch(e) {}
+  try { if (towerProgress) localStorage.setItem('my_game_tower_progress', JSON.stringify(towerProgress)); } catch(e) {}
 
   window.gameChars = gameChars;
   window.gameSkills = gameSkills;
@@ -333,6 +454,11 @@ function saveData() {
   window.STATUSES = {};
   gameStatuses.forEach(st => { window.STATUSES[st.id] = st; });
   window.LEVELS = gameLevels;
+
+  // ★ 新增挂载（保存时也挂）
+  window.gameAccount = gameAccount;
+  window.clearedStages = clearedStages;
+  window.towerProgress = towerProgress;
 }
 
 function getElementOptions(selectedId) {
