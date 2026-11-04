@@ -38,7 +38,7 @@
         }
         .top-title { font-size: 20px; font-weight: bold; color: #f1c40f; display: flex; align-items: center; gap: 8px; }
 
-        /* ★ 新增：帳號等級徽章 */
+        /* ★ 帳號等級徽章 */
         .account-badge {
             display: inline-flex; align-items: center; gap: 6px;
             background: rgba(241,196,15,0.12);
@@ -125,7 +125,7 @@
         }
         .btn-battle:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(231, 76, 60, 0.6); }
 
-        /* ★ 新增：摘星樓入口卡片（方案 A：宽=剧卡一半，贴剧卡正下方靠右） */
+        /* ★ 摘星樓入口卡片 */
         .tower-entry-card {
             align-self: flex-end;
             width: 170px; height: 130px;
@@ -190,6 +190,15 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.5); text-align: center;
             white-space: pre-line;
         }
+
+        /* ★ 战斗模式下隐藏主界面 UI */
+        body.in-battle .top-bar-overlay,
+        body.in-battle .left-sidebar,
+        body.in-battle .main-right-section,
+        body.in-battle #main-bg,
+        body.in-battle #idle-panel {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -224,7 +233,7 @@
                 <button class="btn-battle" onclick="window.location.href='story_menu.html'"> 進入 </button>
             </div>
 
-            <!-- ★ 摘星樓入口卡片 -->
+            <!-- 摘星樓入口卡片 -->
             <div class="tower-entry-card" id="tower-entry-card" onclick="openTowerPage()">
                 <div class="tower-entry-bg" id="tower-entry-bg"></div>
                 <div class="tower-entry-content">
@@ -294,7 +303,6 @@
                 };
             }
 
-            // ★ 補全摘星樓入口配置
             if (!mainConfig.towerEntry) {
                 mainConfig.towerEntry = {
                     enabled: true,
@@ -360,7 +368,6 @@
             showToast(`已切換背景：${targetBg.name}`, '#3498db');
         }
 
-        // ★ 摘星樓入口動態刷新
         function refreshTowerEntry() {
             const card = document.getElementById('tower-entry-card');
             if (!card) return;
@@ -372,7 +379,6 @@
             }
             card.style.display = 'flex';
 
-            // 讀取帳號
             let acc = window.gameAccount;
             if (!acc) {
                 try { acc = JSON.parse(localStorage.getItem('my_game_account') || '{}'); } catch (e) { acc = {}; }
@@ -380,14 +386,12 @@
             const level = acc.level || 1;
             const unlockLv = (window.globalData && window.globalData.account && window.globalData.account.towerUnlockLevel) || 10;
 
-            // 讀取塔進度
             let tp = window.towerProgress;
             if (!tp) {
                 try { tp = JSON.parse(localStorage.getItem('my_game_tower_progress') || '{}'); } catch (e) { tp = {}; }
             }
             const maxFloor = tp.maxClearedFloor || 0;
 
-            // 背景圖
             const bgEl = document.getElementById('tower-entry-bg');
             if (bgEl) {
                 if (cfg.bgUrl && cfg.bgUrl.trim()) {
@@ -397,13 +401,11 @@
                 }
             }
 
-            // 圖示 & 名稱
             const iconEl = document.getElementById('tower-entry-icon');
             if (iconEl) iconEl.innerText = cfg.icon || '🏯';
             const nameEl = document.getElementById('tower-entry-name');
             if (nameEl) nameEl.innerText = cfg.name || '摘星樓';
 
-            // 鎖定狀態 & 樓層資訊
             const floorEl = document.getElementById('tower-entry-floor');
             if (level < unlockLv) {
                 card.classList.add('locked');
@@ -417,12 +419,10 @@
             }
         }
 
-        // ★ 刷新帳號等級徽章
         function refreshAccountBadge() {
             if (window.AccountSystem && typeof window.AccountSystem.updateTopLeftDisplay === 'function') {
                 try { window.AccountSystem.updateTopLeftDisplay(); return; } catch (e) {}
             }
-            // 兜底：直接讀 localStorage
             const el = document.getElementById('account-level-display');
             const badge = document.getElementById('account-reward-badge');
             let acc = window.gameAccount;
@@ -437,7 +437,6 @@
             }
         }
 
-        // ★ 點擊帳號徽章 → 打開升級獎勵彈窗
         window.openAccountPanel = function(event) {
             if (event) event.stopPropagation();
             if (window.AccountSystem && typeof window.AccountSystem.openAccountRewardUI === 'function') {
@@ -447,7 +446,6 @@
             }
         };
 
-        // ★ 點擊摘星樓入口
         window.openTowerPage = function() {
             const card = document.getElementById('tower-entry-card');
             if (card && card.classList.contains('locked')) {
@@ -517,24 +515,32 @@
         window.addEventListener('DOMContentLoaded', () => {
             resizeGameUI();
 
-            // ★ 先刷新帳號徽章與塔入口（不依賴 initIndexMainUI）
-            setTimeout(() => {
-                refreshAccountBadge();
-                refreshTowerEntry();
-            }, 50);
-
             const urlParams = new URLSearchParams(window.location.search);
             const isAutoFormation = urlParams.get('autoFormation');
+            const fromParam = urlParams.get('from') || 'direct';
             const targetLevelIdx = localStorage.getItem('my_game_current_level_index');
 
             if (isAutoFormation === '1' && targetLevelIdx !== null) {
+                // ★ 隐藏主界面 UI
+                document.body.classList.add('in-battle');
+                
                 setTimeout(() => {
                     localStorage.removeItem('my_game_current_level_index');
                     if (window.game && window.game.scene) {
-                        window.game.scene.start('FormationScene', { levelIndex: parseInt(targetLevelIdx) });
+                        // ★ 传递 from 参数，以便战斗结束后能正确返回
+                        window.game.scene.start('FormationScene', { 
+                            levelIndex: parseInt(targetLevelIdx),
+                            from: fromParam
+                        });
                     }
                 }, 600);
             } else {
+                // 正常显示 UI
+                document.body.classList.remove('in-battle');
+                setTimeout(() => {
+                    refreshAccountBadge();
+                    refreshTowerEntry();
+                }, 50);
                 initIndexMainUI();
             }
         });
