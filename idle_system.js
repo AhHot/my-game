@@ -1,5 +1,5 @@
 // ============================================================
-// 模組：放置型掛機資源系統 (idle_system.js) - 計時修復與提示優化版
+// 模組：放置型掛機資源系統 (idle_system.js) - 支持固定帳號經驗版
 // ============================================================
 (function () {
   'use strict';
@@ -15,7 +15,7 @@
     equipmentPool: ['item_sword']
   };
 
-  // ---------------- 讀寫 (★ 修復：確保有初始資料) ----------------
+  // ---------------- 讀寫 ----------------
   function getConfig() {
     let c = {};
     try { c = JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}'); } catch (e) { c = {}; }
@@ -37,8 +37,7 @@
         const str = localStorage.getItem(DATA_KEY);
         if (str) d = JSON.parse(str);
     } catch (e) { d = null; }
-    
-    // ★ 修復：如果沒有存檔或存檔損壞，強制初始化並寫入，確保時間能開始走
+
     if (!d || typeof d !== 'object') {
         d = {
             lastCollectTime: Date.now(),
@@ -50,7 +49,7 @@
         d.lastCollectTime = Date.now();
         saveData(d);
     }
-    
+
     return {
       lastCollectTime: d.lastCollectTime,
       clearedCount: typeof d.clearedCount === 'number' ? d.clearedCount : 0,
@@ -74,7 +73,7 @@
   function calcPending(cfg, data, now) {
     now = now || Date.now();
     let lastT = data.lastCollectTime;
-    if (lastT > now) lastT = now;                              // 防手動改時間
+    if (lastT > now) lastT = now;
     const elapsedMs = Math.min(now - lastT, cfg.maxOfflineHours * 3600000);
     const hours = Math.max(0, elapsedMs / 3600000);
     const rates = calcRates(cfg, data);
@@ -113,7 +112,6 @@
       uid: 'inst_' + Date.now() + Math.floor(Math.random() * 1e4),
       itemId, quality: 'white', count, equippedBy: ''
     });
-    // 處理超過堆疊上限
     let idx = 0;
     while (idx < window.INVENTORY.length) {
       const it = window.INVENTORY[idx];
@@ -152,6 +150,18 @@
     try { localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY)); } catch (e) {}
   }
 
+  // ★ 新增：發放固定帳號經驗
+  function grantIdleAccountExp() {
+    if (!window.globalData || !window.globalData.account) return 0;
+    const flat = window.globalData.account.idleAccountExpFlat;
+    const amount = Math.max(0, Math.floor(typeof flat === 'number' ? flat : 0));
+    if (amount <= 0) return 0;
+    if (window.AccountSystem && typeof window.AccountSystem.addAccountExp === 'function') {
+      try { window.AccountSystem.addAccountExp(amount); } catch (e) { console.warn('掛機帳號經驗發放失敗:', e); }
+    }
+    return amount;
+  }
+
   // ---------------- 對外：領取 ----------------
   function collect() {
     const cfg = getConfig();
@@ -159,7 +169,6 @@
     const now = Date.now();
     const pending = calcPending(cfg, data, now);
 
-    // 不足 15 分鐘 (0.25小時) 無法領取
     if (pending.hours < 0.25) {
       return { ok: false, msg: '累計少於15分鐘無法領取' };
     }
@@ -173,7 +182,6 @@
     const total = grants.copper + grants.expPill + grants.breakthroughPill + grants.equipment;
     if (total <= 0) return { ok: false, msg: '暫無資源可領取，先去冒險吧！' };
 
-    // 更新小數尾數、上次領取時間
     data.pendingFractions = {
       copper:           pending.copper           - grants.copper,
       expPill:          pending.expPill          - grants.expPill,
@@ -183,13 +191,15 @@
     data.lastCollectTime = now;
     saveData(data);
 
-    // 實際發放
     if (grants.copper > 0)           grantCopper(grants.copper);
     if (grants.expPill > 0)          grantItem(cfg.itemMappings.expPill,          grants.expPill);
     if (grants.breakthroughPill > 0) grantItem(cfg.itemMappings.breakthroughPill, grants.breakthroughPill);
     if (grants.equipment > 0)        grantEquipment(grants.equipment, cfg.equipmentPool);
 
-    // 通知其他系統刷新
+    // ★ 固定帳號經驗（每次收資源固定給，不按銅幣比例）
+    const accExpGranted = grantIdleAccountExp();
+    grants.accountExp = accExpGranted;
+
     if (window.IdleSystem && window.IdleSystem.onReward) window.IdleSystem.onReward(grants);
 
     return { ok: true, grants };
@@ -210,7 +220,6 @@
   // ---------------- UI ----------------
   let _refreshTimer = null;
 
-  // ★ 自定義全螢幕提示 (防止被其他 UI 遮擋且支援換行)
   function toast(msg, color, duration = 3000) {
     let t = document.getElementById('idle-toast');
     if (!t) {
@@ -228,7 +237,7 @@
 
   function initUI() {
     if (document.getElementById('idle-panel')) return;
-    if (!document.getElementById('game-scale-container')) return; 
+    if (!document.getElementById('game-scale-container')) return;
 
     const parent = document.getElementById('game-scale-container') || document.body;
 
@@ -312,25 +321,34 @@
 
     const titleBtn = panel.querySelector('#idle-title-btn');
     const tooltip = document.getElementById('idle-tooltip');
-    
+
     titleBtn.onclick = function(e) {
       e.stopPropagation();
       const cfg = getConfig();
       const data = getData();
       const rates = calcRates(cfg, data);
 
+      // ★ 增加每小時帳號經驗
+      let accPerHour = 0;
+      if (window.globalData && window.globalData.account && typeof window.globalData.account.idleAccountExpFlat === 'number') {
+        const flat = window.globalData.account.idleAccountExpFlat;
+        const maxHours = cfg.maxOfflineHours || 24;
+        if (maxHours > 0 && flat > 0) accPerHour = flat / 1; // 每次領取=1份，這裡顯示單次
+      }
+      // 顯示資訊
       tooltip.innerHTML = `
         <div style="color:#f1c40f; font-weight:bold; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:4px;">📊 每小時產出總量</div>
         <div>🪙 銅幣：<span style="color:#f1c40f;">${rates.copper.toFixed(1)}</span></div>
         <div>💊 經驗丹：<span style="color:#3498db;">${rates.expPill.toFixed(2)}</span></div>
         <div>🧪 突破丹：<span style="color:#2ecc71;">${rates.breakthroughPill.toFixed(2)}</span></div>
         <div>⚔️ 裝備：<span style="color:#e67e22;">${rates.equipment.toFixed(2)}</span></div>
+        <div style="color:#aaa; font-size:12px; margin-top:6px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">🎖️ 每次領取固定給予帳號經驗 ${(window.globalData && window.globalData.account && window.globalData.account.idleAccountExpFlat) || 0} 點</div>
       `;
 
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX + 15) + 'px';
       tooltip.style.top = (e.clientY + 15) + 'px';
-      
+
       const rect = tooltip.getBoundingClientRect();
       if (rect.right > window.innerWidth) tooltip.style.left = (e.clientX - rect.width - 15) + 'px';
       if (rect.bottom > window.innerHeight) tooltip.style.top = (e.clientY - rect.height - 15) + 'px';
@@ -342,8 +360,8 @@
       }
     });
 
-    // ★ 優化領取成功的反饋
     panel.querySelector('#idle-collect-btn').onclick = () => {
+      const beforeLevel = (window.gameAccount && window.gameAccount.level) || 0;
       const res = collect();
       if (!res.ok) { toast(res.msg, '#e67e22'); return; }
       const g = res.grants, parts = [];
@@ -351,8 +369,14 @@
       if (g.expPill)          parts.push(`💊 經驗丹 +${g.expPill}`);
       if (g.breakthroughPill) parts.push(`🧪 突破丹 +${g.breakthroughPill}`);
       if (g.equipment)        parts.push(`⚔️ 裝備 +${g.equipment}`);
-      
-      toast(`✅ 領取成功！\n\n${parts.join('\n')}`, '#2ecc71', 3000);
+      if (g.accountExp)       parts.push(`🎖️ 帳號經驗 +${g.accountExp}`);
+
+      let tail = '';
+      const afterLevel = (window.gameAccount && window.gameAccount.level) || 0;
+      if (afterLevel > beforeLevel) {
+        tail = `\n🎉 帳號升級！Lv.${beforeLevel} → Lv.${afterLevel}`;
+      }
+      toast(`✅ 領取成功！\n\n${parts.join('\n')}${tail}`, '#2ecc71', 3500);
       refreshUI();
     };
 
