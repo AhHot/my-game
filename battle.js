@@ -1,3 +1,6 @@
+// ============================================================
+// battle.js - 战斗场景 + 结果结算（支持首通/重复奖励/账号经验/摘星樓）
+// ============================================================
 if (typeof STATUSES === 'undefined') { window.STATUSES = {}; }
 if (typeof ITEMS === 'undefined') { window.ITEMS = {}; }
 if (typeof LEVELS === 'undefined') { window.LEVELS = []; }
@@ -48,14 +51,14 @@ if (localStorage.getItem('my_game_inventory_sync')) { try { const d = JSON.parse
 
 try {
   const gc = JSON.parse(localStorage.getItem('my_game_config') || '{}');
-  window.DROP_RATES = gc.dropRates; 
-  window.GLOBAL_AFFIX_POOLS = gc.affixPools; 
+  window.DROP_RATES = gc.dropRates;
+  window.GLOBAL_AFFIX_POOLS = gc.affixPools;
   window.GLOBAL_AFFIX_VALUES = gc.affixValues;
-  window.EXP_TABLE = gc.expTable || []; 
-  window.GROWTH_MODELS = gc.growthModels || []; 
-  window.ART_CONFIG = gc.artConfig || {}; 
-} catch(e) { 
-  window.ART_CONFIG = {}; 
+  window.EXP_TABLE = gc.expTable || [];
+  window.GROWTH_MODELS = gc.growthModels || [];
+  window.ART_CONFIG = gc.artConfig || {};
+} catch(e) {
+  window.ART_CONFIG = {};
 }
 
 // ============================================================
@@ -120,7 +123,7 @@ class Unit {
     if (this.equipment.accessory && !this.equipment.ring) { this.equipment.ring = this.equipment.accessory; delete this.equipment.accessory; }
     ['weapon', 'head', 'body', 'legs', 'ring', 'necklace'].forEach(s => { if (!this.equipment[s]) this.equipment[s] = ''; });
     this.level = this.level || 1; this.exp = this.exp || 0; this.sizeX = this.sizeX || 1; this.sizeY = this.sizeY || 1;
-    this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0; this.critRate = this.critRate || 0; this.critResist = this.critResist || 0; 
+    this.hitRate = this.hitRate || 0; this.dodgeRate = this.dodgeRate || 0; this.critRate = this.critRate || 0; this.critResist = this.critResist || 0;
     this.dmgIncrease = this.dmgIncrease || 0; this.dmgReduction = this.dmgReduction || 0; this.dmgTakenIncrease = this.dmgTakenIncrease || 0;
     this.trueDmg = this.trueDmg || 0; this.critDmg = this.critDmg || 1.5; this.lifesteal = this.lifesteal || 0;
 
@@ -157,7 +160,7 @@ class Unit {
     this.atk = Math.floor((this.atk + eqAtkAdd) * (1 + eqAtkPct));
     this.def = Math.floor((this.def + eqDefAdd) * (1 + eqDefPct));
     this.baseAtk = this.atk; this.baseDef = this.def; this.baseSpeed = this.speed;
-    
+
     this.passives = Object.values(this.skillSlots).filter(id => id && SKILLS[id] && SKILLS[id].type === 'passive').map(id => SKILLS[id]);
 
     this.passives.forEach(baseSk => {
@@ -169,7 +172,6 @@ class Unit {
       if (sk.passiveType === 'speedAdd') { this.speed += this.baseSpeed * sk.passiveValue; this.baseSpeed += this.baseSpeed * sk.passiveValue; }
     });
 
-    // ★ 新增：记录最大生命的基础值（含被动加成），用于状态中的 hp% 修饰还原
     this.baseMaxHp = this.maxHp;
 
     this.hp = this.maxHp; this.maxMp = 100; this.mp = 100; this.cooldowns = {}; this.statuses = []; this.followupCounts = {}; this.shield = 0;
@@ -186,7 +188,6 @@ class Unit {
   heal(a) { if (this.isAlive()) this.hp = Math.min(this.maxHp, this.hp + a); }
   addShield(a) { if (this.isAlive()) this.shield += a; }
 
-  // ★ 冷却修改：支持 cooldown 状态带来的加速/减速
   reduceCooldowns() {
     let cdMod = 0;
     this.statuses.forEach(st => {
@@ -202,7 +203,6 @@ class Unit {
 
   resetFollowups() { this.followupCounts = {}; }
 
-  // ★ 光环 + 状态属性修饰（含 hp%）
   applyAura(allUnits) {
     this.atk = this.baseAtk;
     this.def = this.baseDef;
@@ -228,17 +228,16 @@ class Unit {
       if (c.statMod === 'atk')   this.atk   += this.baseAtk   * c.statValue;
       if (c.statMod === 'def')   this.def   += this.baseDef   * c.statValue;
       if (c.statMod === 'speed') this.speed += this.baseSpeed * c.statValue;
-      if (c.statMod === 'hp')    this.maxHp += this.baseMaxHp * c.statValue;   // ★ 新增
+      if (c.statMod === 'hp')    this.maxHp += this.baseMaxHp * c.statValue;
     });
 
     this.atk = Math.max(1, Math.floor(this.atk));
     this.def = Math.max(0, Math.floor(this.def));
     this.speed = Math.max(1, Math.floor(this.speed));
-    this.maxHp = Math.max(1, Math.floor(this.maxHp));   // ★ 新增
+    this.maxHp = Math.max(1, Math.floor(this.maxHp));
     if (this.hp > this.maxHp) this.hp = this.maxHp;
   }
 
-  // ★ 状态 tick：支持 6 种 DOT 伤害来源
   tickStatuses() {
     for (let i = this.statuses.length - 1; i >= 0; i--) {
       const st = this.statuses[i];
@@ -264,7 +263,6 @@ class Unit {
     }
   }
 
-  // ★ 添加状态：记录施法者，方便 DOT 按施法者属性计算
   addStatus(id, caster) {
     if (!id || !STATUSES[id]) return;
     const cfg = STATUSES[id];
@@ -278,7 +276,6 @@ class Unit {
   }
 }
 
-// ★ 核心修復：補上缺失的屬性克制計算函數
 function getElementMultiplier(atkElement, defElement) {
     if (!window.globalData || !window.globalData.elementMatrix) return 1.0;
     const matrix = window.globalData.elementMatrix;
@@ -297,12 +294,12 @@ const BattleLogic = {
     if (pool.length === 0) return [];
 
     const isEnemyTarget = pool[0].side === 'enemy';
-    
+
     const getFrontX = () => isEnemyTarget ? Math.max(...pool.map(u=>u.gridX)) : Math.min(...pool.map(u=>u.gridX));
     const getBackX = () => isEnemyTarget ? Math.min(...pool.map(u=>u.gridX)) : Math.max(...pool.map(u=>u.gridX));
 
     if (skill.targetRule === 'all') return pool;
-    
+
     if (skill.targetRule === 'frontRow') { const m = getFrontX(); return pool.filter(u => u.gridX === m); }
     if (skill.targetRule === 'backRow') { const m = getBackX(); return pool.filter(u => u.gridX === m); }
 
@@ -394,7 +391,6 @@ const BattleLogic = {
     return { damage: d, isCrit, isMiss: false, lifestealAmount: Math.round(d * actor.lifesteal) };
   },
 
-  // ★ 選技：純數據驅動的控制判斷（禁普攻/禁招式/禁絕技/禁追打）
   chooseSkill(actor, allUnits) {
     const slots = actor.skillSlots || {};
     const dis = { normal: false, skill: false, ultimate: false };
@@ -430,7 +426,6 @@ const BattleLogic = {
     usable.sort((a, b) => (w[b.type] || 0) - (w[a.type] || 0));
     if (usable.length > 0) return getEffectiveSkill(actor, usable[0]);
 
-    // 兜底：角色没装备普攻且普攻未被禁用时，给全局普攻
     const hasNormalEquipped = Object.values(slots).some(id => SKILLS[id] && SKILLS[id].type === 'normal');
     if (!dis.normal && !hasNormalEquipped) {
       const fb = Object.values(SKILLS).find(s => s.type === 'normal');
@@ -476,7 +471,7 @@ const BattleLogic = {
         }
         et.forEach(t => {
           if (!t || !t.isAlive()) return;
-          if (eff.type === 'status') t.addStatus(eff.value, actor);   // ★ 传施法者
+          if (eff.type === 'status') t.addStatus(eff.value, actor);
           else if (eff.type === 'heal_pct') t.heal(Math.round(actor.atk * eff.value));
           else if (eff.type === 'heal_flat') t.heal(Math.round(eff.value));
           else if (eff.type === 'shield_pct') t.addShield(Math.round(actor.atk * eff.value));
@@ -501,12 +496,11 @@ const BattleLogic = {
     });
 
     for (let u of cand) {
-      // ★ 禁止追打判断
       if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;
 
       const followupSkillId = Object.values(u.skillSlots).find(id => id && SKILLS[id] && SKILLS[id].type === 'followup');
-if (!followupSkillId) continue;
-const fid = followupSkillId;
+      if (!followupSkillId) continue;
+      const fid = followupSkillId;
       if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0;
         if (used < (SKILLS[fid].maxTriggers || 1)) {
@@ -557,10 +551,10 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
   }
 
   const imgSrc = dataOrUnit.avatarUrl || '';
-  
+
   if (imgSrc) {
     const textureKey = `avatar_${dataOrUnit.id || 'unk'}_${size}`;
-    
+
     if (scene.textures.exists(textureKey)) {
       const img = scene.add.image(0, 0, textureKey);
       container.add(img);
@@ -568,7 +562,7 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
     } else {
       const img = new Image();
       img.src = imgSrc;
-      
+
       img.onload = () => {
         if (scene.textures.exists(textureKey)) {
           if (!container.active) return;
@@ -577,11 +571,11 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
           drawBorder();
           return;
         }
-        
+
         const cvs = scene.textures.createCanvas(textureKey, size, size);
         if (!cvs) return;
         const ctx = cvs.getContext();
-        
+
         ctx.beginPath();
         ctx.moveTo(radius, 0);
         ctx.lineTo(size - radius, 0);
@@ -594,22 +588,22 @@ function createCharacterAvatarView(scene, container, dataOrUnit, size) {
         ctx.quadraticCurveTo(0, 0, radius, 0);
         ctx.closePath();
         ctx.clip();
-        
+
         const scale = Math.max(size / img.width, size / img.height);
         const drawW = img.width * scale;
         const drawH = img.height * scale;
         const offsetX = (size - drawW) / 2;
         const offsetY = (size - drawH) / 2;
-        
+
         ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
         cvs.refresh();
-        
+
         if (!container.active) return;
         const sprite = scene.add.image(0, 0, textureKey);
         container.add(sprite);
         drawBorder();
       };
-      
+
       img.onerror = () => { fallback(); };
     }
   } else {
@@ -626,12 +620,12 @@ function generateRandomInstance(templateId) {
   const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
   const d = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
   const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
-  
+
   let armorPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.armor) || [];
   let weaponPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.weapon) || [];
   let accPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.accessory) || [];
   let pool = t.category === 'armor' ? [...armorPool] : (t.category === 'weapon' ? [...weaponPool] : [...accPool]);
-  
+
   const extras = []; const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
   for (let i = 0; i < n; i++) {
     if(pool.length === 0) break;
@@ -658,6 +652,64 @@ function addCharacterExp(char, amount) {
     leveledUp = true;
   }
   char.level = currentLv; return leveledUp;
+}
+
+// ============================================================
+// ★ 掉落发放辅助（按品质范围生成装备，堆叠物品合并）
+// ============================================================
+function generateDropWithQuality(itemId, qMin, qMax) {
+  const t = ITEMS[itemId];
+  if (!t) return null;
+
+  const qOrder = ['white', 'green', 'blue', 'purple', 'orange', 'red'];
+  let minIdx = qOrder.indexOf(qMin || 'white'); if (minIdx === -1) minIdx = 0;
+  let maxIdx = qOrder.indexOf(qMax || 'red');   if (maxIdx === -1) maxIdx = 5;
+  if (minIdx > maxIdx) { const tmp = minIdx; minIdx = maxIdx; maxIdx = tmp; }
+
+  const allRates = window.DROP_RATES || [{ q: 'white', min: 0, max: 100, m: 1.0, n: 0, tier: 1 }];
+  let pool = allRates.filter(d => {
+    const qi = qOrder.indexOf(d.q);
+    return qi >= minIdx && qi <= maxIdx;
+  });
+  if (pool.length === 0) pool = allRates;
+
+  const totalW = pool.reduce((s, d) => s + (d.max - d.min), 0);
+  let r = Math.random() * totalW;
+  let acc = 0, cfg = pool[0];
+  for (const d of pool) {
+    const w = d.max - d.min;
+    if (r >= acc && r < acc + w) { cfg = d; break; }
+    acc += w;
+  }
+
+  const q = cfg.q, m = cfg.m, n = cfg.n;
+  const a = Math.floor((Math.floor(Math.random() * ((t.atkMax||0)-(t.atkMin||0)+1))+(t.atkMin||0))*m);
+  const df = Math.floor((Math.floor(Math.random() * ((t.defMax||0)-(t.defMin||0)+1))+(t.defMin||0))*m);
+  const h = Math.floor((Math.floor(Math.random() * ((t.hpMax||0)-(t.hpMin||0)+1))+(t.hpMin||0))*m);
+
+  const armorPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.armor) || [];
+  const weaponPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.weapon) || [];
+  const accPool = (window.GLOBAL_AFFIX_POOLS && window.GLOBAL_AFFIX_POOLS.accessory) || [];
+  const affixPool = t.category === 'armor' ? [...armorPool] : (t.category === 'weapon' ? [...weaponPool] : [...accPool]);
+
+  const extras = [];
+  const intTypes = ['speed', 'atkFlat', 'defFlat', 'hpFlat'];
+  for (let i = 0; i < n; i++) {
+    if (affixPool.length === 0) break;
+    const idx = Math.floor(Math.random() * affixPool.length);
+    const stat = affixPool.splice(idx, 1)[0];
+    const vcfg = (window.GLOBAL_AFFIX_VALUES && window.GLOBAL_AFFIX_VALUES[stat]) || { min: 0, max: 0 };
+    let v = vcfg.max >= vcfg.min ? Math.random() * (vcfg.max - vcfg.min) + vcfg.min : vcfg.min;
+    v = intTypes.includes(stat) ? Math.round(v) : Math.round((v/100)*100)/100;
+    extras.push({ stat, value: v });
+  }
+
+  return {
+    uid: 'inst_' + Date.now() + Math.floor(Math.random()*1000),
+    itemId: t.id, quality: q,
+    baseAtk: a, baseDef: df, baseHp: h,
+    extras, equippedBy: '', count: 1
+  };
 }
 
 // ============================================================
@@ -690,23 +742,23 @@ class FormationScene extends Phaser.Scene {
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const standbyLeft = 50, gridLeft = CONFIG.WIDTH / 2 + 50, gridTop = 150;
     const lv = LEVELS[this.currentLevelIndex] || { name: '未知关卡' };
-    
+
     this.add.text(20, 20, `v15.0 | ${lv.name}`, { fontSize: '16px', color: '#00ff00' });
     const editBtn = this.add.text(CONFIG.WIDTH - 180, 20, '⚙️ 编辑器', { fontSize: '18px', color: '#fff', backgroundColor: '#3498db', padding: { x: 10, y: 5 } }).setOrigin(0, 0).setInteractive();
     editBtn.on('pointerdown', () => { window.location.href = 'editor.html'; });
     const refreshBtn = this.add.text(CONFIG.WIDTH - 20, 20, '🔄 强刷', { fontSize: '18px', color: '#fff', backgroundColor: '#e74c3c', padding: { x: 10, y: 5 } }).setOrigin(1, 0).setInteractive();
     refreshBtn.on('pointerdown', () => { const url = new URL(window.location.href); url.searchParams.set('t', Date.now().toString()); window.location.href = url.href; });
-    
+
     this.countText = this.add.text(CONFIG.WIDTH / 2, 80, '当前上阵: 0 / 5', { fontSize: '24px', color: '#f1c40f', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(CONFIG.WIDTH / 2, 30, '战前布阵', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
     const g = this.add.graphics(); g.lineStyle(2, 0x3498DB, 0.5);
     for (let i = 0; i <= CONFIG.GRID_SIZE; i++) { g.lineBetween(gridLeft, gridTop + i * cell, gridLeft + gridW, gridTop + i * cell); g.lineBetween(gridLeft + i * cell, gridTop, gridLeft + i * cell, gridTop + gridW); }
     const bg = this.add.graphics(); bg.fillStyle(0x16213e, 0.8); bg.fillRoundedRect(standbyLeft - 20, 100, 500, 500, 10); bg.lineStyle(2, 0x3498DB, 0.5); bg.strokeRoundedRect(standbyLeft - 20, 100, 500, 500, 10);
     const startBtn = this.add.text(CONFIG.WIDTH - 150, CONFIG.HEIGHT - 60, '⚔️ 开始战斗', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive();
-    
-    startBtn.on('pointerdown', () => { 
-      if (CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length === 0) return alert('至少需要上阵1名角色！'); 
-      this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); 
+
+    startBtn.on('pointerdown', () => {
+      if (CHARACTERS.filter(c => c.side === 'player' && c.gridX !== -1).length === 0) return alert('至少需要上阵1名角色！');
+      this.scene.start('BattleScene', { levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex });
     });
 
     this.gridState = Array(CONFIG.GRID_SIZE).fill(null).map(() => Array(CONFIG.GRID_SIZE).fill(null));
@@ -737,7 +789,7 @@ class FormationScene extends Phaser.Scene {
         c.dragOffsetX = c.x - pointer.x;
         c.dragOffsetY = c.y - pointer.y;
       });
-      
+
       hitZone.on('drag', (pointer) => {
         c.x = pointer.x + c.dragOffsetX;
         c.y = pointer.y + c.dragOffsetY;
@@ -828,15 +880,15 @@ class BattleScene extends Phaser.Scene {
     }
     const cell = CONFIG.CELL_SIZE, gridW = cell * CONFIG.GRID_SIZE;
     const enemyLeft = 100, playerLeft = CONFIG.WIDTH - 100 - gridW, gridTop = 150;
-    
+
     this.drawGrid(enemyLeft, gridTop, cell, true);
     this.drawGrid(playerLeft, gridTop, cell, false);
-    
+
     this.add.text(enemyLeft, gridTop - 30, '敌方', { fontSize: '20px', color: '#CC99FF', fontStyle: 'bold' });
     this.add.text(playerLeft, gridTop - 30, '我方', { fontSize: '20px', color: '#FF8888', fontStyle: 'bold' });
     this.enemyLeft = enemyLeft; this.playerLeft = playerLeft; this.gridTop = gridTop;
   }
-  
+
   drawGrid(startX, startY, cell, isEnemy) {
     const g = this.add.graphics();
     const fillColor = isEnemy ? 0xCC99FF : 0xFF8888;
@@ -861,14 +913,14 @@ class BattleScene extends Phaser.Scene {
     else { x = this.playerLeft + unit.gridX * cell + (cell * unit.sizeX) / 2; y = this.gridTop + unit.gridY * cell + (cell * unit.sizeY) / 2; }
     const c = this.add.container(x, y);
     const scale = Math.max(unit.sizeX, unit.sizeY);
-    const r = Math.min((cell / 2) * 0.85 * scale, 50); 
+    const r = Math.min((cell / 2) * 0.85 * scale, 50);
     const sideLen = r * 2;
-    
+
     createCharacterAvatarView(this, c, unit, sideLen);
 
     const nameText = this.add.text(0, r + 10, `${unit.name} Lv.${unit.level}`, { fontSize: '16px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5);
-    
-    const bw = Math.max(40, Math.min(cell * scale * 0.85, 100)); 
+
+    const bw = Math.max(40, Math.min(cell * scale * 0.85, 100));
     const hpBg = this.add.rectangle(-bw/2, r + 32, bw + 4, 10, 0x000000, 0.8).setOrigin(0, 0.5).setStrokeStyle(1, 0x555555);
     const hpBar = this.add.rectangle(-bw/2 + 2, r + 32, bw, 6, 0xFF4444).setOrigin(0, 0.5);
     hpBar.maxWidth = bw;
@@ -879,7 +931,7 @@ class BattleScene extends Phaser.Scene {
     const mpBar = this.add.rectangle(-bw/2 + 2, r + 44, bw, 3, 0x3498DB).setOrigin(0, 0.5);
     const mpText = this.add.text(bw/2 + 5, r + 44, '', { fontSize: '9px', color: '#88ccff' }).setOrigin(0, 0.5);
     const statusText = this.add.text(0, -r - 20, '', { fontSize: '14px', color: '#ffcc00', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5);
-    
+
     c.add([nameText, hpBg, hpBar, mpBg, mpBar, hpText, shieldText, mpText, statusText]);
     this.unitViews.set(unit, { container: c, hpBar, mpBar, statusText, hpText, shieldText, mpText });
     this.updateUnitView(unit);
@@ -903,7 +955,6 @@ class BattleScene extends Phaser.Scene {
     this.allUnits.forEach(u => u.applyAura(this.allUnits)); this.allUnits.forEach(u => this.updateUnitView(u)); this.execute(actor);
   }
 
-  // ★ 完全重写：控制判断由 chooseSkill 数据驱动，无法行动则跳过
   execute(actor) {
     if (this.battleEnded) return;
 
@@ -961,10 +1012,10 @@ class BattleScene extends Phaser.Scene {
           }
           et.forEach(t => {
             if (!t || !t.isAlive()) return;
-            if (eff.type === 'status') { 
-              t.addStatus(eff.value, actor);   // ★ 传施法者
-              this.showFloat(t, `+${(STATUSES[eff.value] && STATUSES[eff.value].name) || ''}`, '#0ff'); 
-              this.updateUnitView(t); 
+            if (eff.type === 'status') {
+              t.addStatus(eff.value, actor);
+              this.showFloat(t, `+${(STATUSES[eff.value] && STATUSES[eff.value].name) || ''}`, '#0ff');
+              this.updateUnitView(t);
             }
             else if (eff.type === 'heal_pct') { const h = Math.round(actor.atk * eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
             else if (eff.type === 'heal_flat') { const h = Math.round(eff.value); t.heal(h); this.showFloat(t, `+${h}`, '#2ecc71'); this.updateUnitView(t); }
@@ -982,19 +1033,18 @@ class BattleScene extends Phaser.Scene {
     });
   }
 
-  // ★ 追打检查：目标禁止追打时跳过
   checkFollowup(tag, original) {
-    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original); 
+    let cand = this.allUnits.filter(u => u.isAlive() && u.side === original.side && u !== original);
     cand.sort((a, b) => {
         if (original.side === 'player') return a.gridX !== b.gridX ? a.gridX - b.gridX : a.gridY - b.gridY;
         else return a.gridX !== b.gridX ? b.gridX - a.gridX : a.gridY - b.gridY;
     });
 
     for (let u of cand) {
-      if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;   // ★ 禁止追打
+      if (u.statuses.some(st => STATUSES[st.id] && STATUSES[st.id].disableFollowup)) continue;
       const followupSkillId = Object.values(u.skillSlots).find(id => id && SKILLS[id] && SKILLS[id].type === 'followup');
-if (!followupSkillId) continue;
-const fid = followupSkillId;
+      if (!followupSkillId) continue;
+      const fid = followupSkillId;
       if (SKILLS[fid].comboTagIn === tag) {
         const used = u.followupCounts[fid] || 0; if (used < (SKILLS[fid].maxTriggers || 1)) { u.followupCounts[fid] = used + 1; this.doFollowup(u, getEffectiveSkill(u, SKILLS[fid])); break; }
       }
@@ -1029,29 +1079,28 @@ const fid = followupSkillId;
     this.logTexts.forEach(t => t.destroy()); this.logTexts = [];
     this.logHistory.forEach((l, i) => { const t = this.add.text(360, 645 - i * 20, l.text, { fontSize: '16px', color: l.color, stroke: '#000', strokeThickness: 2 }).setDepth(51); this.logTexts.push(t); });
   }
-  
+
   updateUnitView(u) {
     const v = this.unitViews.get(u); if (!v) return;
     let ratio = Math.max(0, u.hp / u.maxHp);
-    v.hpBar.displayWidth = v.hpBar.maxWidth * ratio; 
+    v.hpBar.displayWidth = v.hpBar.maxWidth * ratio;
     v.hpText.setText(`${u.hp}/${u.maxHp}`);
     this.tweens.add({ targets: v.mpBar, scaleX: Math.max(0, u.mp / 100), duration: 300 / this.speedMultiplier }); v.mpText.setText(`${u.mp}%`);
     v.statusText.setText(u.statuses.length > 0 ? `[${u.statuses.map(s => (STATUSES[s.id] && STATUSES[s.id].name) ? STATUSES[s.id].name.substring(0,1) : '?').join('')}]` : '');
     if (!u.isAlive()) { v.container.setAlpha(0.25); }
   }
 
-  // ★ 快速战斗：跳过无法行动者，其它流程保持
   fastForward() {
     if (this._ffEnded) return;
-    
+
     for (let r = 1; r <= CONFIG.MAX_ROUNDS; r++) {
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) {
         this._ffEnded = true;
-        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return;
       }
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) {
         this._ffEnded = true;
-        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return;
       }
 
       this.allUnits.forEach(u => {
@@ -1060,13 +1109,13 @@ const fid = followupSkillId;
         u.tickStatuses();
       });
 
-      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+      if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) {
         this._ffEnded = true;
-        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+        this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return;
       }
-      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+      if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) {
         this._ffEnded = true;
-        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+        this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return;
       }
 
       const order = BattleLogic.buildActionOrder(this.allUnits);
@@ -1075,17 +1124,17 @@ const fid = followupSkillId;
         this.allUnits.forEach(u => u.applyAura(this.allUnits));
 
         const sk = BattleLogic.chooseSkill(a, this.allUnits);
-        if (!sk) continue;   // ★ 无法行动（被控制）直接跳过
+        if (!sk) continue;
 
         BattleLogic.simulateSkill(a, sk, this.allUnits);
 
-        if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) { 
+        if (this.allUnits.filter(u => u.side === 'player' && u.isAlive()).length === 0) {
           this._ffEnded = true;
-          this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+          this.scene.start('ResultScene', { type: 'defeat', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return;
         }
-        if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) { 
+        if (this.allUnits.filter(u => u.side === 'enemy' && u.isAlive()).length === 0) {
           this._ffEnded = true;
-          this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return; 
+          this.scene.start('ResultScene', { type: 'victory', levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex }); return;
         }
       }
     }
@@ -1099,72 +1148,346 @@ const fid = followupSkillId;
     const t = this.add.text(CONFIG.WIDTH / 2, 250, txt[type], { fontSize: '60px', color: col[type], fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5).setDepth(200);
     this.tweens.add({ targets: t, scaleX: 1.1, scaleY: 1.1, yoyo: true, repeat: -1, duration: 800 });
     const b = this.add.text(CONFIG.WIDTH / 2, 450, '👉 点击继续', { fontSize: '28px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 30, y: 15 } }).setOrigin(0.5).setInteractive().setDepth(201);
-    b.on('pointerdown', () => this.scene.start('ResultScene', { 
+    b.on('pointerdown', () => this.scene.start('ResultScene', {
       type, levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex
     }));
   }
 }
 
+// ============================================================
+// ★ ResultScene 重写：支持首通/重复奖励、账号经验、多掉落、摘星樓
+// ============================================================
 class ResultScene extends Phaser.Scene {
   constructor() { super('ResultScene'); }
   init(d) {
-    this.resultType = d ? d.type : 'victory'; 
-    this.currentLevelIndex = (d && d.levelIndex !== undefined) ? d.levelIndex : 0; 
+    this.resultType = d ? d.type : 'victory';
+    this.currentLevelIndex = (d && d.levelIndex !== undefined) ? d.levelIndex : 0;
     this.navFrom = (d && d.from) ? d.from : 'direct';
     this.navBookId = (d && d.bookId) ? d.bookId : '';
     this.navNodeIndex = (d && d.nodeIndex !== undefined) ? d.nodeIndex : 0;
   }
   create() {
     this.cameras.main.setBackgroundColor('#1a1a2e');
-    const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' }; const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
-    this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 150, txt[this.resultType] || '未知结果', { fontSize: '80px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8 }).setOrigin(0.5);
+    const txt = { victory: '战斗胜利!', defeat: '战斗失败...', timeout: '超时失败' };
+    const col = { victory: '#2ECC71', defeat: '#E74C3C', timeout: '#E67E22' };
+    this.add.text(CONFIG.WIDTH / 2, 80, txt[this.resultType] || '未知结果', {
+      fontSize: '60px', color: col[this.resultType] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 8
+    }).setOrigin(0.5);
 
     if (this.resultType === 'victory') {
-      if (window.IdleSystem && typeof window.IdleSystem.onStageCleared === 'function') {
-          try {
-              window.IdleSystem.onStageCleared(this.currentLevelIndex);
-          } catch (e) {
-              console.warn('IdleSystem.onStageCleared 呼叫失敗:', e);
-          }
-      }
-
-      const lv = LEVELS[this.currentLevelIndex]; let totalExp = lv ? (lv.rewardExp || 0) : 0; let levelUpInfo = [];
-      if(totalExp > 0) { CHARACTERS.filter(c => c.side === 'player').forEach(c => { const oldLv = c.level || 1; addCharacterExp(c, totalExp); if(c.level > oldLv) levelUpInfo.push(`${c.name}升到Lv.${c.level}`); }); }
-      if (lv && lv.rewardItemId && ITEMS[lv.rewardItemId]) {
-        try {
-          const inst = generateRandomInstance(lv.rewardItemId);
-          if (inst) {
-            const tpl = ITEMS[inst.itemId];
-            if (tpl && !['weapon', 'armor', 'accessory'].includes(tpl.category)) { const existing = INVENTORY.find(i => i.itemId === tpl.id && !i.equippedBy); if (existing && existing.count < (tpl.maxStack || 1)) existing.count++; else INVENTORY.push(inst); } 
-            else INVENTORY.push(inst);
-            const qc = { white: '#fff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
-            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 - 30, '获得掉落：', { fontSize: '24px', color: '#fff' }).setOrigin(0.5);
-            this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 10, ITEMS[inst.itemId].name, { fontSize: '36px', color: qc[inst.quality] || '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
-          }
-        } catch (err) { console.error("掉落报错：", err); }
-      }
-      if(totalExp > 0) { this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 80, `全队获得 ${totalExp} 经验`, { fontSize: '24px', color: '#f1c40f' }).setOrigin(0.5); if(levelUpInfo.length > 0) { this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 120, levelUpInfo.join('，'), { fontSize: '20px', color: '#2ecc71' }).setOrigin(0.5); } }
-      localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS));
-    }
-
-    if (this.resultType === 'victory') {
-      if (this.navFrom === 'story') {
-        const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, '📖 繼續劇情', { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
-        b.on('pointerdown', () => { window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`; });
-      } else {
-        let label = '➡️ 进入下一关';
-        let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
-        if (this.currentLevelIndex >= LEVELS.length - 1) { label = '🏠 返回主選單'; action = () => { window.location.href = 'index.html'; }; }
-        const b = this.add.text(CONFIG.WIDTH / 2, CONFIG.HEIGHT / 2 + 200, label, { fontSize: '36px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 40, y: 20 } }).setOrigin(0.5).setInteractive();
-        b.on('pointerdown', action);
-      }
+      this.handleVictoryRewards();
     } else {
-      const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 140, CONFIG.HEIGHT / 2 + 200, '🔄 重新挑戰', { fontSize: '32px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
-      retryBtn.on('pointerdown', () => { this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex, from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex - 1 }); });
-      const exitBtn = this.add.text(CONFIG.WIDTH / 2 + 140, CONFIG.HEIGHT / 2 + 200, '🚪 放棄撤退', { fontSize: '32px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 25, y: 15 } }).setOrigin(0.5).setInteractive();
-      exitBtn.on('pointerdown', () => { if (this.navFrom === 'story') { window.location.href = 'story_menu.html'; } else { window.location.href = 'index.html'; } });
+      this.createRetryButtons();
     }
   }
+
+  // ============ 胜利：发放奖励 ============
+  handleVictoryRewards() {
+    const lv = LEVELS[this.currentLevelIndex];
+    if (!lv) { this.createRetryButtons(); return; }
+
+    const isTower = lv.category === 'tower';
+    const floor = lv.towerFloor || 0;
+
+    // 判断是否首通
+    let isFirstClear = false;
+    if (isTower) {
+      const maxFloor = (window.towerProgress && window.towerProgress.maxClearedFloor) || 0;
+      isFirstClear = floor > maxFloor;
+    } else {
+      const cs = window.clearedStages || [];
+      isFirstClear = cs.indexOf(lv.id) === -1;
+    }
+
+    // 挂机累积：仅 countsForIdle 时
+    if (lv.countsForIdle) {
+      if (window.IdleSystem && typeof window.IdleSystem.onStageCleared === 'function') {
+        try { window.IdleSystem.onStageCleared(this.currentLevelIndex); } catch (e) {
+          console.warn('IdleSystem.onStageCleared 呼叫失敗:', e);
+        }
+      }
+    }
+
+    // 选择奖励配置
+    let rewardCfg;
+    if (isFirstClear) {
+      rewardCfg = lv.firstClear || { exp: 0, accountExp: 0, drops: [] };
+    } else {
+      rewardCfg = lv.repeatRewards || { exp: 0, accountExp: 0, drops: [] };
+    }
+
+    // 兼容：如果没有新格式字段，回退到旧字段
+    if ((!rewardCfg || (rewardCfg.exp === 0 && rewardCfg.accountExp === 0 && (!rewardCfg.drops || rewardCfg.drops.length === 0)))
+        && (lv.rewardExp > 0 || lv.rewardItemId)) {
+      rewardCfg = {
+        exp: lv.rewardExp || 0,
+        accountExp: 0,
+        drops: lv.rewardItemId ? [{ itemId: lv.rewardItemId, count: 1, chance: 100, qualityMin: 'white', qualityMax: 'red', guaranteed: true }] : []
+      };
+    }
+
+    // ===== 1. 角色经验 =====
+    const totalExp = rewardCfg.exp || 0;
+    const levelUpInfo = [];
+    if (totalExp > 0) {
+      CHARACTERS.filter(c => c.side === 'player').forEach(c => {
+        const oldLv = c.level || 1;
+        addCharacterExp(c, totalExp);
+        if (c.level > oldLv) levelUpInfo.push(`${c.name} 升到 Lv.${c.level}`);
+      });
+    }
+
+    // ===== 2. 账号经验 =====
+    const accExp = rewardCfg.accountExp || 0;
+    let accLeveledUp = false;
+    let accLevelAfter = 0;
+    if (accExp > 0 && window.AccountSystem && typeof window.AccountSystem.addAccountExp === 'function') {
+      try {
+        const res = window.AccountSystem.addAccountExp(accExp);
+        accLeveledUp = res && res.leveledUp;
+        accLevelAfter = (window.gameAccount && window.gameAccount.level) || 0;
+      } catch (e) { console.warn('账号经验发放失败:', e); }
+    }
+
+    // ===== 3. 掉落物 =====
+    const drops = Array.isArray(rewardCfg.drops) ? rewardCfg.drops : [];
+    const gotDrops = [];  // { name, icon, quality, count }
+    drops.forEach(drop => {
+      if (!drop || !drop.itemId) return;
+      const tpl = ITEMS[drop.itemId];
+      if (!tpl) return;
+
+      // 概率判定
+      if (!drop.guaranteed) {
+        const chance = typeof drop.chance === 'number' ? drop.chance : 100;
+        if (Math.random() * 100 >= chance) return;
+      }
+
+      const cnt = Math.max(1, parseInt(drop.count) || 1);
+      const isEquip = ['weapon', 'armor', 'accessory'].includes(tpl.category);
+
+      if (isEquip) {
+        // 装备：逐件生成实例（按品质范围）
+        for (let i = 0; i < cnt; i++) {
+          let inst = null;
+          try {
+            inst = generateDropWithQuality(drop.itemId, drop.qualityMin, drop.qualityMax);
+          } catch (e) { inst = null; }
+          if (!inst) {
+            try { inst = generateRandomInstance(drop.itemId); } catch (e) { inst = null; }
+          }
+          if (inst) {
+            INVENTORY.push(inst);
+            gotDrops.push({ name: tpl.name, icon: tpl.icon || '📦', quality: inst.quality || 'white', count: 1 });
+          }
+        }
+      } else {
+        // 普通物品：堆叠
+        const maxStack = tpl.maxStack || 1;
+        let remain = cnt;
+        // 先合并到已有堆叠
+        const existingList = INVENTORY.filter(i => i.itemId === drop.itemId && !i.equippedBy);
+        existingList.forEach(ex => {
+          if (remain <= 0) return;
+          const curCount = ex.count || 1;
+          const canAdd = Math.max(0, maxStack - curCount);
+          const toAdd = Math.min(canAdd, remain);
+          if (toAdd > 0) { ex.count = curCount + toAdd; remain -= toAdd; }
+        });
+        // 剩余开新堆
+        while (remain > 0) {
+          const thisCount = Math.min(maxStack, remain);
+          INVENTORY.push({
+            uid: 'inst_' + Date.now() + Math.floor(Math.random()*1e4) + '_' + Math.random().toString(36).substr(2,4),
+            itemId: drop.itemId, quality: 'white', count: thisCount, equippedBy: ''
+          });
+          remain -= thisCount;
+        }
+        gotDrops.push({ name: tpl.name, icon: tpl.icon || '📦', quality: 'white', count: cnt });
+      }
+    });
+
+    // ===== 4. 记录首通/摘星樓进度 =====
+    if (isFirstClear) {
+      if (isTower) {
+        if (!window.towerProgress) window.towerProgress = { maxClearedFloor: 0, lastSweepDate: '', sweepUsedToday: false };
+        if (floor > (window.towerProgress.maxClearedFloor || 0)) {
+          window.towerProgress.maxClearedFloor = floor;
+        }
+        try { localStorage.setItem('my_game_tower_progress', JSON.stringify(window.towerProgress)); } catch (e) {}
+      } else {
+        if (!window.clearedStages) window.clearedStages = [];
+        if (window.clearedStages.indexOf(lv.id) === -1) {
+          window.clearedStages.push(lv.id);
+        }
+        try { localStorage.setItem('my_game_cleared_stages', JSON.stringify(window.clearedStages)); } catch (e) {}
+      }
+    }
+
+    // ===== 5. 保存角色/背包/账号 =====
+    try { localStorage.setItem('my_game_inventory_sync', JSON.stringify(INVENTORY)); } catch (e) {}
+    try { localStorage.setItem('my_game_characters', JSON.stringify(CHARACTERS)); } catch (e) {}
+    if (window.gameAccount) {
+      try { localStorage.setItem('my_game_account', JSON.stringify(window.gameAccount)); } catch (e) {}
+    }
+
+    // ===== 6. 渲染结算 UI =====
+    this.renderVictoryPanel(lv, isFirstClear, totalExp, levelUpInfo, accExp, accLeveledUp, accLevelAfter, gotDrops);
+  }
+
+  // ============ 胜利结算面板 ============
+  renderVictoryPanel(lv, isFirstClear, totalExp, levelUpInfo, accExp, accLeveledUp, accLevelAfter, gotDrops) {
+    const cx = CONFIG.WIDTH / 2;
+    let y = 145;
+
+    // 首通标签
+    if (isFirstClear) {
+      this.add.text(cx, y, '🏆 首通獎勵', {
+        fontSize: '28px', color: '#f1c40f', fontStyle: 'bold',
+        stroke: '#000', strokeThickness: 5,
+        backgroundColor: 'rgba(241,196,15,0.15)',
+        padding: { x: 20, y: 6 }
+      }).setOrigin(0.5);
+      y += 42;
+    } else {
+      this.add.text(cx, y, '🔁 重複通關獎勵', {
+        fontSize: '22px', color: '#aaa', fontStyle: 'bold',
+        stroke: '#000', strokeThickness: 4
+      }).setOrigin(0.5);
+      y += 34;
+    }
+
+    // 角色经验
+    if (totalExp > 0) {
+      this.add.text(cx, y, `角色經驗 +${totalExp}`, {
+        fontSize: '22px', color: '#3498db', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+      }).setOrigin(0.5);
+      y += 30;
+      if (levelUpInfo.length > 0) {
+        this.add.text(cx, y, levelUpInfo.join('、'), {
+          fontSize: '18px', color: '#2ecc71', fontStyle: 'bold', stroke: '#000', strokeThickness: 3
+        }).setOrigin(0.5);
+        y += 26;
+      }
+    }
+
+    // 账号经验
+    if (accExp > 0) {
+      let accLine = `🎖️ 帳號經驗 +${accExp}`;
+      if (accLeveledUp) accLine += `　→　升級至 Lv.${accLevelAfter}`;
+      this.add.text(cx, y, accLine, {
+        fontSize: '20px', color: '#f1c40f', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+      }).setOrigin(0.5);
+      y += 30;
+    }
+
+    // 掉落物
+    if (gotDrops.length > 0) {
+      this.add.text(cx, y, '🎁 獲得掉落', {
+        fontSize: '20px', color: '#fff', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+      }).setOrigin(0.5);
+      y += 32;
+
+      const qColorMap = { white: '#ffffff', green: '#2ecc71', blue: '#3498db', purple: '#9b59b6', orange: '#e67e22', red: '#e74c3c' };
+      const MAX_SHOW = 6;
+      const shown = gotDrops.slice(0, MAX_SHOW);
+
+      shown.forEach(d => {
+        const qc = qColorMap[d.quality] || '#fff';
+        const txt = `${d.icon} ${d.name}${d.count > 1 ? ' ×' + d.count : ''}`;
+        this.add.text(cx, y, txt, {
+          fontSize: '18px', color: qc, fontStyle: 'bold', stroke: '#000', strokeThickness: 3
+        }).setOrigin(0.5);
+        y += 26;
+      });
+      if (gotDrops.length > MAX_SHOW) {
+        this.add.text(cx, y, `... 以及其他 ${gotDrops.length - MAX_SHOW} 項`, {
+          fontSize: '16px', color: '#888', fontStyle: 'italic', stroke: '#000', strokeThickness: 2
+        }).setOrigin(0.5);
+        y += 24;
+      }
+    } else if (dropsEmptyHintNeeded(lv)) {
+      this.add.text(cx, y, '（本次無掉落）', {
+        fontSize: '16px', color: '#666', fontStyle: 'italic', stroke: '#000', strokeThickness: 2
+      }).setOrigin(0.5);
+      y += 26;
+    }
+
+    // 按钮
+    this.createVictoryButtons(lv);
+  }
+
+  createVictoryButtons(lv) {
+    const cx = CONFIG.WIDTH / 2;
+    const btnY = CONFIG.HEIGHT - 80;
+
+    if (this.navFrom === 'tower') {
+      // 摘星樓返回
+      const b = this.add.text(cx, btnY, '🏯 返回摘星樓', {
+        fontSize: '28px', color: '#fff', backgroundColor: '#9b59b6',
+        padding: { x: 30, y: 12 }
+      }).setOrigin(0.5).setInteractive();
+      b.on('pointerdown', () => { window.location.href = 'tower.html'; });
+      return;
+    }
+
+    if (this.navFrom === 'story') {
+      const b = this.add.text(cx, btnY, '📖 繼續劇情', {
+        fontSize: '28px', color: '#fff', backgroundColor: '#e67e22',
+        padding: { x: 30, y: 12 }
+      }).setOrigin(0.5).setInteractive();
+      b.on('pointerdown', () => {
+        window.location.href = `dialogue_player.html?bookId=${this.navBookId}&nodeIndex=${this.navNodeIndex}`;
+      });
+      return;
+    }
+
+    // 默认：下一关 / 返回大厅
+    let label = '➡️ 進入下一關';
+    let action = () => this.scene.start('FormationScene', { levelIndex: this.currentLevelIndex + 1 });
+
+    // 如果当前关卡是摘星樓（且从index直接进），回摘星樓
+    if (lv && lv.category === 'tower') {
+      label = '🏯 返回摘星樓';
+      action = () => { window.location.href = 'tower.html'; };
+    } else if (this.currentLevelIndex >= LEVELS.length - 1) {
+      label = '🏠 返回主選單';
+      action = () => { window.location.href = 'index.html'; };
+    }
+
+    const b = this.add.text(cx, btnY, label, {
+      fontSize: '28px', color: '#fff', backgroundColor: '#e67e22',
+      padding: { x: 30, y: 12 }
+    }).setOrigin(0.5).setInteractive();
+    b.on('pointerdown', action);
+  }
+
+  // ============ 失败：重试 / 撤退 ============
+  createRetryButtons() {
+    const btnY = CONFIG.HEIGHT - 100;
+    const retryBtn = this.add.text(CONFIG.WIDTH / 2 - 150, btnY, '🔄 重新挑戰', {
+      fontSize: '28px', color: '#fff', backgroundColor: '#e67e22', padding: { x: 24, y: 12 }
+    }).setOrigin(0.5).setInteractive();
+    retryBtn.on('pointerdown', () => {
+      this.scene.start('FormationScene', {
+        levelIndex: this.currentLevelIndex,
+        from: this.navFrom, bookId: this.navBookId, nodeIndex: this.navNodeIndex
+      });
+    });
+
+    const exitBtn = this.add.text(CONFIG.WIDTH / 2 + 150, btnY, '🚪 放棄撤退', {
+      fontSize: '28px', color: '#fff', backgroundColor: '#c0392b', padding: { x: 24, y: 12 }
+    }).setOrigin(0.5).setInteractive();
+    exitBtn.on('pointerdown', () => {
+      if (this.navFrom === 'story') { window.location.href = 'story_menu.html'; }
+      else if (this.navFrom === 'tower') { window.location.href = 'tower.html'; }
+      else { window.location.href = 'index.html'; }
+    });
+  }
+}
+
+function dropsEmptyHintNeeded(lv) {
+  return false; // 简化：默认不显示
 }
 
 window.addEventListener('storage', (e) => { if (e.key === 'my_game_characters' || e.key === 'my_game_levels_sync' || e.key === 'my_game_skills_sync') { if (confirm('检测到编辑器数据更新，是否立即刷新游戏查看效果？')) window.location.reload(); } });
