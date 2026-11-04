@@ -8,27 +8,22 @@
   * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
   html, body { width: 100vw; height: 100vh; overflow: hidden; background: #000; position: relative; }
 
-  /* ★ 基础状态：Phaser 画布在底层 */
+  /* ★ 战斗画布：永远在底层加载，防止 0 宽高导致引擎崩溃 */
   #game {
     position: absolute; top: 0; left: 0;
     width: 100vw; height: 100vh;
     z-index: 1;
     background: #0f0f1a;
   }
-  
-  /* ★ 关键：如果在战斗模式，强制把 Phaser 画布顶到最前面，并恢复点击 */
-  body.in-tower-battle #game {
-    z-index: 99999;
-    pointer-events: auto !important;
-  }
 
+  /* ★ 摘星楼 UI：盖在游戏上面 */
   #tower-scale-container {
     position: absolute; top: 0; left: 0;
     width: 1280px; height: 720px;
     transform-origin: 0 0;
     background: #08090c;
     overflow: hidden;
-    z-index: 10000; /* 摘星楼 UI 盖在游戏上面 */
+    z-index: 10000; 
   }
 
   #tower-bg {
@@ -328,10 +323,10 @@
 </style>
 </head>
 <body>
-  <!-- Phaser 容器 -->
+  <!-- Phaser 畫布，直接在底層默默加載 -->
   <div id="game"></div>
 
-  <!-- 塔界面 UI -->
+  <!-- 摘星樓介面 -->
   <div id="tower-scale-container">
     <div id="tower-bg"></div>
 
@@ -374,10 +369,15 @@
 
   <div id="tower-toast"></div>
 
+  <!-- ★ 修復關鍵：把 index.html 擁有的所有依賴腳本全部補齊，確保 battle.js 不會崩潰 -->
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
   <script src="core.js"></script>
   <script src="account_system.js"></script>
   <script src="battle.js"></script>
+  <script src="character_system.js"></script>
+  <script src="tab_char.js"></script>
+  <script src="tab_shop.js"></script>
+  <script src="idle_system.js"></script>
 
   <script>
   (function () {
@@ -722,7 +722,7 @@
       else { btn.disabled = false; btn.innerText = '🌀 掃蕩（1次可用）'; }
     }
 
-    // ★ 核心：点击挑战，记录状态并重载页面
+    // ★ 原地進入戰鬥：直接隱藏塔介面，啟動背景的 Phaser
     window.challengeFloor = function (floor) {
       const info = getFloorInfo(floor);
       if (!info) { toast('此層尚未配置關卡', '#e74c3c'); return; }
@@ -730,12 +730,24 @@
       if (floor <= (tp.maxClearedFloor || 0)) { toast('此層已通關，無法再次挑戰', '#e74c3c'); return; }
       if (floor > (tp.maxClearedFloor || 0) + 1) { toast('請先挑戰前一層', '#e74c3c'); return; }
 
-      // 存入关卡索引，并标记塔战斗模式
-      localStorage.setItem('my_game_current_level_index', String(info.levelIdx));
-      localStorage.setItem('my_game_tower_battle_mode', '1');
-      
-      // 刷新页面，让 Phaser 引擎在纯净的环境下启动
-      window.location.reload();
+      document.getElementById('tower-scale-container').style.display = 'none';
+
+      let attempts = 0;
+      const tryStart = () => {
+        // 這次依賴齊全，window.game 一定存在
+        if (window.game && window.game.scene) {
+          window.game.scene.stop('MainMenuScene');
+          window.game.scene.start('FormationScene', { levelIndex: info.levelIdx, from: 'tower' });
+          return;
+        }
+        if (attempts++ > 50) {
+          alert('遊戲引擎加載失敗，請刷新重試');
+          window.location.reload();
+          return;
+        }
+        setTimeout(tryStart, 100);
+      };
+      tryStart();
     };
 
     document.getElementById('sweep-btn').onclick = function () {
@@ -787,41 +799,9 @@
       setTimeout(() => render(), 100);
     }
 
-    // ★ 初始化检查
+    // ★ 初始化時，如果是在戰鬥中按了刷新，這裡其實不需要特殊處理，因為關卡會自動變灰
     function init() {
       autoScale();
-      
-      // 如果标记了塔战斗模式，说明刚点了挑战刷新过来
-      if (localStorage.getItem('my_game_tower_battle_mode') === '1') {
-        document.body.classList.add('in-tower-battle');
-        localStorage.removeItem('my_game_tower_battle_mode');
-        const levelIdxStr = localStorage.getItem('my_game_current_level_index');
-        localStorage.removeItem('my_game_current_level_index');
-
-        if (levelIdxStr) {
-          const levelIdx = parseInt(levelIdxStr);
-          document.getElementById('tower-scale-container').style.display = 'none';
-          
-          let attempts = 0;
-          const tryStart = () => {
-            if (window.game && window.game.scene) {
-              window.game.scene.stop('MainMenuScene');
-              window.game.scene.start('FormationScene', { levelIndex: levelIdx, from: 'tower' });
-              return;
-            }
-            if (attempts++ > 50) {
-              alert('遊戲引擎加載失敗，請刷新重試');
-              window.location.reload();
-              return;
-            }
-            setTimeout(tryStart, 100);
-          };
-          tryStart();
-          return; // 直接结束，不渲染塔界面
-        }
-      }
-
-      // 正常渲染塔界面
       render();
     }
     
