@@ -313,9 +313,15 @@
         const content = section.querySelector('.section-content');
         const arrow = section.querySelector('.section-arrow');
         const header = section.querySelector('.section-header');
+        
         if (content) content.style.display = willExpand ? '' : 'none';
         if (arrow) arrow.innerText = willExpand ? '▼' : '▶';
         if (header) header.style.color = willExpand ? '#f1c40f' : '#888';
+
+        // ★ 新增：如果展开的是敌人摆位，需要重新渲染一次棋盘（因为折叠时 clientWidth 为 0 画不出东西）
+        if (willExpand && key === 'enemy') {
+          setTimeout(() => { window.renderBoardUnits(stageIdx); }, 10);
+        }
       }
     }
   };
