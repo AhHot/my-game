@@ -1,14 +1,9 @@
 // ==========================================
 // 模組：帳號等級與經驗編輯器 (tab_account.js)
-// - 掛機帳號經驗、摘星樓解鎖等級、超出表遞增係數
-// - 每級升級經驗表（可自由增刪改）
-// - 每級升級獎勵（銅幣 + 物品列表）
-// - 表外等級獎勵（超額擴展）
 // ==========================================
 (function () {
   'use strict';
 
-  // 保證 globalData.account 存在且完整
   function ensureAccountConfig() {
     if (!window.globalData) window.globalData = {};
     if (!window.globalData.account) window.globalData.account = {};
@@ -32,7 +27,6 @@
     return acc;
   }
 
-  // 持久化：直接写 localStorage（无论编辑器还是游戏环境）
   function persistAccountConfig() {
     try {
       localStorage.setItem('my_game_config', JSON.stringify(window.globalData));
@@ -41,7 +35,6 @@
     }
   }
 
-  // 物品下拉选项
   function buildItemSelect(selectedId) {
     let html = `<option value="">-- 選擇物品 --</option>`;
     const items = window.ITEMS || {};
@@ -52,7 +45,6 @@
     return html;
   }
 
-  // 展开的奖励等级（每次渲染会重建，这里只是初始状态）
   if (!window._expandedRewardLevels) window._expandedRewardLevels = {};
 
   // ==================== 主渲染 ====================
@@ -60,7 +52,6 @@
     if (!container) container = document.getElementById('app-content') || document.body;
     const acc = ensureAccountConfig();
 
-    // 合并等级显示：max(expTable.length, 最大奖励等级)
     let maxRewardLv = 0;
     Object.keys(acc.levelRewards).forEach(k => {
       const n = parseInt(k);
@@ -84,10 +75,10 @@
         <div class="sub-title">⚙️ 基礎設定</div>
         <div class="form-grid" style="margin-bottom:20px;">
           <div class="form-item">
-            <label style="color:#2ecc71;">掛機每次收資源獲得帳號經驗（固定值）</label>
+            <label style="color:#2ecc71;">掛機每小時獲得帳號經驗</label>
             <input type="number" min="0" value="${acc.idleAccountExpFlat}" 
               oninput="window.updateAccountBase('idleAccountExpFlat', parseFloat(this.value)||0)">
-            <span style="font-size:11px; color:#888; margin-top:2px;">玩家每次點擊「領取資源」時，帳號獲得此數值的經驗</span>
+            <span style="font-size:11px; color:#888; margin-top:2px;">玩家掛機時，每小時產出此數值的經驗（與掛機產出編輯器互通）</span>
           </div>
           <div class="form-item">
             <label style="color:#e67e22;">摘星樓解鎖等級</label>
@@ -102,10 +93,11 @@
             <span style="font-size:11px; color:#888; margin-top:2px;">例：1.8 表示每級需求為上一級的 1.8 倍（無上限）</span>
           </div>
           <div class="form-item">
-            <label style="color:#f1c40f;">目前設定最高等級</label>
-            <div style="padding:8px 12px; background:#0f0f1a; border:1px solid #444; border-radius:4px; color:#f1c40f; font-weight:bold; font-size:16px;">
-              Lv.${maxLevel}${maxRewardLv > tableLen ? '（含表外獎勵）' : ''}
+            <label style="color:#f1c40f;">當前設定最高等級</label>
+            <div style="padding:8px 12px; background:transparent; border:1px dashed #555; border-radius:4px; color:#f1c40f; font-weight:bold; font-size:16px;">
+              Lv.${maxLevel}${maxRewardLv > tableLen ? '（包含表外獎勵）' : ''}
             </div>
+            <span style="font-size:11px; color:#888; margin-top:2px;">此數值自動計算，若要增加請在下方生成或手動新增</span>
           </div>
         </div>
 
@@ -174,7 +166,6 @@
     `;
   };
 
-  // ============ 渲染经验表行 ============
   function renderExpTableRows(acc, tableLen, maxRewardLv) {
     const totalRows = Math.max(tableLen, maxRewardLv);
     let html = '';
@@ -186,7 +177,6 @@
       const reward = acc.levelRewards[lv] || null;
       const isExpanded = !!window._expandedRewardLevels[lv];
 
-      // 奖励摘要
       let rewardSummary = '<span style="color:#555;">（無）</span>';
       if (reward) {
         const parts = [];
@@ -201,7 +191,6 @@
         if (parts.length) rewardSummary = parts.join('　');
       }
 
-      // 主行
       html += `
         <tr style="border-bottom:1px solid #222; ${isExpanded ? 'background:rgba(241,196,15,0.04);' : ''}">
           <td style="padding:8px 10px; color:#f1c40f; font-weight:bold;">Lv.${lv}</td>
@@ -222,7 +211,6 @@
         </tr>
       `;
 
-      // 展开的奖励编辑器
       if (isExpanded) {
         const r = acc.levelRewards[lv] || { copper: 0, items: [] };
         if (!Array.isArray(r.items)) r.items = [];
@@ -273,7 +261,6 @@
     return html;
   }
 
-  // ============ 渲染表外奖励列表 ============
   function renderExtraRewardsList(acc, tableLen) {
     const extras = [];
     Object.keys(acc.levelRewards).forEach(k => {
@@ -376,14 +363,12 @@
     window.renderTabAccount(document.getElementById('app-content'));
   };
 
-  // 展开/收起奖励编辑
   window.toggleRewardEditor = function (lv) {
     const acc = ensureAccountConfig();
     if (window._expandedRewardLevels[lv]) {
       delete window._expandedRewardLevels[lv];
     } else {
       window._expandedRewardLevels[lv] = true;
-      // 确保 entry 存在
       if (!acc.levelRewards[lv]) {
         acc.levelRewards[lv] = { copper: 0, items: [] };
         persistAccountConfig();
@@ -461,7 +446,6 @@
 
   window.saveAccountConfigNow = function () {
     persistAccountConfig();
-    // 尝试调用 core.js 的 saveData（如果存在）
     if (typeof saveData === 'function') {
       try { saveData(); } catch (e) {}
     }
