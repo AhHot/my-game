@@ -16,7 +16,8 @@
         }
 
         .interactive-ui { pointer-events: auto; }
-        #game { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; }
+        /* ★ 這裡改名為 game-placeholder，阻止 battle.js 啟動 Phaser */
+        #game-placeholder { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 
         .main-bg {
             position: absolute; inset: 0;
@@ -190,24 +191,12 @@
             box-shadow: 0 10px 20px rgba(0,0,0,0.5); text-align: center;
             white-space: pre-line;
         }
-
-        /* ★ 战斗模式下隐藏主界面 UI，并提升游戏画布层级 */
-        body.in-battle .top-bar-overlay,
-        body.in-battle .left-sidebar,
-        body.in-battle .main-right-section,
-        body.in-battle #main-bg,
-        body.in-battle #idle-panel {
-            display: none !important;
-        }
-        body.in-battle #game {
-            z-index: 9999 !important; /* 确保画布在最顶层 */
-            pointer-events: auto !important; /* 恢复点击 */
-        }
     </style>
 </head>
 <body>
     <div id="game-scale-container">
-        <div id="game"></div>
+        <!-- ★ 改名為 game-placeholder，阻止 battle.js 啟動 Phaser -->
+        <div id="game-placeholder"></div>
 
         <div class="main-bg" id="main-bg" onclick="cycleBackground()" title="點擊切換背景"></div>
 
@@ -251,6 +240,7 @@
 
     <div id="global-toast"></div>
 
+    <!-- ★ 引入 Phaser 和 battle.js 是為了讓 Unit 類別可以使用，但因為沒有 #game 容器，不會真的啟動遊戲引擎 -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="core.js"></script>
     <script src="account_system.js"></script>
@@ -278,7 +268,6 @@
 
         let currentBgIndex = 0;
         let mainConfig = null;
-        let selectedShopIdx = 0;
 
         function initIndexMainUI() {
             resizeGameUI();
@@ -517,63 +506,7 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            resizeGameUI();
-            // 1. 无论如何先初始化大厅数据，保证不黑屏
             initIndexMainUI();
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const isAutoFormation = urlParams.get('autoFormation') === '1';
-            const fromParam = urlParams.get('from') || 'direct';
-            const targetLevelIdxStr = localStorage.getItem('my_game_current_level_index');
-
-            if (isAutoFormation && targetLevelIdxStr !== null) {
-                const targetLevelIdx = parseInt(targetLevelIdxStr);
-
-                if (isNaN(targetLevelIdx)) {
-                    localStorage.removeItem('my_game_current_level_index');
-                    return;
-                }
-
-                // 添加类以隐藏 UI 并确保画布置顶
-                document.body.classList.add('in-battle');
-
-                let isStarted = false;
-                let attempts = 0;
-
-                // 2. 采用状态检测，避免打断 Phaser 的场景初始化
-                const tryStartBattle = () => {
-                    attempts++;
-                    if (isStarted) return;
-
-                    if (window.game && window.game.scene) {
-                        // 等待 MainMenuScene 完全启动后再无缝切入
-                        if (window.game.scene.isActive('MainMenuScene')) {
-                            try {
-                                localStorage.removeItem('my_game_current_level_index');
-                                window.game.scene.start('FormationScene', { 
-                                    levelIndex: targetLevelIdx,
-                                    from: fromParam
-                                });
-                                isStarted = true;
-                                return;
-                            } catch (e) {
-                                console.error("启动战斗场景异常:", e);
-                            }
-                        }
-                    }
-
-                    // 最多等待 10 秒
-                    if (attempts > 100) {
-                        console.error("Phaser 初始化超时");
-                        document.body.classList.remove('in-battle'); // 恢复 UI 绝不黑屏
-                        showToast("遊戲引擎加載超時，請刷新重試", "#e74c3c");
-                        return;
-                    }
-                    setTimeout(tryStartBattle, 100);
-                };
-
-                tryStartBattle();
-            }
         });
     </script>
 </body>
