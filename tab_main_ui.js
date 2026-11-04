@@ -1,4 +1,4 @@
-// tab_main_ui.js - 主畫面 UI 配置模組 (支援卡片背景圖編輯)
+// tab_main_ui.js - 主畫面 UI 配置模組 (支援卡片背景圖 + 摘星樓入口編輯)
 window.renderTabMainUI = function(container) {
   let mainConfig = JSON.parse(localStorage.getItem('my_game_main_config')) || {};
 
@@ -13,7 +13,22 @@ window.renderTabMainUI = function(container) {
   } else if (mainConfig.stageCard.bgUrl === undefined) {
     mainConfig.stageCard.bgUrl = ''; // 兼容舊存檔
   }
-  
+
+  // ★ 補全摘星樓入口配置
+  if (!mainConfig.towerEntry) {
+    mainConfig.towerEntry = {
+      enabled: true,
+      name: '摘星樓',
+      bgUrl: '',
+      icon: '🏯'
+    };
+  } else {
+    if (mainConfig.towerEntry.enabled === undefined) mainConfig.towerEntry.enabled = true;
+    if (!mainConfig.towerEntry.name) mainConfig.towerEntry.name = '摘星樓';
+    if (mainConfig.towerEntry.bgUrl === undefined) mainConfig.towerEntry.bgUrl = '';
+    if (!mainConfig.towerEntry.icon) mainConfig.towerEntry.icon = '🏯';
+  }
+
   if (!mainConfig.buttons || Object.keys(mainConfig.buttons).length === 0) {
     mainConfig.buttons = {
       character: { title: '角色與背包', icon: '👥', active: true, action: 'character' },
@@ -36,7 +51,7 @@ window.renderTabMainUI = function(container) {
         <button class="btn" style="background:#2ecc71; padding:6px 12px; font-size:12px;" onclick="saveMainConfigDirect()">💾 儲存主畫面設定</button>
       </div>
       <p style="font-size:13px; color:#aaa; margin-bottom:15px;">
-        在此設定遊戲主畫面 (index.html) 的背景圖片、右側主線卡片，以及左側導覽按鈕。
+        在此設定遊戲主畫面 (index.html) 的背景圖片、右側主線卡片、摘星樓入口，以及左側導覽按鈕。
       </p>
 
       <!-- 背景圖管理區 -->
@@ -63,13 +78,74 @@ window.renderTabMainUI = function(container) {
           <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">說明文字 (Description)</label>
           <textarea id="stage-card-desc" rows="2" style="background:#16213e; color:#aaa; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px; resize:vertical;" oninput="updateStageCardField('desc', this.value)">${mainConfig.stageCard.desc || ''}</textarea>
         </div>
-        
-        <!-- ★ 新增：卡片專屬背景圖 URL -->
+
+        <!-- 卡片專屬背景圖 URL -->
         <div style="margin-top: 5px; padding-top: 8px; border-top: 1px dashed #333;">
           <label style="font-size:11px; color:#e67e22; font-weight:bold; display:block; margin-bottom:2px;">卡片背景圖片 URL (選填)</label>
           <input type="text" id="stage-card-bg" value="${mainConfig.stageCard.bgUrl || ''}" placeholder="留空則使用預設深色底。建議填入 assets/ 路徑" style="background:#16213e; color:#e67e22; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px;" oninput="updateStageCardField('bgUrl', this.value)">
         </div>
+      </div>
 
+      <hr style="border:none; border-top:1px solid #333; margin:20px 0;">
+
+      <!-- ★ 摘星樓入口配置 -->
+      <div class="sub-title">🏯 摘星樓入口配置（劇本卡片正下方）</div>
+      <div style="background:#0f0f1a; border:1px solid #333; padding:14px; border-radius:6px; margin-top:8px;">
+        <p style="font-size:12px; color:#888; margin-bottom:12px; line-height:1.6;">
+          入口卡片尺寸固定為「劇本卡片寬度的一半（170px × 130px）」，位置在劇本卡片正下方靠右。<br>
+          顯示資訊會自動根據玩家的「帳號等級」與「摘星樓進度」動態更新。
+        </p>
+
+        <!-- 開關 -->
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; padding:8px 12px; background:#16213e; border-radius:6px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; color:#2ecc71; font-weight:bold;">
+            <input type="checkbox" ${mainConfig.towerEntry.enabled ? 'checked' : ''} onchange="updateTowerEntryField('enabled', this.checked)" style="width:16px; height:16px; cursor:pointer;">
+            在主畫面顯示摘星樓入口
+          </label>
+        </div>
+
+        <div style="display:grid; grid-template-columns:80px 1fr 200px; gap:10px; margin-bottom:10px;">
+          <div>
+            <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">圖示</label>
+            <input type="text" value="${mainConfig.towerEntry.icon || '🏯'}" maxlength="4" style="background:#16213e; color:#fff; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:18px; text-align:center;" oninput="updateTowerEntryField('icon', this.value)">
+          </div>
+          <div>
+            <label style="font-size:11px; color:#888; display:block; margin-bottom:2px;">名稱</label>
+            <input type="text" value="${mainConfig.towerEntry.name || '摘星樓'}" style="background:#16213e; color:#f1c40f; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:13px; font-weight:bold;" oninput="updateTowerEntryField('name', this.value)">
+          </div>
+          <div style="display:flex; align-items:flex-end;">
+            <button class="btn" style="background:#3498db; padding:6px 12px; font-size:12px; width:100%;" onclick="previewTowerEntry()">👁️ 在主頁預覽</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label style="font-size:11px; color:#e67e22; display:block; margin-bottom:2px;">卡片背景圖片 URL (選填)</label>
+          <input type="text" value="${mainConfig.towerEntry.bgUrl || ''}" placeholder="留空則使用預設金紫色漸變背景" style="background:#16213e; color:#e67e22; border:1px solid #444; padding:6px 8px; border-radius:4px; width:100%; font-size:12px;" oninput="updateTowerEntryField('bgUrl', this.value); refreshTowerPreview();">
+        </div>
+
+        <!-- 迷你預覽 -->
+        <div style="margin-top:12px; padding-top:12px; border-top:1px dashed #333;">
+          <label style="font-size:11px; color:#aaa; display:block; margin-bottom:6px;">📱 預覽效果</label>
+          <div id="tower-entry-preview" style="
+            width:170px; height:130px; margin:0 auto;
+            border-radius:12px; position:relative; overflow:hidden;
+            border:2px solid #f1c40f;
+            box-shadow: 0 6px 20px rgba(241,196,15,0.3);
+            display:flex; align-items:center; justify-content:center;
+          ">
+            <div id="tower-entry-preview-bg" style="
+              position:absolute; inset:0;
+              background-size:cover; background-position:center;
+              filter: brightness(0.4); z-index:1;
+            "></div>
+            <div style="position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; padding:10px;">
+              <div id="tower-entry-preview-icon" style="font-size:42px; line-height:1; filter:drop-shadow(0 2px 6px rgba(0,0,0,0.6));">${mainConfig.towerEntry.icon || '🏯'}</div>
+              <div id="tower-entry-preview-name" style="color:#f1c40f; font-size:15px; font-weight:bold; text-shadow:0 2px 4px rgba(0,0,0,0.8);">${mainConfig.towerEntry.name || '摘星樓'}</div>
+              <div style="color:#ccc; font-size:11px; background:rgba(0,0,0,0.5); padding:2px 8px; border-radius:8px;">第 1 層待挑戰</div>
+            </div>
+          </div>
+          <p style="font-size:11px; color:#666; text-align:center; margin-top:8px;">※ 玩家未達解鎖等級時，卡片會變灰並顯示「需要 Lv.X」</p>
+        </div>
       </div>
 
       <hr style="border:none; border-top:1px solid #333; margin:20px 0;">
@@ -83,6 +159,7 @@ window.renderTabMainUI = function(container) {
 
   renderBgList(mainConfig);
   renderBtnList(mainConfig);
+  setTimeout(refreshTowerPreview, 50);
 };
 
 function renderBgList(config) {
@@ -117,11 +194,11 @@ function renderBtnList(config) {
     const btn = config.buttons[key];
     const item = document.createElement('div');
     item.style.cssText = "background:#0f0f1a; border:1px solid #333; padding:10px; border-radius:6px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;";
-    
+
     item.innerHTML = `
       <input type="text" value="${btn.icon || '📌'}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; width:40px; text-align:center; font-size:16px;" oninput="updateBtnField('${key}', 'icon', this.value)" title="圖標">
       <input type="text" value="${btn.title || ''}" style="background:#16213e; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px; width:130px; font-size:12px;" oninput="updateBtnField('${key}', 'title', this.value)" title="按鈕名稱">
-      
+
       <select style="background:#16213e; color:#aaa; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px;" onchange="updateBtnField('${key}', 'action', this.value)" title="點擊觸發動作">
         <option value="character" ${btn.action === 'character' ? 'selected' : ''}>開啟人物與背包</option>
         <option value="shop" ${btn.action === 'shop' ? 'selected' : ''}>開啟坊市入口</option>
@@ -138,6 +215,65 @@ function renderBtnList(config) {
     container.appendChild(item);
   });
 }
+
+// ============ 摘星樓入口預覽刷新 ============
+function refreshTowerPreview() {
+  const cfg = JSON.parse(localStorage.getItem('my_game_main_config'));
+  if (!cfg || !cfg.towerEntry) return;
+
+  const iconEl = document.getElementById('tower-entry-preview-icon');
+  const nameEl = document.getElementById('tower-entry-preview-name');
+  const bgEl = document.getElementById('tower-entry-preview-bg');
+  const cardEl = document.getElementById('tower-entry-preview');
+
+  if (iconEl) iconEl.innerText = cfg.towerEntry.icon || '🏯';
+  if (nameEl) nameEl.innerText = cfg.towerEntry.name || '摘星樓';
+  if (bgEl) {
+    if (cfg.towerEntry.bgUrl && cfg.towerEntry.bgUrl.trim()) {
+      bgEl.style.backgroundImage = `url('${encodeURI(cfg.towerEntry.bgUrl.trim())}')`;
+      bgEl.style.background = '';
+    } else {
+      bgEl.style.backgroundImage = 'none';
+      bgEl.style.background = 'linear-gradient(135deg, #2a1a2e 0%, #1a1c29 100%)';
+    }
+  }
+  if (cardEl) {
+    cardEl.style.opacity = cfg.towerEntry.enabled ? '1' : '0.35';
+  }
+}
+
+window.refreshTowerPreview = refreshTowerPreview;
+
+window.updateTowerEntryField = function(field, value) {
+  let config = JSON.parse(localStorage.getItem('my_game_main_config')) || {};
+  if (!config.towerEntry) {
+    config.towerEntry = { enabled: true, name: '摘星樓', bgUrl: '', icon: '🏯' };
+  }
+  config.towerEntry[field] = value;
+  localStorage.setItem('my_game_main_config', JSON.stringify(config));
+
+  // 即時更新預覽
+  if (field === 'icon' || field === 'name') {
+    const iconEl = document.getElementById('tower-entry-preview-icon');
+    const nameEl = document.getElementById('tower-entry-preview-name');
+    if (iconEl) iconEl.innerText = config.towerEntry.icon || '🏯';
+    if (nameEl) nameEl.innerText = config.towerEntry.name || '摘星樓';
+  }
+  if (field === 'bgUrl') {
+    refreshTowerPreview();
+  }
+  if (field === 'enabled') {
+    refreshTowerPreview();
+  }
+};
+
+window.previewTowerEntry = function() {
+  // 打開主頁並聚焦到摘星樓入口（以新窗口打開，方便比對）
+  const win = window.open('index.html?t=' + Date.now(), '_blank');
+  if (!win) {
+    alert('彈窗被阻擋，請允許彈窗或手動打開 index.html 查看效果');
+  }
+};
 
 window.updateBgField = function(index, field, value) {
   let config = JSON.parse(localStorage.getItem('my_game_main_config'));
