@@ -515,33 +515,58 @@
         window.addEventListener('DOMContentLoaded', () => {
             resizeGameUI();
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const isAutoFormation = urlParams.get('autoFormation');
-            const fromParam = urlParams.get('from') || 'direct';
-            const targetLevelIdx = localStorage.getItem('my_game_current_level_index');
+            // ★ 无论如何，先初始化主界面配置，保证背景和 UI 不会残缺
+            initIndexMainUI();
 
-            if (isAutoFormation === '1' && targetLevelIdx !== null) {
-                // ★ 隐藏主界面 UI
-                document.body.classList.add('in-battle');
-                
-                setTimeout(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const isAutoFormation = urlParams.get('autoFormation') === '1';
+            const fromParam = urlParams.get('from') || 'direct';
+            const targetLevelIdxStr = localStorage.getItem('my_game_current_level_index');
+
+            if (isAutoFormation && targetLevelIdxStr !== null) {
+                const targetLevelIdx = parseInt(targetLevelIdxStr);
+
+                // ★ 防呆检查，如果解析失败直接取消自动战斗
+                if (isNaN(targetLevelIdx)) {
+                    console.warn("無效的關卡索引，取消自動戰鬥");
                     localStorage.removeItem('my_game_current_level_index');
-                    if (window.game && window.game.scene) {
-                        // ★ 传递 from 参数，以便战斗结束后能正确返回
-                        window.game.scene.start('FormationScene', { 
-                            levelIndex: parseInt(targetLevelIdx),
-                            from: fromParam
-                        });
+                    return; // 留在主界面
+                }
+
+                // 隐藏主界面 UI
+                document.body.classList.add('in-battle');
+
+                // ★ 稳健的等待机制：用轮询等待 Phaser 就绪，最长等 5 秒（50次*100ms）
+                let attempts = 0;
+                const waitGame = setInterval(() => {
+                    attempts++;
+                    if (window.game && window.game.scene && window.game.scene.keys) {
+                        clearInterval(waitGame);
+                        localStorage.removeItem('my_game_current_level_index');
+
+                        // 确保场景存在
+                        if (window.game.scene.keys['FormationScene']) {
+                            // 停掉默认的主菜单场景，避免重叠干扰
+                            if (window.game.scene.keys['MainMenuScene']) {
+                                window.game.scene.stop('MainMenuScene');
+                            }
+                            window.game.scene.start('FormationScene', { 
+                                levelIndex: targetLevelIdx,
+                                from: fromParam
+                            });
+                        } else {
+                            console.error("FormationScene 场景未找到");
+                            document.body.classList.remove('in-battle');
+                            showToast("戰鬥場景加載失敗", "#e74c3c");
+                        }
+                    } else if (attempts > 50) {
+                        // 超时保护
+                        clearInterval(waitGame);
+                        console.error("Phaser 初始化超時");
+                        document.body.classList.remove('in-battle');
+                        showToast("遊戲引擎加載超時，請刷新重試", "#e74c3c");
                     }
-                }, 600);
-            } else {
-                // 正常显示 UI
-                document.body.classList.remove('in-battle');
-                setTimeout(() => {
-                    refreshAccountBadge();
-                    refreshTowerEntry();
-                }, 50);
-                initIndexMainUI();
+                }, 100);
             }
         });
     </script>
