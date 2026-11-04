@@ -765,14 +765,20 @@
     }
 
     // ============ 挑战 ============
-    window.challengeFloor = function (floor) {
+     window.challengeFloor = function (floor) {
       const info = getFloorInfo(floor);
       if (!info) { toast('此層尚未配置關卡', '#e74c3c'); return; }
       const tp = getTowerProgress();
       if (floor <= (tp.maxClearedFloor || 0)) { toast('此層已通關，無法再次挑戰', '#e74c3c'); return; }
       if (floor > (tp.maxClearedFloor || 0) + 1) { toast('請先挑戰前一層', '#e74c3c'); return; }
+      
+      // ★ 新增：檢查索引有效性
+      if (typeof info.levelIdx !== 'number' || isNaN(info.levelIdx)) {
+          toast('關卡數據異常，請回首頁刷新後重試', '#e74c3c');
+          return;
+      }
+
       localStorage.setItem('my_game_current_level_index', String(info.levelIdx));
-      // ★ 修改这行：加上 &from=tower
       window.location.href = 'index.html?autoFormation=1&from=tower';
     };
 
