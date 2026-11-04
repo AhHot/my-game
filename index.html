@@ -7,7 +7,7 @@
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
         html, body { width: 100%; height: 100%; overflow: hidden; background-color: #0f0f1a; font-family: "Microsoft YaHei", sans-serif; position: relative; }
-        
+
         #game-scale-container {
             position: absolute; top: 0; left: 0;
             width: 1280px; height: 720px;
@@ -17,7 +17,7 @@
 
         .interactive-ui { pointer-events: auto; }
         #game { width: 1280px; height: 720px; position: absolute; inset: 0; z-index: 0; }
-        
+
         .main-bg {
             position: absolute; inset: 0;
             background-size: cover; background-position: center;
@@ -37,6 +37,45 @@
             background: linear-gradient(to bottom, rgba(15, 15, 26, 0.85) 0%, transparent 100%);
         }
         .top-title { font-size: 20px; font-weight: bold; color: #f1c40f; display: flex; align-items: center; gap: 8px; }
+
+        /* ★ 新增：帳號等級徽章 */
+        .account-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(241,196,15,0.12);
+            border: 1px solid rgba(241,196,15,0.35);
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+            margin-left: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .account-badge:hover {
+            background: rgba(241,196,15,0.25);
+            border-color: #f1c40f;
+        }
+        .account-badge .acc-label { font-size: 11px; color: #aaa; }
+        .account-badge #account-level-display { color: #f1c40f; font-weight: bold; }
+        .reward-badge {
+            position: absolute;
+            top: -6px; right: -6px;
+            min-width: 18px; height: 18px;
+            background: #e74c3c; color: #fff;
+            border-radius: 9px;
+            font-size: 11px;
+            font-weight: bold;
+            display: none;
+            align-items: center; justify-content: center;
+            padding: 0 5px;
+            box-shadow: 0 2px 6px rgba(231,76,60,0.5);
+            animation: bounceBadge 1.5s infinite;
+        }
+        @keyframes bounceBadge {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+        }
+
         .btn-editor-quick {
             background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25);
             padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #fff; cursor: pointer;
@@ -61,8 +100,9 @@
         }
 
         .main-right-section {
-            position: absolute; right: 40px; top: 90px; bottom: 300px;;
-            width: 340px; display: flex; flex-direction: column; justify-content: space-between;
+            position: absolute; right: 40px; top: 90px;
+            width: 340px;
+            display: flex; flex-direction: column; gap: 15px;
             z-index: 100;
         }
         .main-stage-card {
@@ -85,11 +125,70 @@
         }
         .btn-battle:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(231, 76, 60, 0.6); }
 
+        /* ★ 新增：摘星樓入口卡片（方案 A：宽=剧卡一半，贴剧卡正下方靠右） */
+        .tower-entry-card {
+            align-self: flex-end;
+            width: 170px; height: 130px;
+            background: linear-gradient(135deg, #2a1a2e 0%, #1a1c29 100%);
+            border: 2px solid #f1c40f;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(241,196,15,0.3);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .tower-entry-card:hover:not(.locked) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(241,196,15,0.55);
+            border-color: #ffd700;
+        }
+        .tower-entry-card.locked {
+            opacity: 0.65;
+            border-color: #666;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .tower-entry-card.locked:hover { transform: none; }
+        .tower-entry-bg {
+            position: absolute; inset: 0;
+            background-size: cover; background-position: center;
+            filter: brightness(0.4);
+            z-index: 1;
+        }
+        .tower-entry-bg::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.7), transparent 60%);
+        }
+        .tower-entry-content {
+            position: relative; z-index: 2;
+            display: flex; flex-direction: column;
+            align-items: center; gap: 6px;
+            text-align: center;
+            padding: 10px;
+        }
+        .tower-entry-icon {
+            font-size: 42px; line-height: 1;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+        }
+        .tower-entry-name {
+            color: #f1c40f; font-size: 15px; font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .tower-entry-floor {
+            color: #ccc; font-size: 11px;
+            background: rgba(0,0,0,0.5);
+            padding: 2px 8px; border-radius: 8px;
+        }
+
         #global-toast {
             position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
             background: rgba(46, 204, 113, 0.9); color: #fff; padding: 15px 30px; border-radius: 10px;
             font-size: 24px; font-weight: bold; z-index: 99999; display: none;
             box-shadow: 0 10px 20px rgba(0,0,0,0.5); text-align: center;
+            white-space: pre-line;
         }
     </style>
 </head>
@@ -100,7 +199,14 @@
         <div class="main-bg" id="main-bg" onclick="cycleBackground()" title="點擊切換背景"></div>
 
         <div class="top-bar-overlay interactive-ui">
-            <div class="top-title">⚔️ 江湖大廳</div>
+            <div class="top-title">
+                <span>⚔️ 江湖大廳</span>
+                <div class="account-badge" onclick="openAccountPanel(event)" title="點擊查看帳號升級獎勵">
+                    <span class="acc-label">帳號</span>
+                    <span id="account-level-display">Lv.1</span>
+                    <span id="account-reward-badge" class="reward-badge">0</span>
+                </div>
+            </div>
             <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
         </div>
 
@@ -117,6 +223,16 @@
                 </div>
                 <button class="btn-battle" onclick="window.location.href='story_menu.html'"> 進入 </button>
             </div>
+
+            <!-- ★ 摘星樓入口卡片 -->
+            <div class="tower-entry-card" id="tower-entry-card" onclick="openTowerPage()">
+                <div class="tower-entry-bg" id="tower-entry-bg"></div>
+                <div class="tower-entry-content">
+                    <div class="tower-entry-icon" id="tower-entry-icon">🏯</div>
+                    <div class="tower-entry-name" id="tower-entry-name">摘星樓</div>
+                    <div class="tower-entry-floor" id="tower-entry-floor">第 1 層待挑戰</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -124,10 +240,10 @@
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="core.js"></script>
+    <script src="account_system.js"></script>
     <script src="battle.js"></script>
     <script src="character_system.js"></script>
     <script src="tab_char.js"></script>
-    <!-- ★ 新增載入坊市商店模組 -->
     <script src="tab_shop.js"></script>
     <script src="idle_system.js"></script>
 
@@ -137,7 +253,7 @@
             const scaleX = window.innerWidth / 1280;
             const scaleY = window.innerHeight / 720;
             const scale = Math.min(scaleX, scaleY);
-            
+
             container.style.transform = `scale(${scale})`;
             const scaledWidth = 1280 * scale;
             const scaledHeight = 720 * scale;
@@ -178,9 +294,21 @@
                 };
             }
 
+            // ★ 補全摘星樓入口配置
+            if (!mainConfig.towerEntry) {
+                mainConfig.towerEntry = {
+                    enabled: true,
+                    name: '摘星樓',
+                    bgUrl: '',
+                    icon: '🏯'
+                };
+            }
+
             updateBackgroundDisplay();
             updateStageCardDisplay();
             renderIndexLeftSidebar();
+            refreshTowerEntry();
+            refreshAccountBadge();
         }
 
         function updateBackgroundDisplay() {
@@ -202,36 +330,134 @@
                 if (tagEl && mainConfig.stageCard.tag) tagEl.innerText = mainConfig.stageCard.tag;
                 if (titleEl && mainConfig.stageCard.title) titleEl.innerText = mainConfig.stageCard.title;
                 if (descEl && mainConfig.stageCard.desc) descEl.innerText = mainConfig.stageCard.desc;
-                 if (cardEl) {
-            if (mainConfig.stageCard.bgUrl && mainConfig.stageCard.bgUrl.trim() !== '') {
-                let url = encodeURI(mainConfig.stageCard.bgUrl.trim());
-               cardEl.style.background = `linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), url('${url}') center/cover`;
-            } else {
-                // 若清空則恢復預設深藍色底
-                cardEl.style.background = 'rgba(22, 33, 62, 0.85)';
-                            }
-        }
+                if (cardEl) {
+                    if (mainConfig.stageCard.bgUrl && mainConfig.stageCard.bgUrl.trim() !== '') {
+                        let url = encodeURI(mainConfig.stageCard.bgUrl.trim());
+                        cardEl.style.background = `linear-gradient(to bottom, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), url('${url}') center/cover`;
+                    } else {
+                        cardEl.style.background = 'rgba(22, 33, 62, 0.85)';
+                    }
+                }
             }
         }
 
         window.cycleBackground = function() {
             if (!mainConfig || !mainConfig.bgList || mainConfig.bgList.length === 0) return;
-            
+
             let unlockedBgs = mainConfig.bgList.filter(b => b.unlocked);
             if (unlockedBgs.length === 0) unlockedBgs = mainConfig.bgList;
 
             let currentUrl = mainConfig.bgList[currentBgIndex].url;
             let subIndex = unlockedBgs.findIndex(b => b.url === currentUrl);
-            
+
             subIndex = (subIndex + 1) % unlockedBgs.length;
             let targetBg = unlockedBgs[subIndex];
-            
+
             currentBgIndex = mainConfig.bgList.findIndex(b => b.id === targetBg.id);
             if (currentBgIndex === -1) currentBgIndex = 0;
 
             updateBackgroundDisplay();
             showToast(`已切換背景：${targetBg.name}`, '#3498db');
         }
+
+        // ★ 摘星樓入口動態刷新
+        function refreshTowerEntry() {
+            const card = document.getElementById('tower-entry-card');
+            if (!card) return;
+
+            const cfg = mainConfig && mainConfig.towerEntry;
+            if (!cfg || cfg.enabled === false) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = 'flex';
+
+            // 讀取帳號
+            let acc = window.gameAccount;
+            if (!acc) {
+                try { acc = JSON.parse(localStorage.getItem('my_game_account') || '{}'); } catch (e) { acc = {}; }
+            }
+            const level = acc.level || 1;
+            const unlockLv = (window.globalData && window.globalData.account && window.globalData.account.towerUnlockLevel) || 10;
+
+            // 讀取塔進度
+            let tp = window.towerProgress;
+            if (!tp) {
+                try { tp = JSON.parse(localStorage.getItem('my_game_tower_progress') || '{}'); } catch (e) { tp = {}; }
+            }
+            const maxFloor = tp.maxClearedFloor || 0;
+
+            // 背景圖
+            const bgEl = document.getElementById('tower-entry-bg');
+            if (bgEl) {
+                if (cfg.bgUrl && cfg.bgUrl.trim()) {
+                    bgEl.style.backgroundImage = `url('${encodeURI(cfg.bgUrl.trim())}')`;
+                } else {
+                    bgEl.style.backgroundImage = 'none';
+                }
+            }
+
+            // 圖示 & 名稱
+            const iconEl = document.getElementById('tower-entry-icon');
+            if (iconEl) iconEl.innerText = cfg.icon || '🏯';
+            const nameEl = document.getElementById('tower-entry-name');
+            if (nameEl) nameEl.innerText = cfg.name || '摘星樓';
+
+            // 鎖定狀態 & 樓層資訊
+            const floorEl = document.getElementById('tower-entry-floor');
+            if (level < unlockLv) {
+                card.classList.add('locked');
+                if (floorEl) floorEl.innerText = `需要 Lv.${unlockLv}`;
+            } else {
+                card.classList.remove('locked');
+                if (floorEl) {
+                    if (maxFloor === 0) floorEl.innerText = '第 1 層待挑戰';
+                    else floorEl.innerText = `已通關 ${maxFloor} 層`;
+                }
+            }
+        }
+
+        // ★ 刷新帳號等級徽章
+        function refreshAccountBadge() {
+            if (window.AccountSystem && typeof window.AccountSystem.updateTopLeftDisplay === 'function') {
+                try { window.AccountSystem.updateTopLeftDisplay(); return; } catch (e) {}
+            }
+            // 兜底：直接讀 localStorage
+            const el = document.getElementById('account-level-display');
+            const badge = document.getElementById('account-reward-badge');
+            let acc = window.gameAccount;
+            if (!acc) {
+                try { acc = JSON.parse(localStorage.getItem('my_game_account') || '{}'); } catch (e) { acc = {}; }
+            }
+            if (el) el.innerText = 'Lv.' + (acc.level || 1);
+            if (badge && window.AccountSystem && typeof window.AccountSystem.getClaimableCount === 'function') {
+                const cnt = window.AccountSystem.getClaimableCount();
+                badge.style.display = cnt > 0 ? 'flex' : 'none';
+                badge.innerText = cnt > 99 ? '99+' : cnt;
+            }
+        }
+
+        // ★ 點擊帳號徽章 → 打開升級獎勵彈窗
+        window.openAccountPanel = function(event) {
+            if (event) event.stopPropagation();
+            if (window.AccountSystem && typeof window.AccountSystem.openAccountRewardUI === 'function') {
+                window.AccountSystem.openAccountRewardUI();
+            } else {
+                showToast('帳號系統載入中...', '#e67e22');
+            }
+        };
+
+        // ★ 點擊摘星樓入口
+        window.openTowerPage = function() {
+            const card = document.getElementById('tower-entry-card');
+            if (card && card.classList.contains('locked')) {
+                const acc = window.gameAccount || { level: 1 };
+                const unlockLv = (window.globalData && window.globalData.account && window.globalData.account.towerUnlockLevel) || 10;
+                showToast(`摘星樓需要帳號等級 Lv.${unlockLv} 才能進入\n目前 Lv.${acc.level || 1}`, '#e67e22');
+                return;
+            }
+            window.location.href = 'tower.html';
+        };
 
         function renderIndexLeftSidebar() {
             const sidebar = document.getElementById('left-sidebar');
@@ -254,8 +480,7 @@
                         else showToast('角色介面載入中...', '#e67e22');
                     };
                 } else if (act === 'shop' || key === 'shop' || title.includes('坊市') || title.includes('商店')) {
-                    // ★ 這裡改為呼叫全域的 window.openShopUI()
-                    callback = () => { 
+                    callback = () => {
                         if (typeof window.openShopUI === 'function') window.openShopUI();
                         else showToast('坊市模組載入失敗...', '#e74c3c');
                     };
@@ -291,7 +516,13 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             resizeGameUI();
-            
+
+            // ★ 先刷新帳號徽章與塔入口（不依賴 initIndexMainUI）
+            setTimeout(() => {
+                refreshAccountBadge();
+                refreshTowerEntry();
+            }, 50);
+
             const urlParams = new URLSearchParams(window.location.search);
             const isAutoFormation = urlParams.get('autoFormation');
             const targetLevelIdx = localStorage.getItem('my_game_current_level_index');
