@@ -1,5 +1,5 @@
 // ============================================================
-// 編輯器：掛機產出配置 (tab_idle.js)
+// 編輯器：掛機產出配置 (tab_idle.js) - 加入每小時帳號經驗
 // ============================================================
 window.renderTabIdle = function (container) {
   if (!window.IdleSystem) {
@@ -8,6 +8,10 @@ window.renderTabIdle = function (container) {
   }
   const cfg  = window.IdleSystem.getConfig();
   const data = window.IdleSystem.getData();
+  
+  // 讀取全局配置中的帳號經驗設定
+  const idleAccExp = (window.globalData && window.globalData.account && window.globalData.account.idleAccountExpFlat) || 0;
+
   const rates = {
     copper:           cfg.baseRates.copper           + data.clearedCount * cfg.perStageGrowth.copper,
     expPill:          cfg.baseRates.expPill          + data.clearedCount * cfg.perStageGrowth.expPill,
@@ -39,7 +43,7 @@ window.renderTabIdle = function (container) {
       <p style="color:#aaa; font-size:13px; margin-bottom:15px;">
         主畫面右下角「江湖歷練」面板會依下列公式產出資源：
         <br>每小時產出 = <b style="color:#2ecc71;">基礎速率 + 已通關關卡數 × 每關成長</b>
-        <br>玩家點擊領取時，以「實際經過時間 × 每小時產出」結算。
+        <br>玩家點擊領取時，以「實際經過時間 × 每小時產出」結算（包含帳號經驗）。
       </p>
 
       <div class="form-grid">
@@ -47,6 +51,17 @@ window.renderTabIdle = function (container) {
           <label>離線累計上限（小時）</label>
           <input type="number" min="1" step="1" value="${cfg.maxOfflineHours}"
             onchange="window._saveIdleTop('maxOfflineHours', parseFloat(this.value))">
+        </div>
+      </div>
+
+      <div class="sub-title">🎖️ 帳號經驗獲取（全局設定）</div>
+      <div class="form-grid" style="margin-bottom:15px;">
+        <div class="form-item full">
+          <label>每小時獲得帳號經驗</label>
+          <input type="number" step="0.1" min="0" value="${idleAccExp}"
+            onchange="window._saveIdleAccountExp(parseFloat(this.value))"
+            style="border-color:#f1c40f;">
+          <span style="font-size:11px; color:#888; margin-top:2px;">* 與「🎖️ 帳號與經驗」Tab 中的設定是互通的，兩邊修改都會生效。</span>
         </div>
       </div>
 
@@ -106,7 +121,8 @@ window.renderTabIdle = function (container) {
           銅幣 <span>${rates.copper.toFixed(1)}</span> ·
           經驗丹 <span>${rates.expPill.toFixed(2)}</span> ·
           突破丹 <span>${rates.breakthroughPill.toFixed(2)}</span> ·
-          裝備 <span>${rates.equipment.toFixed(2)}</span>
+          裝備 <span>${rates.equipment.toFixed(2)}</span> ·
+          帳號經驗 <span>${idleAccExp.toFixed(1)}</span>
         </div>
         <div>距上次領取：<span>${elapsed.toFixed(2)} 小時</span></div>
       </div>
@@ -135,6 +151,15 @@ window._saveIdleItem = function (key, val) {
   window.IdleSystem.saveConfig(c);
 };
 
+// ★ 新增：保存帳號經驗到 globalData
+window._saveIdleAccountExp = function (val) {
+  if (!window.globalData) window.globalData = {};
+  if (!window.globalData.account) window.globalData.account = {};
+  window.globalData.account.idleAccountExpFlat = val;
+  try { localStorage.setItem('my_game_config', JSON.stringify(window.globalData)); } catch(e) {}
+  window.renderTabIdle(document.getElementById('app-content'));
+};
+
 window._toggleEquipPool = function (itemId, checked) {
   const c = window.IdleSystem.getConfig();
   let pool = c.equipmentPool.filter(x => x !== itemId);
@@ -156,6 +181,8 @@ window._resetIdleProgress = function () {
 window._testIdlePreview = function () {
   const cfg = window.IdleSystem.getConfig();
   const data = window.IdleSystem.getData();
+  const idleAccExp = (window.globalData && window.globalData.account && window.globalData.account.idleAccountExpFlat) || 0;
+
   const rates = {
     copper:           cfg.baseRates.copper           + data.clearedCount * cfg.perStageGrowth.copper,
     expPill:          cfg.baseRates.expPill          + data.clearedCount * cfg.perStageGrowth.expPill,
@@ -168,6 +195,7 @@ window._testIdlePreview = function () {
     `🪙 銅幣 x${Math.floor(h * rates.copper)}\n` +
     `💊 經驗丹 x${Math.floor(h * rates.expPill)}\n` +
     `🧪 突破丹 x${Math.floor(h * rates.breakthroughPill)}\n` +
-    `⚔️ 裝備 x${Math.floor(h * rates.equipment)}`
+    `⚔️ 裝備 x${Math.floor(h * rates.equipment)}\n` +
+    `🎖️ 帳號經驗 x${Math.floor(h * idleAccExp)}`
   );
 };
