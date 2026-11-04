@@ -1,5 +1,5 @@
 // ==========================================
-// 模块：关卡编辑器 (tab_stage.js) v2
+// 模块：关卡编辑器 (tab_stage.js) v3 - 滚动无跳动修复版
 // - 分类子Tab：全部/主线/支线/活动/日常/摘星樓
 // - 每关：首通奖励 + 重复奖励（多掉落，含账号经验）
 // - 摘星樓：左10层折叠分组 + 右侧详情
@@ -70,11 +70,25 @@
   function renderStageContent() {
     const box = document.getElementById('stage-content');
     if (!box) return;
+
+    // ★ 记录滚动位置
+    const appCard = document.querySelector('#app-content > .card');
+    const scrollTop = appCard ? appCard.scrollTop : 0;
+    const towerList = document.getElementById('tower-floor-list');
+    const towerScrollTop = towerList ? towerList.scrollTop : 0;
+
     const cat = window._currentStageCategory;
     if (cat === 'tower') {
       renderTowerLayout(box);
     } else {
       renderStandardLayout(box, cat);
+    }
+
+    // ★ 恢复滚动位置
+    if (appCard) appCard.scrollTop = scrollTop;
+    if (towerScrollTop > 0) {
+      const newTowerList = document.getElementById('tower-floor-list');
+      if (newTowerList) newTowerList.scrollTop = towerScrollTop;
     }
   }
 
@@ -234,7 +248,7 @@
     catSelect += '</select>';
 
     return `
-      <div class="card" style="margin-bottom:14px; border-left:3px solid ${isTower ? '#9b59b6' : '#3498db'};">
+      <div class="card" style="margin-bottom:14px; border-left:3px solid ${isTower ? '#9b59b6' : '#3498db'};" data-stage-idx="${stageIdx}">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid #333;">
           <h4 style="margin:0; color:#f1c40f; font-size:15px;">
             ${isTower ? `🏯 第 ${lv.towerFloor} 層` : `🗡️ ${lv.name || '未命名'}`}
@@ -272,23 +286,38 @@
 
   function renderCollapseSection(stageIdx, key, title, expanded, contentHtml) {
     return `
-      <div style="border-top:1px solid #2a2a35; margin-top:8px;">
-        <div onclick="window.toggleStageSection(${stageIdx}, '${key}')" style="padding:8px 10px; cursor:pointer; color:${expanded ? '#f1c40f' : '#888'}; font-size:13px; font-weight:bold; user-select:none; display:flex; justify-content:space-between;">
+      <div style="border-top:1px solid #2a2a35; margin-top:8px;" data-section="${key}">
+        <div class="section-header" onclick="window.toggleStageSection(${stageIdx}, '${key}')" style="padding:8px 10px; cursor:pointer; color:${expanded ? '#f1c40f' : '#888'}; font-size:13px; font-weight:bold; user-select:none; display:flex; justify-content:space-between;">
           <span>${title}</span>
-          <span>${expanded ? '▼' : '▶'}</span>
+          <span class="section-arrow">${expanded ? '▼' : '▶'}</span>
         </div>
-        <div style="padding:0 10px 10px 10px; ${expanded ? '' : 'display:none;'}">
+        <div class="section-content" style="padding:0 10px 10px 10px; ${expanded ? '' : 'display:none;'}">
           ${contentHtml}
         </div>
       </div>
     `;
   }
 
+  // ★ 改动：不再重绘，纯 DOM 操作实现展开/折叠
   window.toggleStageSection = function (stageIdx, key) {
     const realKey = 's' + stageIdx + '_' + key;
-    if (window._stageExpanded[realKey]) delete window._stageExpanded[realKey];
-    else window._stageExpanded[realKey] = true;
-    renderStageContent();
+    const willExpand = !window._stageExpanded[realKey];
+
+    if (willExpand) window._stageExpanded[realKey] = true;
+    else delete window._stageExpanded[realKey];
+
+    const card = document.querySelector(`.card[data-stage-idx="${stageIdx}"]`);
+    if (card) {
+      const section = card.querySelector(`[data-section="${key}"]`);
+      if (section) {
+        const content = section.querySelector('.section-content');
+        const arrow = section.querySelector('.section-arrow');
+        const header = section.querySelector('.section-header');
+        if (content) content.style.display = willExpand ? '' : 'none';
+        if (arrow) arrow.innerText = willExpand ? '▼' : '▶';
+        if (header) header.style.color = willExpand ? '#f1c40f' : '#888';
+      }
+    }
   };
 
   // ============ 敌人摆位区 ============
@@ -497,6 +526,7 @@
     if (!drops || !drops[dIdx]) return;
     drops[dIdx][field] = value;
     saveData();
+    // 只有这些字段需要重绘（因为UI结构会变），其他只需更新数据
     if (field === 'itemId' || field === 'guaranteed') renderStageContent();
   };
 
