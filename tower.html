@@ -311,9 +311,20 @@
   .lock-title { color: #f1c40f; font-size: 32px; font-weight: bold; margin-bottom: 15px; }
   .lock-msg { color: #ddd; font-size: 18px; line-height: 1.8; margin-bottom: 30px; white-space: pre-line; }
   .lock-btn { padding: 12px 40px; background: #e67e22; color: #fff; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; }
+
+  /* ★ 新增：獨立的全屏戰鬥容器 */
+  #game {
+    position: fixed; top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 99999; background: #0f0f1a;
+    display: none;
+  }
 </style>
 </head>
 <body>
+  <!-- ★ 獨立的 Phaser 遊戲畫布 -->
+  <div id="game"></div>
+
   <div id="tower-scale-container">
     <div id="tower-bg"></div>
 
@@ -356,9 +367,12 @@
 
   <div id="tower-toast"></div>
 
+  <!-- ★ 引入 Phaser 和戰鬥依賴 -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
   <script src="core.js"></script>
   <script src="account_system.js"></script>
-  <script src="tab_tower.js"></script>
+  <script src="battle.js"></script>
+
   <script>
   (function () {
     'use strict';
@@ -764,22 +778,34 @@
       }
     }
 
-    // ============ 挑战 ============
-     window.challengeFloor = function (floor) {
+    // ============ 挑战（直接启动战斗引擎） ============
+    window.challengeFloor = function (floor) {
       const info = getFloorInfo(floor);
       if (!info) { toast('此層尚未配置關卡', '#e74c3c'); return; }
       const tp = getTowerProgress();
       if (floor <= (tp.maxClearedFloor || 0)) { toast('此層已通關，無法再次挑戰', '#e74c3c'); return; }
       if (floor > (tp.maxClearedFloor || 0) + 1) { toast('請先挑戰前一層', '#e74c3c'); return; }
-      
-      // ★ 新增：檢查索引有效性
-      if (typeof info.levelIdx !== 'number' || isNaN(info.levelIdx)) {
-          toast('關卡數據異常，請回首頁刷新後重試', '#e74c3c');
-          return;
-      }
 
-      localStorage.setItem('my_game_current_level_index', String(info.levelIdx));
-      window.location.href = 'index.html?autoFormation=1&from=tower';
+      // ★ 隱藏塔介面，顯示 Phaser 畫布
+      document.getElementById('tower-scale-container').style.display = 'none';
+      document.getElementById('game').style.display = 'block';
+
+      // ★ 啟動戰鬥
+      let attempts = 0;
+      const tryStart = () => {
+        if (window.game && window.game.scene) {
+          window.game.scene.stop('MainMenuScene');
+          // 直接傳入 from: 'tower'，打贏會自動刷新回摘星樓
+          window.game.scene.start('FormationScene', { levelIndex: info.levelIdx, from: 'tower' });
+          return;
+        }
+        if (attempts++ > 50) {
+          alert('遊戲引擎加載失敗，請刷新頁面重試。');
+          return;
+        }
+        setTimeout(tryStart, 100);
+      };
+      tryStart();
     };
 
     // ============ 扫荡 ============
