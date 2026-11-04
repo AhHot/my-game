@@ -772,7 +772,8 @@
       if (floor <= (tp.maxClearedFloor || 0)) { toast('此層已通關，無法再次挑戰', '#e74c3c'); return; }
       if (floor > (tp.maxClearedFloor || 0) + 1) { toast('請先挑戰前一層', '#e74c3c'); return; }
       localStorage.setItem('my_game_current_level_index', String(info.levelIdx));
-      window.location.href = 'index.html?autoFormation=1';
+      // ★ 修改这行：加上 &from=tower
+      window.location.href = 'index.html?autoFormation=1&from=tower';
     };
 
     // ============ 扫荡 ============
