@@ -59,8 +59,8 @@
     
     <!-- 按鈕：完全照著圖二設計 -->
     <button id="btn-pack" onclick="window.safeOpenCharacterUI()">
-    <span>👤</span> 角色与背包
-</button>
+        <span>👤</span> 角色与背包
+    </button>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
     <script src="core.js"></script>
@@ -71,17 +71,18 @@
 
     <script>
         window.safeOpenCharacterUI = function() {
-    try {
-        if (typeof window.openCharacterUI === 'function') {
-            window.openCharacterUI();
-        } else {
-            alert('角色與背包系統載入中或未初始化！');
-        }
-    } catch (e) {
-        console.error('打開角色背包失敗：', e);
-        alert('打開角色背包失敗：' + (e && e.message ? e.message : e));
-    }
-};
+            try {
+                if (typeof window.openCharacterUI === 'function') {
+                    window.openCharacterUI();
+                } else {
+                    alert('角色與背包系統載入中或未初始化！');
+                }
+            } catch (e) {
+                console.error('打開角色背包失敗：', e);
+                alert('打開角色背包失敗：' + (e && e.message ? e.message : e));
+            }
+        };
+
         setInterval(() => {
             document.querySelectorAll('.phaser-dom-element').forEach(el => el.remove());
         }, 500);
@@ -133,6 +134,24 @@
         }
 
         window.addEventListener('resize', updateButtonPosition);
+
+        // ★★★ 新增：實時監聽場景，只在「戰前布陣」顯示背包按鈕 ★★★
+        setInterval(() => {
+            if (window.game && window.game.scene) {
+                const activeScenes = window.game.scene.getScenes(true);
+                // 檢查當前是否有 FormationScene 在活動中
+                const isFormation = activeScenes.some(s => s.scene && s.scene.key === 'FormationScene');
+                const btn = document.getElementById('btn-pack');
+                
+                if (btn) {
+                    if (isFormation) {
+                        if (btn.style.display !== 'flex') btn.style.display = 'flex';
+                    } else {
+                        if (btn.style.display !== 'none') btn.style.display = 'none';
+                    }
+                }
+            }
+        }, 200);
 
         window.addEventListener('load', () => {
             updateButtonPosition(); // 初始定位
