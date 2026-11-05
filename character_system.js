@@ -64,10 +64,11 @@
                 
                 <!-- 頂部貨幣欄與關閉按鈕 -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: #1a1c29; padding: 12px 25px; border-radius: 8px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                    <!-- ★ 修改：增加元寶顯示 -->
                     <div id="ui-currency-bar" style="display: flex; gap: 30px; font-size: 18px; font-weight: bold; color: #ddd;">
-                    <span style="color: #f1c40f;">銅幣: <span id="player-copper-display">0</span></span>
-                    <span style="color: #3498db;">元寶: <span id="player-gold-display">0</span></span>
-                </div>
+                        <span style="color: #f1c40f;">🪙 銅幣: <span id="player-copper-display">0</span></span>
+                        <span style="color: #3498db;">💎 元寶: <span id="player-gold-display">0</span></span>
+                    </div>
                     <div class="close-ui-btn" onclick="window.closeCharacterUI()" style="font-size: 28px; color: #aaa; cursor: pointer; line-height: 1; padding: 0 5px; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#aaa'">✖</div>
                 </div>
 
@@ -506,7 +507,7 @@
     };
 
     function refreshLeftPanel() {
-        // 更新頂部貨幣顯示
+        // ★ 修改：更新頂部貨幣顯示（增加元寶）
         const copperSpan = document.getElementById('player-copper-display');
         const goldSpan = document.getElementById('player-gold-display');
         if (!window.globalData) window.globalData = {};
@@ -514,7 +515,6 @@
         
         if (copperSpan) copperSpan.innerText = window.globalData.currency.copper || 0;
         if (goldSpan) goldSpan.innerText = window.globalData.currency.gold || 0;
-        }
 
         const portraitEl = document.querySelector('.char-portrait');
         if (portraitEl) {
