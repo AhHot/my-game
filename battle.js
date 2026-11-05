@@ -1211,13 +1211,10 @@ class ResultScene extends Phaser.Scene {
     // 选择奖励配置
     let rewardCfg;
     if (isFirstClear) {
-      rewardCfg = lv.firstClear || { exp: 0, accountExp: 0, drops: [] };
+      rewardCfg = lv.firstClear || { exp: 0, accountExp: 0, starCoin: 0, drops: [] };
     } else {
-      rewardCfg = lv.repeatRewards || { exp: 0, accountExp: 0, drops: [] };
+      rewardCfg = lv.repeatRewards || { exp: 0, accountExp: 0, starCoin: 0, drops: [] };
     }
-
-    // ★ 移除旧字段回退逻辑：只要编辑器里配了多少就是多少，不再因为旧字段而给奖励
-    // （core.js 的 migrateLevel 已经保证了 firstClear 和 repeatRewards 结构完整）
 
     // ===== 1. 角色经验 =====
     const totalExp = rewardCfg.exp || 0;
@@ -1240,6 +1237,14 @@ class ResultScene extends Phaser.Scene {
         accLeveledUp = res && res.leveledUp;
         accLevelAfter = (window.gameAccount && window.gameAccount.level) || 0;
       } catch (e) { console.warn('账号经验发放失败:', e); }
+    }
+
+    // ===== 2.5 摘星币 (新增) =====
+    const starCoinReward = rewardCfg.starCoin || 0;
+    if (starCoinReward > 0) {
+        if (!window.globalData.currency) window.globalData.currency = {};
+        window.globalData.currency.starCoin = (window.globalData.currency.starCoin || 0) + starCoinReward;
+        try { localStorage.setItem('my_game_config', JSON.stringify(window.globalData)); } catch (e) {}
     }
 
     // ===== 3. 掉落物 =====
@@ -1325,11 +1330,11 @@ class ResultScene extends Phaser.Scene {
     }
 
     // ===== 6. 渲染结算 UI =====
-    this.renderVictoryPanel(lv, isFirstClear, totalExp, levelUpInfo, accExp, accLeveledUp, accLevelAfter, gotDrops);
+    this.renderVictoryPanel(lv, isFirstClear, totalExp, levelUpInfo, accExp, accLeveledUp, accLevelAfter, starCoinReward, gotDrops);
   }
 
   // ============ 胜利结算面板 ============
-  renderVictoryPanel(lv, isFirstClear, totalExp, levelUpInfo, accExp, accLeveledUp, accLevelAfter, gotDrops) {
+  renderVictoryPanel(lv, isFirstClear, totalExp, levelUpInfo, accExp, accLeveledUp, accLevelAfter, starCoinReward, gotDrops) {
     const cx = CONFIG.WIDTH / 2;
     let y = 145;
 
@@ -1374,6 +1379,14 @@ class ResultScene extends Phaser.Scene {
       y += 30;
     }
 
+    // 摘星币 (新增)
+    if (starCoinReward > 0) {
+      this.add.text(cx, y, `⭐ 摘星幣 +${starCoinReward}`, {
+        fontSize: '20px', color: '#e74c3c', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
+      }).setOrigin(0.5);
+      y += 30;
+    }
+
     // 掉落物
     if (gotDrops.length > 0) {
       this.add.text(cx, y, '🎁 獲得掉落', {
@@ -1399,7 +1412,7 @@ class ResultScene extends Phaser.Scene {
         }).setOrigin(0.5);
         y += 24;
       }
-    } else if (totalExp === 0 && accExp === 0) {
+    } else if (totalExp === 0 && accExp === 0 && starCoinReward === 0) {
       this.add.text(cx, y, '（本次無掉落與經驗）', {
         fontSize: '16px', color: '#666', fontStyle: 'italic', stroke: '#000', strokeThickness: 2
       }).setOrigin(0.5);
