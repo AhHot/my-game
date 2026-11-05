@@ -132,7 +132,7 @@ const DEFAULT_GLOBAL_CONFIG = {
   expTable: JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE)),
   dropRates: JSON.parse(JSON.stringify(DEFAULT_DROP_RATES)),
   affixPools: JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS)),
-  currency: { copper: 50000, sycee: 100 },
+  currency: { copper: 50000, sycee: 100, gold: 1000, starCoin: 0 },
   shops: [
     {
       id: 'shop_daily',
@@ -274,7 +274,9 @@ function loadAllData() {
   if (!globalData.expTable || globalData.expTable.length === 0) globalData.expTable = JSON.parse(JSON.stringify(DEFAULT_EXP_TABLE));
   if (!globalData.dropRates) globalData.dropRates = JSON.parse(JSON.stringify(DEFAULT_DROP_RATES));
   if (!globalData.affixPools) globalData.affixPools = JSON.parse(JSON.stringify(DEFAULT_AFFIX_POOLS));
-  if (!globalData.currency) globalData.currency = { copper: 50000, sycee: 100 };
+  if (!globalData.currency) globalData.currency = { copper: 50000, sycee: 100, gold: 1000, starCoin: 0 };
+  if (globalData.currency.gold === undefined) globalData.currency.gold = 1000;
+  if (globalData.currency.starCoin === undefined) globalData.currency.starCoin = 0;
   if (!globalData.shops) globalData.shops = JSON.parse(JSON.stringify(DEFAULT_GLOBAL_CONFIG.shops));
   if (!globalData.elements) globalData.elements = [ ...DEFAULT_GLOBAL_CONFIG.elements ];
   if (!globalData.elementMatrix) globalData.elementMatrix = { ...DEFAULT_GLOBAL_CONFIG.elementMatrix };
