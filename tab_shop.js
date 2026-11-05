@@ -1,5 +1,5 @@
 // ==========================================
-// 模組：坊市與商店系統 (tab_shop.js) - 完美倒計時版
+// 模組：坊市與商店系統 (tab_shop.js) - 多貨幣版
 // ==========================================
 
 window.renderTabShop = function(container) {
@@ -32,6 +32,7 @@ function renderShopList() {
     if (shop.items && shop.items.length > 0) {
       shop.items.forEach((shopItem, iIdx) => {
         let itemTpl = (window.gameItems || []).find(i => i.id === shopItem.itemId) || { name: shopItem.itemId, icon: '📦' };
+        let cType = shopItem.currencyType || 'copper';
         itemsHtml += `
           <div style="background:#16213e; padding:10px; border-radius:6px; display:flex; gap:10px; align-items:center; margin-bottom:8px;">
             <span style="font-size:20px;">${itemTpl.icon || '📦'}</span>
@@ -41,8 +42,16 @@ function renderShopList() {
                 ${(window.gameItems || []).map(it => `<option value="${it.id}" ${it.id === shopItem.itemId ? 'selected' : ''}>${it.name} (${it.id})</option>`).join('')}
               </select>
             </div>
-            <div style="width:90px;">
-              <label style="font-size:10px; color:#888; display:block;">單價 (銅幣)</label>
+            <div style="width:100px;">
+              <label style="font-size:10px; color:#888; display:block;">貨幣類型</label>
+              <select onchange="window.updateShopItem(${sIdx}, ${iIdx}, 'currencyType', this.value)" style="background:#0f0f15; color:#fff; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px; width:100%;">
+                <option value="copper" ${cType === 'copper' ? 'selected' : ''}>🪙 銅幣</option>
+                <option value="gold" ${cType === 'gold' ? 'selected' : ''}>💎 元寶</option>
+                <option value="starCoin" ${cType === 'starCoin' ? 'selected' : ''}>⭐ 摘星幣</option>
+              </select>
+            </div>
+            <div style="width:80px;">
+              <label style="font-size:10px; color:#888; display:block;">單價</label>
               <input type="number" value="${shopItem.price || 100}" onchange="window.updateShopItem(${sIdx}, ${iIdx}, 'price', parseInt(this.value))" style="background:#0f0f15; color:#f1c40f; border:1px solid #444; padding:4px; border-radius:4px; font-size:12px; width:100%;">
             </div>
             <div style="width:80px;">
@@ -111,7 +120,8 @@ window.addShopItem = function(sIdx) {
   window.globalData.shops[sIdx].items.push({
     itemId: firstItem ? firstItem.id : 'item_sword',
     price: 100,
-    stock: 99
+    stock: 99,
+    currencyType: 'copper'
   });
   saveData();
   renderShopList();
@@ -158,59 +168,36 @@ function saveShopState(state) {
   localStorage.setItem('my_game_shop_state', JSON.stringify(state));
 }
 
-// 核心：檢查並執行刷新 (嚴格對齊 UTC+8 時間)
 function checkAndRefreshShop(shop) {
-  // ★ 防呆：如果沒有刷新模式，強制設為每日刷新
   if (!shop.refreshType) shop.refreshType = 'daily';
-
   let state = getShopState();
   let shopState = state[shop.id];
-
   const now = new Date();
   const utc8Time = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (8 * 3600000));
-  
   let todayStr = utc8Time.getFullYear() + '-' + (utc8Time.getMonth() + 1) + '-' + utc8Time.getDate();
-  
   let day = utc8Time.getDay() || 7; 
   let monday = new Date(utc8Time);
   monday.setDate(utc8Time.getDate() - day + 1);
   let weekStr = monday.getFullYear() + '-' + (monday.getMonth() + 1) + '-' + monday.getDate();
 
   let needRefresh = false;
-
-  if (!shopState) {
-    needRefresh = true;
-  } else {
-    if (shop.refreshType === 'daily') {
-      if (shopState.lastRefreshDate !== todayStr) needRefresh = true;
-    } else if (shop.refreshType === 'weekly') {
-      if (shopState.lastRefreshWeek !== weekStr) needRefresh = true;
-    }
+  if (!shopState) needRefresh = true;
+  else {
+    if (shop.refreshType === 'daily' && shopState.lastRefreshDate !== todayStr) needRefresh = true;
+    else if (shop.refreshType === 'weekly' && shopState.lastRefreshWeek !== weekStr) needRefresh = true;
   }
 
   if (needRefresh) {
-    shopState = {
-      lastRefreshDate: todayStr,
-      lastRefreshWeek: weekStr,
-      stock: {}
-    };
-    if (shop.items) {
-      shop.items.forEach(it => {
-        shopState.stock[it.itemId] = it.stock !== undefined ? it.stock : 9999;
-      });
-    }
+    shopState = { lastRefreshDate: todayStr, lastRefreshWeek: weekStr, stock: {} };
+    if (shop.items) shop.items.forEach(it => shopState.stock[it.itemId] = it.stock !== undefined ? it.stock : 9999);
     state[shop.id] = shopState;
     saveShopState(state);
   }
-
   return shopState;
 }
 
-// ★ 新增：純數學計算，完美避開時區陷阱
 function updateCountdownUI(shopId, refreshType) {
-  // ★ 防呆：如果沒有刷新模式，強制設為每日刷新
   if (!refreshType) refreshType = 'daily';
-
   const timerEl = document.getElementById('shop-refresh-timer');
   if (!timerEl) return;
 
@@ -220,34 +207,21 @@ function updateCountdownUI(shopId, refreshType) {
     return;
   }
 
-  // 獲取當前絕對時間戳 (毫秒)
   const nowMs = Date.now();
-  // 獲取當前 UTC+8 對應的絕對時間戳偏移
   const utc8NowMs = nowMs + 8 * 3600000;
   const utc8Now = new Date(utc8NowMs);
-
   let targetMs = 0;
 
   if (refreshType === 'daily') {
-    // 目標：下一個 UTC+8 的 00:00:00
-    const y = utc8Now.getUTCFullYear();
-    const m = utc8Now.getUTCMonth();
-    const d = utc8Now.getUTCDate();
-    // Date.UTC 返回的是 UTC 時區的時間戳，減去 8 小時就是 UTC+8 的 0 點
+    const y = utc8Now.getUTCFullYear(), m = utc8Now.getUTCMonth(), d = utc8Now.getUTCDate();
     targetMs = Date.UTC(y, m, d + 1, 0, 0, 0) - 8 * 3600000;
   } else if (refreshType === 'weekly') {
-    // 目標：下一個 UTC+8 週一的 00:00:00
-    const y = utc8Now.getUTCFullYear();
-    const m = utc8Now.getUTCMonth();
-    const d = utc8Now.getUTCDate();
+    const y = utc8Now.getUTCFullYear(), m = utc8Now.getUTCMonth(), d = utc8Now.getUTCDate();
     const day = utc8Now.getUTCDay() || 7;
-    const daysToNextMonday = 8 - day;
-    
-    targetMs = Date.UTC(y, m, d + daysToNextMonday, 0, 0, 0) - 8 * 3600000;
+    targetMs = Date.UTC(y, m, d + (8 - day), 0, 0, 0) - 8 * 3600000;
   }
 
   const diff = targetMs - nowMs;
-
   if (diff <= 0) {
     timerEl.innerText = '(刷新中...)';
     timerEl.style.color = '#2ecc71';
@@ -259,20 +233,15 @@ function updateCountdownUI(shopId, refreshType) {
   const s = Math.floor((diff % (1000 * 60)) / 1000);
 
   timerEl.innerText = `(距下次刷新 ${h}時 ${min}分 ${s}秒)`;
-  timerEl.style.color = h < 1 ? '#e67e22' : '#aaa'; // 剩餘不到 1 小時變橘色
+  timerEl.style.color = h < 1 ? '#e67e22' : '#aaa';
 }
 
 window.openShopUI = function(shopId = 'shop_daily') {
   let shops = window.globalData?.shops || [];
-  if (shops.length === 0) {
-    alert('目前沒有可用的坊市商店！請先去編輯器新增。');
-    return;
-  }
+  if (shops.length === 0) return alert('目前沒有可用的坊市商店！請先去編輯器新增。');
 
   let shop = shops.find(s => s.id === shopId) || shops[0];
-  // ★ 防呆：確保前台運作時 shop.refreshType 一定有值
   if (!shop.refreshType) shop.refreshType = 'daily';
-
   let currentShopState = checkAndRefreshShop(shop);
 
   let scaleContainer = document.getElementById('game-scale-container') || document.body;
@@ -292,6 +261,8 @@ window.openShopUI = function(shopId = 'shop_daily') {
 
   let itemsDict = window.ITEMS || {};
   let currentCopper = window.globalData.currency?.copper || 0;
+  let currentGold = window.globalData.currency?.gold || 0;
+  let currentStarCoin = window.globalData.currency?.starCoin || 0;
 
   let itemsHtml = '';
   if (shop.items && shop.items.length > 0) {
@@ -300,16 +271,20 @@ window.openShopUI = function(shopId = 'shop_daily') {
       if (!tpl) return;
       
       let stockCount = currentShopState.stock[item.itemId] !== undefined ? currentShopState.stock[item.itemId] : 0;
-      let stockDisplay = `庫存: ${stockCount}`;
       let isSoldOut = stockCount <= 0;
+      
+      let cType = item.currencyType || 'copper';
+      let cName = cType === 'copper' ? '銅幣' : (cType === 'gold' ? '元寶' : '摘星幣');
+      let cIcon = cType === 'copper' ? '🪙' : (cType === 'gold' ? '💎' : '⭐');
+      let cColor = cType === 'copper' ? '#f1c40f' : (cType === 'gold' ? '#3498db' : '#e74c3c');
 
       itemsHtml += `
         <div style="background: rgba(15, 15, 25, 0.9); border: 2px solid ${isSoldOut ? '#444' : '#f1c40f'}; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; position: relative; opacity: ${isSoldOut ? 0.6 : 1};">
           <div style="font-size: 48px; margin-bottom: 10px;">${tpl.icon || '📦'}</div>
           <div style="font-size: 20px; font-weight: bold; color: #fff; text-align: center; margin-bottom: 5px;">${tpl.name}</div>
           <div style="font-size: 14px; color: #aaa; text-align: center; margin-bottom: 15px; height: 40px; overflow: hidden;">${tpl.desc || '暫無描述'}</div>
-          <div style="font-size: 14px; color: ${isSoldOut ? '#e74c3c' : '#2ecc71'}; margin-bottom: 5px;">${stockDisplay}</div>
-          <div style="font-size: 18px; color: #f1c40f; font-weight: bold; margin-bottom: 15px;">🪙 ${item.price} 銅幣</div>
+          <div style="font-size: 14px; color: ${isSoldOut ? '#e74c3c' : '#2ecc71'}; margin-bottom: 5px;">庫存: ${stockCount}</div>
+          <div style="font-size: 18px; color: ${cColor}; font-weight: bold; margin-bottom: 15px;">${cIcon} ${item.price} ${cName}</div>
           <button ${isSoldOut ? 'disabled' : ''} onclick="window.openBuyQuantityModal('${shop.id}', ${idx})" style="width: 100%; padding: 10px; background: ${isSoldOut ? '#555' : '#e67e22'}; color: #fff; border: none; border-radius: 6px; font-weight: bold; cursor: ${isSoldOut ? 'not-allowed' : 'pointer'}; font-size: 16px;">
             ${isSoldOut ? '已售罄' : '購買'}
           </button>
@@ -317,29 +292,25 @@ window.openShopUI = function(shopId = 'shop_daily') {
       `;
     });
   } else {
-    itemsHtml = `<div style="grid-column: span 4; text-align: center; color: #888; font-size: 22px; margin-top: 100px;">坊市目前空空如也，沒有上架任何商品。</div>`;
+    itemsHtml = `<div style="grid-column: span 4; text-align: center; color: #888; font-size: 22px; margin-top: 100px;">坊市目前空空如也。</div>`;
   }
 
   uiDiv.innerHTML = `
-    <!-- 頂部標題與商店切換 Tab -->
     <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
       <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.6); padding: 15px 25px; border-radius: 10px; border-bottom: 2px solid #333;">
-        
         <div style="display: flex; align-items: baseline; gap: 15px;">
           <h2 style="color: #f1c40f; margin: 0; font-size: 28px;">🛒 ${shop.name}</h2>
-          <!-- 倒計時顯示區 -->
           <span id="shop-refresh-timer" style="font-size: 14px; color: #aaa; font-weight: normal;"></span>
         </div>
         
-        <div style="display: flex; gap: 30px; align-items: center;">
-          <span style="font-size: 20px; font-weight: bold; color: #f1c40f;">🪙 銅幣: <span id="shop-copper-display">${currentCopper}</span></span>
-          <button onclick="window.closeShopUI()" style="background: #c0392b; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-size: 18px; font-weight: bold; cursor: pointer;">✖ 離開坊市</button>
+        <div style="display: flex; gap: 20px; align-items: center;">
+          <span style="font-size: 16px; font-weight: bold; color: #f1c40f;">🪙 銅幣: ${currentCopper}</span>
+          <span style="font-size: 16px; font-weight: bold; color: #3498db;">💎 元寶: ${currentGold}</span>
+          <span style="font-size: 16px; font-weight: bold; color: #e74c3c;">⭐ 摘星幣: ${currentStarCoin}</span>
+          <button onclick="window.closeShopUI()" style="background: #c0392b; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-left: 10px;">✖ 離開</button>
         </div>
       </div>
-      
-      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        ${shopTabsHtml}
-      </div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">${shopTabsHtml}</div>
     </div>
 
     <div style="flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; overflow-y: auto; align-content: start; padding-bottom: 20px;">
@@ -349,7 +320,7 @@ window.openShopUI = function(shopId = 'shop_daily') {
     <div id="shop-buy-modal" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 3px solid #f1c40f; border-radius: 12px; padding: 25px; z-index: 9800; width: 400px; text-align: center; box-shadow: 0 15px 40px rgba(0,0,0,0.9);">
       <h3 style="color: #f1c40f; margin-bottom: 15px; font-size: 22px;" id="modal-item-title">購買商品</h3>
       <div style="font-size: 40px; margin-bottom: 10px;" id="modal-item-icon">📦</div>
-      <div style="color: #aaa; font-size: 14px; margin-bottom: 15px;" id="modal-item-price-info">單價: 0 銅幣</div>
+      <div style="color: #aaa; font-size: 14px; margin-bottom: 15px;" id="modal-item-price-info">單價: 0</div>
       
       <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px;">
         <button onclick="window.adjustBuyQty(-10)" style="background:#444; color:#fff; border:none; padding:8px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">-10</button>
@@ -360,7 +331,7 @@ window.openShopUI = function(shopId = 'shop_daily') {
       </div>
 
       <div style="font-size: 18px; color: #f1c40f; font-weight: bold; margin-bottom: 20px;">
-        總價: <span id="modal-total-price">0</span> 銅幣
+        總價: <span id="modal-total-price">0</span>
       </div>
 
       <div style="display: flex; gap: 15px; justify-content: center;">
@@ -371,23 +342,15 @@ window.openShopUI = function(shopId = 'shop_daily') {
   `;
 
   scaleContainer.appendChild(uiDiv);
-
-  // ★ 啟動倒計時定時器
   if (window._shopCountdownTimer) clearInterval(window._shopCountdownTimer);
   updateCountdownUI(shop.id, shop.refreshType);
-  window._shopCountdownTimer = setInterval(() => {
-    updateCountdownUI(shop.id, shop.refreshType);
-  }, 1000);
+  window._shopCountdownTimer = setInterval(() => updateCountdownUI(shop.id, shop.refreshType), 1000);
 };
 
 window.closeShopUI = function() {
   let ui = document.getElementById('shop-fullscreen-ui');
   if (ui) ui.remove();
-  
-  if (window._shopCountdownTimer) {
-    clearInterval(window._shopCountdownTimer);
-    window._shopCountdownTimer = null;
-  }
+  if (window._shopCountdownTimer) { clearInterval(window._shopCountdownTimer); window._shopCountdownTimer = null; }
 };
 
 let _currentShopId = '';
@@ -407,13 +370,15 @@ window.openBuyQuantityModal = function(shopId, itemIdx) {
   let state = getShopState();
   let shopState = state[shopId];
   let currentStock = shopState?.stock[shopItem.itemId] || 0;
+  let cType = shopItem.currencyType || 'copper';
+  let cName = cType === 'copper' ? '銅幣' : (cType === 'gold' ? '元寶' : '摘星幣');
 
   const modal = document.getElementById('shop-buy-modal');
   if (!modal) return;
 
   document.getElementById('modal-item-title').innerText = `購買 ${tpl.name}`;
   document.getElementById('modal-item-icon').innerText = tpl.icon || '📦';
-  document.getElementById('modal-item-price-info').innerText = `單價: ${shopItem.price} 銅幣 | 可購數量: ${currentStock}`;
+  document.getElementById('modal-item-price-info').innerText = `單價: ${shopItem.price} ${cName} | 可購數量: ${currentStock}`;
   
   const input = document.getElementById('buy-qty-input');
   input.value = 1;
@@ -423,13 +388,10 @@ window.openBuyQuantityModal = function(shopId, itemIdx) {
   document.getElementById('modal-confirm-buy-btn').onclick = () => {
     let qty = parseInt(document.getElementById('buy-qty-input').value) || 1;
     let totalPrice = shopItem.price * qty;
-
     window.showShopConfirmDialog(
       '購買確認', 
-      `確定要花費 <span style="color:#f1c40f; font-weight:bold;">${totalPrice}</span> 銅幣購買 <span style="color:#f1c40f; font-weight:bold;">${tpl.name} × ${qty}</span> 嗎？`,
-      () => {
-        window.executeBatchBuy(shop, shopItem, qty);
-      }
+      `確定要花費 <span style="color:#f1c40f; font-weight:bold;">${totalPrice}</span> ${cName}購買 <span style="color:#f1c40f; font-weight:bold;">${tpl.name} × ${qty}</span> 嗎？`,
+      () => window.executeBatchBuy(shop, shopItem, qty)
     );
   };
 
@@ -444,9 +406,7 @@ window.closeBuyQuantityModal = function() {
 window.adjustBuyQty = function(delta) {
   const input = document.getElementById('buy-qty-input');
   if (!input) return;
-
   let current = parseInt(input.value) || 1;
-  
   let state = getShopState();
   let shopState = state[_currentShopId];
   let shop = (window.globalData?.shops || []).find(s => s.id === _currentShopId);
@@ -456,7 +416,6 @@ window.adjustBuyQty = function(delta) {
   let next = current + delta;
   if (next < 1) next = 1;
   if (next > maxStock) next = maxStock;
-
   input.value = next;
   window.updateBuyTotalPrice();
 };
@@ -464,7 +423,6 @@ window.adjustBuyQty = function(delta) {
 window.onBuyQtyChange = function() {
   const input = document.getElementById('buy-qty-input');
   if (!input) return;
-
   let qty = parseInt(input.value);
   if (isNaN(qty) || qty < 1) qty = 1;
 
@@ -476,7 +434,6 @@ window.onBuyQtyChange = function() {
 
   if (qty > maxStock) qty = maxStock;
   input.value = qty;
-
   window.updateBuyTotalPrice();
 };
 
@@ -484,11 +441,8 @@ window.updateBuyTotalPrice = function() {
   let shop = (window.globalData?.shops || []).find(s => s.id === _currentShopId);
   let shopItem = shop ? shop.items[_currentShopItemIdx] : null;
   if (!shopItem) return;
-
   let qty = parseInt(document.getElementById('buy-qty-input').value) || 1;
-  let totalPrice = shopItem.price * qty;
-
-  document.getElementById('modal-total-price').innerText = totalPrice;
+  document.getElementById('modal-total-price').innerText = shopItem.price * qty;
 };
 
 window.executeBatchBuy = function(shop, shopItem, qty) {
@@ -496,24 +450,22 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
   if (!tpl) return;
 
   let totalPrice = shopItem.price * qty;
-  let currentCopper = window.globalData.currency?.copper || 0;
+  let cType = shopItem.currencyType || 'copper';
+  let cName = cType === 'copper' ? '銅幣' : (cType === 'gold' ? '元寶' : '摘星幣');
+  let currentCurrency = cType === 'copper' ? (window.globalData.currency?.copper || 0) :
+                        (cType === 'gold' ? (window.globalData.currency?.gold || 0) : (window.globalData.currency?.starCoin || 0));
 
   let state = getShopState();
   let shopState = state[shop.id];
   let currentStock = shopState?.stock[shopItem.itemId] || 0;
 
-  if (currentStock < qty) {
-    alert(`購買失敗：庫存不足！現有庫存僅剩 ${currentStock} 個。`);
-    return;
-  }
+  if (currentStock < qty) return alert(`購買失敗：庫存不足！現有庫存僅剩 ${currentStock} 個。`);
+  if (currentCurrency < totalPrice) return alert(`${cName}不足！總價需 ${totalPrice} ${cName}，還缺少 ${totalPrice - currentCurrency} ${cName}。`);
 
-  if (currentCopper < totalPrice) {
-    let missingCopper = totalPrice - currentCopper;
-    alert(`銅幣不足！總價需 ${totalPrice} 銅幣，還缺少 ${missingCopper} 銅幣。`);
-    return;
-  }
+  if (cType === 'copper') window.globalData.currency.copper -= totalPrice;
+  else if (cType === 'gold') window.globalData.currency.gold -= totalPrice;
+  else if (cType === 'starCoin') window.globalData.currency.starCoin -= totalPrice;
 
-  window.globalData.currency.copper -= totalPrice;
   shopState.stock[shopItem.itemId] = currentStock - qty;
   saveShopState(state);
 
@@ -522,34 +474,17 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   if (isEquip) {
     for (let i = 0; i < qty; i++) {
-      let inst = typeof generateRandomInstance === 'function' 
-        ? generateRandomInstance(shopItem.itemId) 
-        : { 
-            uid: 'inst_' + Date.now() + Math.random(), 
-            itemId: shopItem.itemId, 
-            quality: 'white', count: 1, equippedBy: '',
-            baseAtk: 50, baseDef: 20, baseHp: 100, extras: []
-          };
+      let inst = typeof generateRandomInstance === 'function' ? generateRandomInstance(shopItem.itemId) : null;
       if (inst) window.INVENTORY.push(inst);
     }
   } else {
     let existing = window.INVENTORY.find(i => i.itemId === shopItem.itemId && !i.equippedBy);
-    if (existing) {
-      existing.count = (existing.count || 1) + qty;
-    } else {
-      window.INVENTORY.push({
-        uid: 'inst_' + Date.now() + Math.floor(Math.random() * 1000),
-        itemId: shopItem.itemId,
-        quality: 'white',
-        count: qty,
-        equippedBy: ''
-      });
-    }
+    if (existing) existing.count = (existing.count || 1) + qty;
+    else window.INVENTORY.push({ uid: 'inst_' + Date.now() + Math.floor(Math.random() * 1000), itemId: shopItem.itemId, quality: 'white', count: qty, equippedBy: '' });
   }
 
-  if (typeof saveData === 'function') {
-    saveData();
-  } else {
+  if (typeof saveData === 'function') saveData();
+  else {
     localStorage.setItem('my_game_characters', JSON.stringify(window.CHARACTERS || []));
     localStorage.setItem('my_game_inventory_sync', JSON.stringify(window.INVENTORY || []));
     localStorage.setItem('my_game_config', JSON.stringify(window.globalData));
@@ -557,44 +492,28 @@ window.executeBatchBuy = function(shop, shopItem, qty) {
 
   window.closeBuyQuantityModal();
   window.openShopUI(shop.id); 
-
-  setTimeout(() => {
-    alert(`🎉 成功購買 ${tpl.name} x${qty}！`);
-  }, 100);
+  setTimeout(() => alert(`🎉 成功購買 ${tpl.name} x${qty}！`), 100);
 };
 
 window.showShopConfirmDialog = function(title, messageHtml, onConfirm) {
   let existing = document.getElementById('custom-shop-confirm');
   if (existing) existing.remove();
-
   let scaleContainer = document.getElementById('game-scale-container') || document.body;
-  
   let modal = document.createElement('div');
   modal.id = 'custom-shop-confirm';
   modal.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; justify-content: center; align-items: center; pointer-events: auto;';
-
   modal.innerHTML = `
     <div style="background: #1e2746; border: 3px solid #f1c40f; border-radius: 12px; width: 420px; padding: 30px; text-align: center; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
       <div onclick="this.parentElement.parentElement.remove()" style="position: absolute; top: 10px; right: 15px; font-size: 20px; color: #aaa; cursor: pointer; font-weight: bold;">✖</div>
       <h3 style="color: #f1c40f; font-size: 26px; font-weight: bold; margin-bottom: 20px; letter-spacing: 2px;">${title}</h3>
-      <div style="color: #fff; font-size: 18px; margin-bottom: 35px; line-height: 1.5;">
-        ${messageHtml}
-      </div>
+      <div style="color: #fff; font-size: 18px; margin-bottom: 35px; line-height: 1.5;">${messageHtml}</div>
       <div style="display: flex; justify-content: center; gap: 20px;">
         <button id="confirm-btn-yes" style="flex: 1; padding: 12px 0; background: #27ae60; color: #fff; border: none; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">是</button>
         <button id="confirm-btn-no" style="flex: 1; padding: 12px 0; background: #c0392b; color: #fff; border: none; border-radius: 6px; font-size: 20px; font-weight: bold; cursor: pointer; transition: 0.2s;">否</button>
       </div>
     </div>
   `;
-
   scaleContainer.appendChild(modal);
-
-  modal.querySelector('#confirm-btn-yes').onclick = () => {
-    modal.remove();
-    if (typeof onConfirm === 'function') onConfirm();
-  };
-
-  modal.querySelector('#confirm-btn-no').onclick = () => {
-    modal.remove();
-  };
+  modal.querySelector('#confirm-btn-yes').onclick = () => { modal.remove(); if (typeof onConfirm === 'function') onConfirm(); };
+  modal.querySelector('#confirm-btn-no').onclick = () => modal.remove();
 };
