@@ -209,6 +209,11 @@
                     <span id="account-reward-badge" class="reward-badge">0</span>
                 </div>
             </div>
+             <!-- ★ 新增：大廳貨幣顯示 -->
+                <div id="index-currency-display" style="display: flex; gap: 20px; font-size: 18px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">
+                    <span style="color: #f1c40f;" id="index-copper">🪙 銅幣: 0</span>
+                    <span style="color: #3498db;" id="index-gold">💎 元寶: 0</span>
+                </div>
             <button class="btn-editor-quick" onclick="window.location.href='editor.html'">⚙️ 開啟配置中心</button>
         </div>
 
@@ -310,8 +315,10 @@
             renderIndexLeftSidebar();
             refreshTowerEntry();
             refreshAccountBadge();
+            updateIndexCurrency();
         }
 
+        
         function updateBackgroundDisplay() {
             if (mainConfig && mainConfig.bgList && mainConfig.bgList.length > 0) {
                 if (currentBgIndex >= mainConfig.bgList.length) currentBgIndex = 0;
@@ -412,6 +419,18 @@
             }
         }
 
+        function updateIndexCurrency() {
+            let globalData = window.globalData;
+            if (!globalData) {
+                try { globalData = JSON.parse(localStorage.getItem('my_game_config')) || {}; } catch(e) {}
+            }
+            if (globalData && globalData.currency) {
+                let copperEl = document.getElementById('index-copper');
+                let goldEl = document.getElementById('index-gold');
+                if (copperEl) copperEl.innerText = `🪙 銅幣: ${globalData.currency.copper || 0}`;
+                if (goldEl) goldEl.innerText = `💎 元寶: ${globalData.currency.gold || 0}`;
+            }
+        }
         function refreshAccountBadge() {
             if (window.AccountSystem && typeof window.AccountSystem.updateTopLeftDisplay === 'function') {
                 try { window.AccountSystem.updateTopLeftDisplay(); return; } catch (e) {}
