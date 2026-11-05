@@ -160,6 +160,9 @@ function saveShopState(state) {
 
 // 核心：檢查並執行刷新 (嚴格對齊 UTC+8 時間)
 function checkAndRefreshShop(shop) {
+  // ★ 防呆：如果沒有刷新模式，強制設為每日刷新
+  if (!shop.refreshType) shop.refreshType = 'daily';
+
   let state = getShopState();
   let shopState = state[shop.id];
 
@@ -205,6 +208,9 @@ function checkAndRefreshShop(shop) {
 
 // ★ 新增：純數學計算，完美避開時區陷阱
 function updateCountdownUI(shopId, refreshType) {
+  // ★ 防呆：如果沒有刷新模式，強制設為每日刷新
+  if (!refreshType) refreshType = 'daily';
+
   const timerEl = document.getElementById('shop-refresh-timer');
   if (!timerEl) return;
 
@@ -264,6 +270,9 @@ window.openShopUI = function(shopId = 'shop_daily') {
   }
 
   let shop = shops.find(s => s.id === shopId) || shops[0];
+  // ★ 防呆：確保前台運作時 shop.refreshType 一定有值
+  if (!shop.refreshType) shop.refreshType = 'daily';
+
   let currentShopState = checkAndRefreshShop(shop);
 
   let scaleContainer = document.getElementById('game-scale-container') || document.body;
