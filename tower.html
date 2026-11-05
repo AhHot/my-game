@@ -451,6 +451,7 @@
       if (!rewardCfg) return tags;
       if (rewardCfg.exp > 0) tags.push({ type: 'exp', text: `📈 角色經驗 +${rewardCfg.exp}` });
       if (rewardCfg.accountExp > 0) tags.push({ type: 'acc-exp', text: `🎖️ 帳號經驗 +${rewardCfg.accountExp}` });
+      if (rewardCfg.starCoin > 0) tags.push({ type: 'acc-exp', text: `⭐ 摘星幣 +${rewardCfg.starCoin}` });
       const drops = Array.isArray(rewardCfg.drops) ? rewardCfg.drops : [];
       drops.forEach(drop => {
         if (!drop || !drop.itemId) return;
@@ -728,7 +729,7 @@
     function executeSweep() {
       const tp = getTowerProgress();
       const maxCleared = tp.maxClearedFloor || 0;
-      let totalExp = 0, totalAccExp = 0, processedFloors = 0;
+      let totalExp = 0, totalAccExp = 0, totalStarCoin = 0, processedFloors = 0; // ★ 新增 totalStarCoin
       for (let f = 1; f <= maxCleared; f++) {
         const info = getFloorInfo(f);
         if (!info) continue;
@@ -736,10 +737,17 @@
         const repeat = info.lv.repeatRewards || {};
         if (repeat.exp > 0) totalExp += repeat.exp;
         if (repeat.accountExp > 0) totalAccExp += repeat.accountExp;
+        if (repeat.starCoin > 0) totalStarCoin += repeat.starCoin; // ★ 新增
         const drops = Array.isArray(repeat.drops) ? repeat.drops : [];
         drops.forEach(drop => grantDrop(drop));
       }
       if (totalExp > 0) grantCharExp(totalExp);
+     // ★ 新增：发放摘星币
+      if (totalStarCoin > 0) {
+        if (!window.globalData.currency) window.globalData.currency = {};
+        window.globalData.currency.starCoin = (window.globalData.currency.starCoin || 0) + totalStarCoin;
+        if (typeof saveData === 'function') saveData();
+      }
 
       let accLevelUpMsg = '';
       if (totalAccExp > 0 && window.AccountSystem && window.AccountSystem.addAccountExp) {
@@ -760,6 +768,7 @@
       let msg = `✅ 掃蕩完成！\n共掃蕩 ${processedFloors} 層`;
       if (totalExp > 0) msg += `\n📈 角色經驗 +${totalExp}`;
       if (totalAccExp > 0) msg += `\n🎖️ 帳號經驗 +${totalAccExp}`;
+      if (totalStarCoin > 0) msg += `\n⭐ 摘星幣 +${totalStarCoin}`; // ★ 新增
       msg += accLevelUpMsg;
       toast(msg, '#2ecc71', 4000);
       setTimeout(() => render(), 100);
